@@ -1,0 +1,521 @@
+# ==========================================
+# ChronoVault - Comprehensive .gitignore
+# ==========================================
+
+# ==================== Sensitive Files & Secrets ====================
+# NEVER commit these files - they contain credentials, keys, tokens
+
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.secret
+*.secrets
+secrets.json
+secrets.yaml
+secrets.yml
+credentials.json
+credentials.yaml
+credentials.yml
+service-account*.json
+*-service-account.json
+**/secrets/
+**/credentials/
+*.htpasswd
+.htaccess
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.gpg
+*.asc
+
+# ==================== Node.js / JavaScript / TypeScript ====================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.pnp.cjs
+.pnp.mjs
+
+# Build output
+dist/
+dist-ssr/
+build/
+out/
+.output/
+.nuxt/
+.next/
+.vercel/
+
+# Package manager lock files (uncomment if preferred)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+# bun.lockb
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+pnpm-error.log*
+lerna-debug.log*
+bun-debug.log*
+.report/
+*.pid
+*.seed
+*.pid.lock
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage & testing
+coverage/
+.nyc_output/
+*.lcov
+*.coveragereport
+junit.xml
+test-results/
+playwright-report/
+blob-report/
+test-output/
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# TypeScript cache & build info
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+*.tsbuildinfo.*
+tsconfig*.tsbuildinfo
+
+# ==================== Python ====================
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.conda/
+*.egg-info/
+*.egg
+dist/
+build/
+eggs/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+parts/
+var/
+wheels/
+MANIFEST
+
+# Django
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+media/
+staticfiles/
+static_collected/
+local_settings.py
+
+# Flask
+instance/
+.webassets-cache
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ruff
+.ruff_cache/
+
+# ==================== Java / Spring ====================
+
+# Build
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+.gradle/
+gradle/
+gradlew
+gradlew.bat
+!gradle/wrapper/gradle-wrapper.jar
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+!.mvn/wrapper/maven-wrapper.jar
+*.log
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.idea_modules/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+.factorypath
+
+# ==================== Go ====================
+
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+go.sum
+
+# ==================== Rust / Cargo ====================
+
+target/
+**/*.rs.bk
+Cargo.lock
+
+# ==================== C / C++ ====================
+
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+*.out
+*.exe
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+
+# ==================== Docker ====================
+
+.docker/
+docker-compose.override.yml
+docker-compose.*.yml
+!docker-compose.yml
+!docker-compose.yaml
+*.tar
+*.tar.gz
+docker-data/
+
+# ==================== Database ====================
+
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# MySQL
+*.sql.gz
+*.sql.bz2
+dump.rdb
+
+# MongoDB
+data/db/
+mongod.lock
+
+# Redis
+dump.rdb
+appendonly.aof
+*.rdb
+
+# PostgreSQL
+*.sql
+!migrations/**/*.sql
+
+# ==================== Cloud & Infrastructure ====================
+
+# AWS
+.aws/
+*.pem
+*.ppk
+
+# GCP
+.gcloud/
+application_default_credentials.json
+
+# Azure
+.azure/
+*.publishsettings
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Ansible
+*.retry
+.vault_pass
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+kube-config
+
+# ==================== CI / CD ====================
+
+.github/secrets/
+.gitlab/secrets/
+.circleci/secrets/
+jenkins-*.xml
+*.jks
+
+# ==================== Editor & IDE ====================
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.code-workspace
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim / Neovim
+*.swp
+*.swo
+*.swn
+*.un~
+Session.vim
+.netrwhist
+tags
+
+# Emacs
+*~
+\#*\#
+.#*
+*.elc
+
+# Xcode
+*.xcworkspace
+xcuserdata/
+*.xcuserstate
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Android Studio
+*.apk
+*.aab
+*.ap_
+*.dex
+local.properties
+*.jks
+*.keystore
+google-services.json
+
+# ==================== OS Generated Files ====================
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+Icon?
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.directory
+.nfs*
+
+# ==================== Misc ====================
+
+# Archives
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+*.zst
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*~
+.*.swp
+.*.swo
+
+# Misc
+.cache/
+.parcel-cache/
+*.local
+.history/
+.history
+.sass-cache/
+.grunt/
+bower_components/
+.jspm_packages/
+.web-server-pid
+
+# Storybook
+storybook-static/
+
+# ==================== Project-Specific ====================
+
+# Frontend build artifacts
+frontend/dist/
+frontend/dist-ssr/
+frontend/node_modules/
+
+# Backend build artifacts (adjust to your backend stack)
+backend/target/
+backend/build/
+backend/node_modules/
+backend/__pycache__/
+backend/*.pyc
+backend/venv/
+backend/.env
+
+# Database files
+*.sqlite3
+data/*.db
+
+# Upload & storage
+uploads/
+storage/
+tmp/
+temp/
+
+# Logs & monitoring
+*.log
+logs/
+pids/
+monitoring-data/
+
+# Local overrides
+*.local.json
+*.local.yaml
+*.local.yml
+local.config.*
+local.settings.*
+
+# Prototype & design files (keep in separate repo or cloud storage)
+# 原型图/   # Uncomment if you don't want to track prototypes
+
+# ==================== Allow These Files ====================
+# Ensure important config templates are tracked
+!.env.example
+!.env.template
+!.gitignore
+!*.example
+!*.sample
+!*.template
+!docker-compose.yml
+!docker-compose.yaml
+!Dockerfile
+!Makefile
+!README.md
+!LICENSE

@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: chronovault-backend
+  profiles:
+    active: dev
+  task:
+    execution:
+      pool:
+        core-size: 4
+        max-size: 16
+        queue-capacity: 100
+      thread-name-prefix: cv-task-
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          lob:
+            non_contextual_creation: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.chronovault: DEBUG
+    org.springframework.security: INFO
+
+# ChronoVault configuration
+chronovault:
+  master-key: ${CHRONOVAULT_MASTER_KEY:chronovault-dev-master-key-change-in-production}
+  ssh:
+    connection-timeout: 10000
+    command-timeout: 60000
+    max-connections-per-server: 3
+    keepalive-interval: 30000
+  ai:
+    enabled: true
+    base-url: ${MIMO_BASE_URL:https://api.xiaomimimo.com/v1}
+    api-key: ${MIMO_API_KEY:}
+    model: ${MIMO_MODEL:mimo-v2.5-pro}
+    max-tokens: 4096
+    temperature: 0.7
+  agent:
+    heartbeat-interval: 30000
+    task-poll-interval: 10000
