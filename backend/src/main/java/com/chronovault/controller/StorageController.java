@@ -1,17 +1,18 @@
 package com.chronovault.controller;
 
+import com.chronovault.dto.storage.CreateStorageRequest;
 import com.chronovault.dto.storage.StorageDistributionDTO;
 import com.chronovault.dto.storage.StorageHealthDTO;
 import com.chronovault.dto.storage.StorageOverviewDTO;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.StorageService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/storage")
@@ -36,14 +37,24 @@ public class StorageController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<StorageOverviewDTO>> addTarget(Authentication auth, @RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<StorageOverviewDTO>> addTarget(Authentication auth, @Valid @RequestBody CreateStorageRequest request) {
         StorageOverviewDTO target = storageService.addTarget(
                 auth.getName(),
-                (String) body.get("type"),
-                (String) body.get("name"),
-                (String) body.get("endpoint"),
-                body.containsKey("totalBytes") ? ((Number) body.get("totalBytes")).longValue() : null
+                request.type(),
+                request.name(),
+                request.endpoint(),
+                request.totalBytes(),
+                request.accessKey(),
+                request.secretKey(),
+                request.region(),
+                request.bucket()
         );
         return ResponseEntity.ok(ApiResponse.success(target));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteTarget(@PathVariable Long id) {
+        storageService.deleteTarget(id);
+        return ResponseEntity.ok(ApiResponse.successMsg("存储目标已删除"));
     }
 }

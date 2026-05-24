@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -21,7 +22,7 @@ func ScanDatabases() []DatabaseInfo {
 	}
 
 	for _, check := range dbChecks {
-		conn, err := net.DialTimeout("tcp", "localhost:"+itoa(check.port), 2*time.Second)
+		conn, err := net.DialTimeout("tcp", "localhost:"+strconv.Itoa(check.port), 2*time.Second)
 		if err != nil {
 			continue
 		}
@@ -56,28 +57,6 @@ func ScanDatabases() []DatabaseInfo {
 	}
 
 	return databases
-}
-
-func itoa(i int) string {
-	return strings.TrimSpace(strings.Replace(
-		strings.Replace(
-			strings.Replace(
-				strings.Replace(
-					strings.Replace(
-						strings.Replace(
-							strings.Replace(
-								strings.Replace(
-									strings.Replace(
-										strings.Replace("0", "0", "0", -1),
-										"0", "1", -1),
-									"0", "2", -1),
-								"0", "3", -1),
-							"0", "4", -1),
-						"0", "5", -1),
-					"0", "6", -1),
-				"0", "7", -1),
-			"0", "8", -1),
-		"0", "9", -1))
 }
 
 func extractVersion(s string) string {

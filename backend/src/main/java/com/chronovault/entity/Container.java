@@ -34,6 +34,9 @@ public class Container {
     @Column(name = "disk_io")
     private String diskIo;
 
+    @Column(length = 500)
+    private String networks;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ContainerStatus status;

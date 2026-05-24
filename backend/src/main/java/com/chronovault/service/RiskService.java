@@ -15,6 +15,7 @@ import com.chronovault.task.AsyncTaskManager;
 import com.chronovault.task.TaskType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,16 @@ public class RiskService {
     private final ServerRepository serverRepository;
     private final SshConnectionManager sshManager;
     private final AsyncTaskManager taskManager;
+
+    @Scheduled(fixedRate = 600000) // Every 10 minutes
+    public void scheduledScan() {
+        log.info("Running scheduled risk scan...");
+        try {
+            scan();
+        } catch (Exception e) {
+            log.warn("Scheduled risk scan failed: {}", e.getMessage());
+        }
+    }
 
     public RiskScoreDTO getScore() {
         long critical = riskRepository.countByLevel(Risk.RiskLevel.CRITICAL);
@@ -55,25 +66,34 @@ public class RiskService {
     public List<RiskTrendDTO> getTrend() {
         // Aggregate risk counts by day from the database
         List<Risk> allRisks = riskRepository.findAll();
-        Map<String, Integer> dailyCounts = new TreeMap<>();
+        Map<String, int[]> dailyCounts = new TreeMap<>();
 
-        // Initialize last 30 days
+        // Initialize last 30 days: [total, critical, warning]
         for (int i = 29; i >= 0; i--) {
             String day = LocalDate.now().minusDays(i).format(DateTimeFormatter.ofPattern("MM-dd"));
-            dailyCounts.put(day, 0);
+            dailyCounts.put(day, new int[]{0, 0, 0});
         }
 
-        // Count risks by discovered date
+        // Count risks by discovered date and level
         for (Risk risk : allRisks) {
             if (risk.getDiscoveredAt() != null) {
                 String day = risk.getDiscoveredAt().format(DateTimeFormatter.ofPattern("MM-dd"));
-                dailyCounts.merge(day, 1, Integer::sum);
+                int[] data = dailyCounts.get(day);
+                if (data != null) {
+                    data[0]++;
+                    if (risk.getLevel() == Risk.RiskLevel.CRITICAL) data[1]++;
+                    else if (risk.getLevel() == Risk.RiskLevel.WARNING) data[2]++;
+                }
             }
         }
 
         return dailyCounts.entrySet().stream()
-                .map(e -> new RiskTrendDTO(e.getKey(),
-                        Math.max(0, 100 - e.getValue() * 10.0)))
+                .map(e -> {
+                    int[] data = e.getValue();
+                    double stability = Math.max(0, 100 - data[0] * 10.0);
+                    double security = Math.max(0, 100 - (data[1] * 15 + data[2] * 8));
+                    return new RiskTrendDTO(e.getKey(), stability, security);
+                })
                 .toList();
     }
 
@@ -82,8 +102,8 @@ public class RiskService {
         List<Server> servers = serverRepository.findAll();
 
         for (Server server : servers) {
-            double healthScore = 90.0;
-            String status = "HEALTHY";
+            double healthScore = -1; // -1 means "not yet detected"
+            String status = "UNKNOWN";
 
             try {
                 SshConnection conn = sshManager.getConnection(server);
@@ -100,12 +120,12 @@ public class RiskService {
                 status = "OFFLINE";
             }
 
-            nodes.add(new RiskNodeDTO(server.getName(), Math.round(healthScore * 10.0) / 10.0, status));
+            nodes.add(new RiskNodeDTO(server.getId(), server.getName(), Math.round(healthScore * 10.0) / 10.0, status));
         }
 
         if (nodes.isEmpty()) {
             return List.of(
-                    new RiskNodeDTO("无在线服务器", 0.0, "OFFLINE")
+                    new RiskNodeDTO(0L, "无在线服务器", 0.0, "OFFLINE")
             );
         }
         return nodes;

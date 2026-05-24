@@ -38,7 +38,7 @@
 
     <!-- Key Stats Grid -->
     <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[16px]">
-      <div class="glass-panel p-[20px] rounded-xl hover:shadow-lg transition-all group border-b-2 border-b-transparent hover:border-b-primary">
+      <router-link to="/servers" class="glass-panel p-[20px] rounded-xl hover:shadow-lg transition-all group border-b-2 border-b-transparent hover:border-b-primary cursor-pointer">
         <div class="flex justify-between items-start mb-3">
           <div class="p-2 bg-primary/5 rounded-lg text-primary">
             <span class="material-symbols-outlined">dns</span>
@@ -47,8 +47,8 @@
         <div v-if="loading" class="h-12 w-20 bg-surface-container-highest rounded-lg animate-pulse mb-1"></div>
         <div v-else class="text-[48px] font-bold leading-none mb-1 font-[Geist]">{{ stats.activeServers ?? 0 }}</div>
         <div class="text-[14px] text-outline">在线服务器 (Online)</div>
-      </div>
-      <div class="glass-panel p-[20px] rounded-xl hover:shadow-lg transition-all border-b-2 border-b-transparent hover:border-b-secondary">
+      </router-link>
+      <router-link to="/servers" class="glass-panel p-[20px] rounded-xl hover:shadow-lg transition-all border-b-2 border-b-transparent hover:border-b-secondary cursor-pointer">
         <div class="flex justify-between items-start mb-3">
           <div class="p-2 bg-secondary/5 rounded-lg text-secondary">
             <span class="material-symbols-outlined">layers</span>
@@ -57,8 +57,8 @@
         <div v-if="loading" class="h-12 w-20 bg-surface-container-highest rounded-lg animate-pulse mb-1"></div>
         <div v-else class="text-[48px] font-bold leading-none mb-1 font-[Geist]">{{ stats.totalContainers ?? 0 }}</div>
         <div class="text-[14px] text-outline">活跃容器 (Active)</div>
-      </div>
-      <div class="glass-panel p-[20px] rounded-xl hover:shadow-lg transition-all border-b-2 border-b-transparent hover:border-b-tertiary">
+      </router-link>
+      <router-link to="/snapshots" class="glass-panel p-[20px] rounded-xl hover:shadow-lg transition-all border-b-2 border-b-transparent hover:border-b-tertiary cursor-pointer">
         <div class="flex justify-between items-start mb-3">
           <div class="p-2 bg-tertiary/5 rounded-lg text-tertiary">
             <span class="material-symbols-outlined">cloud_upload</span>
@@ -67,8 +67,8 @@
         <div v-if="loading" class="h-12 w-20 bg-surface-container-highest rounded-lg animate-pulse mb-1"></div>
         <div v-else class="text-[48px] font-bold leading-none mb-1 font-[Geist]">{{ stats.todayBackups ?? 0 }}</div>
         <div class="text-[14px] text-outline">今日备份数 (Backups)</div>
-      </div>
-      <div class="glass-panel p-[20px] rounded-xl hover:shadow-lg transition-all border-b-2 border-b-transparent hover:border-b-primary">
+      </router-link>
+      <router-link to="/recovery" class="glass-panel p-[20px] rounded-xl hover:shadow-lg transition-all border-b-2 border-b-transparent hover:border-b-primary cursor-pointer">
         <div class="flex justify-between items-start mb-3">
           <div class="p-2 bg-primary/5 rounded-lg text-primary">
             <span class="material-symbols-outlined">verified</span>
@@ -82,7 +82,7 @@
         <div v-if="loading" class="h-12 w-20 bg-surface-container-highest rounded-lg animate-pulse mb-1"></div>
         <div v-else class="text-[48px] font-bold leading-none mb-1 font-[Geist]">{{ stats.recoveryRate ?? '-' }}</div>
         <div class="text-[14px] text-outline">恢复成功率 (Recovery)</div>
-      </div>
+      </router-link>
     </section>
 
     <!-- Secondary Row -->
@@ -195,11 +195,11 @@
         <div class="space-y-4">
           <div v-for="anomaly in anomalies" :key="anomaly.title" @click="$router.push('/alerts')" class="flex items-center gap-4 p-3 hover:bg-error/5 rounded-lg transition-colors border border-transparent hover:border-error/20 cursor-pointer">
             <div class="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center text-error shrink-0">
-              <span class="material-symbols-outlined">{{ anomaly.icon }}</span>
+              <span class="material-symbols-outlined">{{ anomalyIcon(anomaly.severity) }}</span>
             </div>
             <div class="flex-1 min-w-0">
               <p class="text-[14px] font-bold truncate">{{ anomaly.title }}</p>
-              <p class="text-[12px] text-outline">{{ anomaly.time }}</p>
+              <p class="text-[12px] text-outline">{{ formatTime(anomaly.time) }}</p>
             </div>
             <span class="material-symbols-outlined text-outline">chevron_right</span>
           </div>
@@ -261,17 +261,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import * as echarts from 'echarts'
-import { useToastStore } from '@/stores/toast'
 import { useModalStore } from '@/stores/modal'
 import { dashboardApi } from '@/api/dashboard'
 import { aiApi } from '@/api/ai'
 import { serversApi } from '@/api/servers'
+import { formatBytes } from '@/utils/format'
 import NewBackupModal from '@/components/modals/NewBackupModal.vue'
 import ConfirmModal from '@/components/modals/ConfirmModal.vue'
 
-const toast = useToastStore()
 const modal = useModalStore()
 
 function openNewBackup() {
@@ -299,57 +298,130 @@ function openApplyOptimizations() {
   })
 }
 const chartRef = ref<HTMLElement>()
+let chartInstance: echarts.ECharts | null = null
 const timeRange = ref('24H')
 const loading = ref(true)
-const stats = ref<any>({})
-const anomalies = ref<any[]>([])
-const riskScore = ref<any>({})
-const storageSummary = ref<any[]>([])
-const activityTrend = ref<any[]>([])
-const aiRecommendations = ref<any[]>([])
-const topologyNodes = ref<any[]>([])
+import type { DashboardStats, Anomaly, RiskScore, StorageSummary, ActivityTrend, AiRecommendation, Server } from '@/types'
 
-function formatBytes(bytes: number): string {
-  if (!bytes) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  return (bytes / Math.pow(1024, i)).toFixed(i > 2 ? 1 : 0) + ' ' + units[i]
+const stats = ref<DashboardStats>({} as DashboardStats)
+const anomalies = ref<Anomaly[]>([])
+
+const severityIconMap: Record<string, string> = {
+  CRITICAL: 'priority_high',
+  critical: 'priority_high',
+  WARNING: 'warning',
+  warning: 'warning',
+  PREDICTIVE: 'auto_awesome',
+  predictive: 'auto_awesome',
+  INFO: 'info',
+  info: 'info',
 }
+
+function anomalyIcon(severity: string): string {
+  return severityIconMap[severity] || 'error'
+}
+
+function formatTime(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+const riskScore = ref<RiskScore>({} as RiskScore)
+const storageSummary = ref<StorageSummary[]>([])
+const activityTrend = ref<ActivityTrend[]>([])
+const aiRecommendations = ref<AiRecommendation[]>([])
+const topologyNodes = ref<Server[]>([])
 
 const storageUsedFormatted = computed(() => {
   const s = storageSummary.value
   if (!s || !s.length) return '-'
-  const total = s.reduce((acc: number, item: any) => acc + (item.usedBytes || 0), 0)
+  const total = s.reduce((acc: number, item: StorageSummary) => acc + (item.usedBytes || 0), 0)
   return formatBytes(total)
 })
 
 const storageTotalFormatted = computed(() => {
   const s = storageSummary.value
   if (!s || !s.length) return '-'
-  const total = s.reduce((acc: number, item: any) => acc + (item.totalBytes || 0), 0)
+  const total = s.reduce((acc: number, item: StorageSummary) => acc + (item.totalBytes || 0), 0)
   return formatBytes(total)
 })
 
 const storagePercent = computed(() => {
   const s = storageSummary.value
   if (!s || !s.length) return 0
-  const used = s.reduce((acc: number, item: any) => acc + (item.usedBytes || 0), 0)
-  const total = s.reduce((acc: number, item: any) => acc + (item.totalBytes || 0), 0)
+  const used = s.reduce((acc: number, item: StorageSummary) => acc + (item.usedBytes || 0), 0)
+  const total = s.reduce((acc: number, item: StorageSummary) => acc + (item.totalBytes || 0), 0)
   return total > 0 ? Math.round((used / total) * 100) : 0
 })
 
 const blockStorageFormatted = computed(() => {
   const s = storageSummary.value
   if (!s || !s.length) return '-'
-  const block = s.find((item: any) => item.type === 'BLOCK' || item.type === 'block')
+  const block = s.find((item: StorageSummary) => item.type === 'BLOCK' || item.type === 'block')
   return block ? formatBytes(block.usedBytes) : '-'
 })
 
 const coldStorageFormatted = computed(() => {
   const s = storageSummary.value
   if (!s || !s.length) return '-'
-  const cold = s.find((item: any) => item.type === 'COLD' || item.type === 'cold' || item.type === 'ARCHIVE')
+  const cold = s.find((item: StorageSummary) => item.type === 'COLD' || item.type === 'cold' || item.type === 'ARCHIVE')
   return cold ? formatBytes(cold.usedBytes) : '-'
+})
+
+function updateChart() {
+  if (!chartRef.value) return
+  if (!chartInstance) {
+    chartInstance = echarts.init(chartRef.value)
+    window.addEventListener('resize', () => chartInstance?.resize())
+  }
+  const xLabels = activityTrend.value.map((d: ActivityTrend) => d.label) || []
+  const yData = activityTrend.value.map((d: ActivityTrend) => d.snapshots) || []
+  chartInstance.setOption({
+    grid: { top: 20, right: 20, bottom: 40, left: 50 },
+    xAxis: {
+      type: 'category',
+      data: xLabels,
+      axisLine: { lineStyle: { color: '#c2c6d6' } },
+      axisLabel: { color: '#727785', fontSize: 10 },
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: '#e1e2ec', type: 'dashed' } },
+      axisLabel: { color: '#727785', fontSize: 10 },
+    },
+    series: [{
+      type: 'bar',
+      data: yData,
+      itemStyle: {
+        color: (params: any) => {
+          const val = params.value
+          if (val > 50) return 'rgba(0, 88, 190, 0.6)'
+          if (val > 35) return 'rgba(0, 88, 190, 0.4)'
+          return 'rgba(0, 88, 190, 0.2)'
+        },
+        borderRadius: [4, 4, 0, 0],
+      },
+    }],
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: '#2e3038',
+      textStyle: { color: '#eff0fa', fontSize: 12 },
+    },
+  })
+}
+
+watch(timeRange, async (newRange) => {
+  try {
+    const rangeParam = newRange === '24H' ? '24h' : '7d'
+    const trendRes = await dashboardApi.getActivityTrend(rangeParam)
+    activityTrend.value = trendRes || []
+    updateChart()
+  } catch (e) {
+    console.error('Failed to refresh activity trend', e)
+  }
 })
 
 onMounted(async () => {
@@ -359,61 +431,23 @@ onMounted(async () => {
       dashboardApi.getAnomalies(),
       dashboardApi.getRiskScore(),
       dashboardApi.getStorageSummary(),
-      dashboardApi.getActivityTrend(),
+      dashboardApi.getActivityTrend('24h'),
       aiApi.getRecommendations(),
-      serversApi.getAll().catch(() => ({ data: [] })),
+      serversApi.getAll().catch(() => [] as Server[]),
     ])
-    stats.value = (statsRes as any).data || {}
-    anomalies.value = (anomaliesRes as any).data || []
-    riskScore.value = (riskRes as any).data || {}
-    storageSummary.value = (storageRes as any).data || []
-    activityTrend.value = (trendRes as any).data || []
-    aiRecommendations.value = ((recsRes as any).data || recsRes || []).slice(0, 2)
-    topologyNodes.value = (serversRes as any).data || serversRes || []
+    stats.value = statsRes || {} as DashboardStats
+    anomalies.value = anomaliesRes || []
+    riskScore.value = riskRes || {} as RiskScore
+    storageSummary.value = storageRes || []
+    activityTrend.value = trendRes || []
+    aiRecommendations.value = (recsRes || []).slice(0, 2)
+    topologyNodes.value = serversRes || []
   } catch (e) {
     console.error('Failed to load dashboard data', e)
   } finally {
     loading.value = false
   }
 
-  if (chartRef.value) {
-    const chart = echarts.init(chartRef.value)
-    const xLabels = activityTrend.value.map((d: any) => d.label) || []
-    const yData = activityTrend.value.map((d: any) => d.snapshots) || []
-    chart.setOption({
-      grid: { top: 20, right: 20, bottom: 40, left: 50 },
-      xAxis: {
-        type: 'category',
-        data: xLabels,
-        axisLine: { lineStyle: { color: '#c2c6d6' } },
-        axisLabel: { color: '#727785', fontSize: 10 },
-      },
-      yAxis: {
-        type: 'value',
-        axisLine: { show: false },
-        splitLine: { lineStyle: { color: '#e1e2ec', type: 'dashed' } },
-        axisLabel: { color: '#727785', fontSize: 10 },
-      },
-      series: [{
-        type: 'bar',
-        data: yData,
-        itemStyle: {
-          color: (params: any) => {
-            const val = params.value
-            if (val > 50) return 'rgba(0, 88, 190, 0.6)'
-            if (val > 35) return 'rgba(0, 88, 190, 0.4)'
-            return 'rgba(0, 88, 190, 0.2)'
-          },
-          borderRadius: [4, 4, 0, 0],
-        },
-      }],
-      tooltip: {
-        trigger: 'axis',
-        backgroundColor: '#2e3038',
-        textStyle: { color: '#eff0fa', fontSize: 12 },
-      },
-    })
-    window.addEventListener('resize', () => chart.resize())
-  }
+  updateChart()
 })
 </script>

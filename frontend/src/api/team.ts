@@ -1,9 +1,10 @@
 import client from './client'
+import type { TeamMember, InviteRequest, UpdateMemberRequest } from '@/types'
 
 export const teamApi = {
-  getMembers: () => client.get('/team'),
-  invite: (data: { name: string; email: string; role?: string }) =>
-    client.post('/team/invite', data),
-  updateMember: (id: number, data: { role?: string; permissions?: string }) =>
-    client.put(`/team/${id}`, data),
+  getMembers: () => client.get<TeamMember[]>('/team') as unknown as Promise<TeamMember[]>,
+  invite: (data: InviteRequest) =>
+    client.post('/team/invite', data) as unknown as Promise<void>,
+  updateMember: (id: number, data: UpdateMemberRequest) =>
+    client.put(`/team/${id}`, data) as unknown as Promise<void>,
 }

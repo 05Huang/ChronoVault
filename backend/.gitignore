@@ -1,0 +1,21 @@
+application-dev.yml
+
+# Build
+target/
+*.class
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

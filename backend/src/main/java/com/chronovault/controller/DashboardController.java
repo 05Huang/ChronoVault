@@ -43,7 +43,8 @@ public class DashboardController {
     }
 
     @GetMapping("/activity-trend")
-    public ResponseEntity<ApiResponse<List<ActivityTrendDTO>>> getActivityTrend() {
-        return ResponseEntity.ok(ApiResponse.success(dashboardService.getActivityTrend()));
+    public ResponseEntity<ApiResponse<List<ActivityTrendDTO>>> getActivityTrend(
+            @RequestParam(defaultValue = "7d") String range) {
+        return ResponseEntity.ok(ApiResponse.success(dashboardService.getActivityTrend(range)));
     }
 }

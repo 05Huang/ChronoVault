@@ -10,6 +10,8 @@ import java.util.List;
 
 public interface AsyncTaskRepository extends JpaRepository<AsyncTask, Long> {
 
+    List<AsyncTask> findAllByOrderByCreatedAtDesc();
+
     List<AsyncTask> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     List<AsyncTask> findByServerIdAndStatusIn(Long serverId, List<TaskStatus> statuses);

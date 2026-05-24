@@ -2,6 +2,7 @@ package com.chronovault.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,6 +20,19 @@ public class JwtTokenProvider {
 
     @Value("${jwt.expiration}")
     private long jwtExpiration;
+
+    @PostConstruct
+    void validateConfig() {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException(
+                "JWT_SECRET environment variable is required. "
+                + "Generate one with: openssl rand -hex 32");
+        }
+        if (jwtSecret.length() < 32) {
+            throw new IllegalStateException(
+                "JWT_SECRET must be at least 32 characters (256 bits) for HS256");
+        }
+    }
 
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));

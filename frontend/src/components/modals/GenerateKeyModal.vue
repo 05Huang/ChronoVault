@@ -3,7 +3,7 @@
     <div v-if="!generated" class="space-y-5">
       <div class="space-y-2">
         <label class="block text-[12px] font-bold text-on-surface-variant">密钥名称</label>
-        <input v-model="keyName" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px]" placeholder="e.g., CI/CD Pipeline" />
+        <input v-model="keyName" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px]" placeholder="例如 CI/CD Pipeline" />
       </div>
       <div class="space-y-2">
         <label class="block text-[12px] font-bold text-on-surface-variant">权限范围</label>
@@ -64,8 +64,8 @@ async function handleGenerate() {
   if (!keyName.value) return
   loading.value = true
   try {
-    const res: any = await settingsApi.generateKey({ name: keyName.value, scope: selectedScope.value })
-    generatedKey.value = res.data?.key || res.key || ''
+    const res = await settingsApi.generateKey({ name: keyName.value, scope: selectedScope.value })
+    generatedKey.value = res?.key || ''
     generated.value = true
     toast.success(`密钥 ${keyName.value} 已生成`)
   } catch (e: any) {

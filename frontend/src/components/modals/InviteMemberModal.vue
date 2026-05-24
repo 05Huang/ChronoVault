@@ -2,7 +2,7 @@
   <div class="p-6 space-y-5">
     <div class="space-y-2">
       <label class="block text-[12px] font-bold text-on-surface-variant">邮箱地址</label>
-      <input v-model="form.email" type="email" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px]" placeholder="colleague@company.com" />
+      <input v-model="form.email" type="email" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px]" placeholder="例如 colleague@company.com" />
     </div>
     <div class="space-y-2">
       <label class="block text-[12px] font-bold text-on-surface-variant">角色</label>

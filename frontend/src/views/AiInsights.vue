@@ -32,7 +32,7 @@
               <span class="text-[12px] font-bold" :class="insight.textColor">{{ insight.category }}</span>
             </div>
             <h4 class="text-[14px] font-bold mb-1">{{ insight.title }}</h4>
-            <p class="text-[12px] text-on-surface-variant">{{ insight.desc }}</p>
+            <p class="text-[12px] text-on-surface-variant">{{ insight.description }}</p>
           </div>
         </div>
       </div>
@@ -68,7 +68,7 @@
           </div>
           <div class="flex-1">
             <h4 class="text-[14px] font-bold mb-1">{{ rec.title }}</h4>
-            <p class="text-[12px] text-on-surface-variant">{{ rec.desc }}</p>
+            <p class="text-[12px] text-on-surface-variant">{{ rec.description }}</p>
           </div>
           <div class="flex items-center gap-2">
             <span class="text-[12px] font-bold" :class="rec.impactColor">{{ rec.impact }}</span>
@@ -83,6 +83,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import * as echarts from 'echarts'
+import { marked } from 'marked'
 import { useToastStore } from '@/stores/toast'
 import { useModalStore } from '@/stores/modal'
 import { aiApi } from '@/api/ai'
@@ -93,16 +94,21 @@ const modal = useModalStore()
 
 const radarRef = ref<HTMLElement>()
 const storageRef = ref<HTMLElement>()
-const insights = ref<any[]>([])
-const recommendations = ref<any[]>([])
-const radarData = ref<any>({})
-const storagePrediction = ref<any>({})
+import type { AiInsight, AiRecommendation, RiskRadar, StoragePrediction } from '@/types'
+
+const insights = ref<(AiInsight & { iconColor: string; textColor: string; borderClass: string })[]>([])
+const recommendations = ref<(AiRecommendation & { iconBg: string; iconColor: string; impactColor: string; actionClass: string })[]>([])
+const radarData = ref<RiskRadar>({} as RiskRadar)
+const storagePrediction = ref<StoragePrediction>({} as StoragePrediction)
 
 const insightStyles: Record<string, { iconColor: string; textColor: string; borderClass: string }> = {
   PERFORMANCE: { iconColor: 'text-primary', textColor: 'text-primary', borderClass: 'border-primary/40 bg-primary/5' },
   COST: { iconColor: 'text-tertiary', textColor: 'text-tertiary', borderClass: 'border-tertiary/40 bg-tertiary/5' },
   SECURITY: { iconColor: 'text-green-500', textColor: 'text-green-600', borderClass: 'border-green-500/40 bg-green-500/5' },
   DATABASE: { iconColor: 'text-secondary', textColor: 'text-secondary', borderClass: 'border-secondary/40 bg-secondary/5' },
+  REPORT: { iconColor: 'text-primary', textColor: 'text-primary', borderClass: 'border-primary/40 bg-primary/5' },
+  SYSTEM: { iconColor: 'text-secondary', textColor: 'text-secondary', borderClass: 'border-secondary/40 bg-secondary/5' },
+  BACKUP: { iconColor: 'text-green-500', textColor: 'text-green-600', borderClass: 'border-green-500/40 bg-green-500/5' },
 }
 
 const recStyles: Record<string, { iconBg: string; iconColor: string; impactColor: string; actionClass: string }> = {
@@ -113,8 +119,26 @@ const recStyles: Record<string, { iconBg: string; iconColor: string; impactColor
 
 async function handleGenerateReport() {
   try {
-    await aiApi.generateReport()
+    const res = await aiApi.generateReport()
+    const reportText = res || ''
     toast.success('AI 分析报告已生成')
+    // Show report in modal with markdown rendering
+    modal.open({
+      component: ConfirmModal,
+      title: 'AI 分析报告',
+      props: {
+        messageHtml: marked(reportText),
+        confirmText: '关闭',
+        confirmClass: 'bg-surface-container-highest text-on-surface',
+      },
+    })
+    // Refresh insights list
+    const insightsRes = await aiApi.getInsights()
+    const insightsRaw = insightsRes || []
+    insights.value = insightsRaw.map((i: AiInsight) => {
+      const style = insightStyles[i.category] || insightStyles.PERFORMANCE
+      return { ...i, ...style }
+    })
   } catch (e) {
     toast.error('报告生成失败')
   }
@@ -124,7 +148,7 @@ async function applyRecommendation(id: number) {
   try {
     await aiApi.applyRecommendation(id)
     toast.success('建议已应用')
-    recommendations.value = recommendations.value.filter((r: any) => r.id !== id)
+    recommendations.value = recommendations.value.filter((r: AiRecommendation) => r.id !== id)
   } catch (e) {
     toast.error('应用失败')
   }
@@ -135,7 +159,7 @@ function showInsightDetail(insight: any) {
     component: ConfirmModal,
     title: insight.title,
     props: {
-      message: `分类: ${insight.category || '通用'}\n\n${insight.desc}`,
+      messageHtml: marked(insight.description || ''),
       confirmText: '关闭',
       confirmClass: 'bg-surface-container-highest text-on-surface',
     },
@@ -150,18 +174,18 @@ onMounted(async () => {
       aiApi.getRiskRadar(),
       aiApi.getStoragePrediction(),
     ])
-    const insightsRaw = (insightsRes as any).data || insightsRes || []
-    insights.value = insightsRaw.map((i: any) => {
+    const insightsRaw = insightsRes || []
+    insights.value = insightsRaw.map((i: AiInsight) => {
       const style = insightStyles[i.category] || insightStyles.PERFORMANCE
       return { ...i, ...style }
     })
-    const recsRaw = (recsRes as any).data || recsRes || []
-    recommendations.value = recsRaw.map((r: any) => {
+    const recsRaw = recsRes || []
+    recommendations.value = recsRaw.map((r: AiRecommendation) => {
       const style = recStyles[r.category] || recStyles.COST
       return { ...r, ...style, action: r.action || '应用' }
     })
-    radarData.value = (radarRes as any).data || radarRes || {}
-    storagePrediction.value = (storageRes as any).data || storageRes || {}
+    radarData.value = radarRes || {}
+    storagePrediction.value = storageRes || {}
   } catch (e) {
     console.error('Failed to load AI insights', e)
   }

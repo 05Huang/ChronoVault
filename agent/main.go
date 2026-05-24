@@ -2,10 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/chronovault/agent/cmd"
 )
@@ -45,9 +42,3 @@ func printUsage() {
 	fmt.Println("  chronovault-agent version                Show version")
 }
 
-func waitForSignal() {
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	sig := <-sigCh
-	log.Printf("Received signal %v, shutting down...", sig)
-}

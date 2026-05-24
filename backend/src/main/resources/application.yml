@@ -2,7 +2,7 @@ spring:
   application:
     name: chronovault-backend
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   task:
     execution:
       pool:
@@ -52,14 +52,26 @@ logging:
     com.chronovault: DEBUG
     org.springframework.security: INFO
 
+# OpenAPI / Swagger UI
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
+
 # ChronoVault configuration
 chronovault:
-  master-key: ${CHRONOVAULT_MASTER_KEY:chronovault-dev-master-key-change-in-production}
+  master-key: ${CHRONOVAULT_MASTER_KEY:}
+  restic-password: ${CHRONOVAULT_RESTIC_PASSWORD:}
   ssh:
-    connection-timeout: 10000
+    connection-timeout: 30000
     command-timeout: 60000
     max-connections-per-server: 3
     keepalive-interval: 30000
+    max-retry: 2
+    idle-eviction-millis: 300000
   ai:
     enabled: true
     base-url: ${MIMO_BASE_URL:https://api.xiaomimimo.com/v1}
@@ -70,3 +82,5 @@ chronovault:
   agent:
     heartbeat-interval: 30000
     task-poll-interval: 10000
+    server-url: ${CHRONOVAULT_SERVER_URL:}
+    binary-path: ${CHRONOVAULT_AGENT_BINARY:}

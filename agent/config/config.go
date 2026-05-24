@@ -14,6 +14,10 @@ type Config struct {
 	ListenPort int    `yaml:"listen_port"`
 	ScanInterval int  `yaml:"scan_interval"`
 	HeartbeatInterval int `yaml:"heartbeat_interval"`
+	TLSEnabled bool   `yaml:"tls_enabled"`
+	TLSCert    string `yaml:"tls_cert"`
+	TLSKey     string `yaml:"tls_key"`
+	AuthToken  string `yaml:"auth_token"`
 }
 
 func DefaultConfig() *Config {

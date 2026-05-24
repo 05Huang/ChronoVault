@@ -2,16 +2,21 @@ package com.chronovault.controller;
 
 import com.chronovault.dto.settings.ApiKeyDTO;
 import com.chronovault.dto.settings.AuditLogDTO;
+import com.chronovault.dto.settings.CreateApiKeyResponse;
 import com.chronovault.dto.settings.GenerateKeyRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.SettingsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/settings")
@@ -26,18 +31,40 @@ public class SettingsController {
     }
 
     @PostMapping("/api-keys")
-    public ResponseEntity<ApiResponse<ApiKeyDTO>> generateKey(Authentication auth, @Valid @RequestBody GenerateKeyRequest request) {
+    public ResponseEntity<ApiResponse<CreateApiKeyResponse>> generateKey(Authentication auth, @Valid @RequestBody GenerateKeyRequest request) {
         return ResponseEntity.ok(ApiResponse.success(settingsService.generateKey(auth.getName(), request)));
     }
 
     @DeleteMapping("/api-keys/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteKey(@PathVariable Long id) {
         settingsService.deleteKey(id);
-        return ResponseEntity.ok(ApiResponse.success("密钥已删除", null));
+        return ResponseEntity.ok(ApiResponse.successMsg("密钥已删除"));
     }
 
     @GetMapping("/audit-logs")
     public ResponseEntity<ApiResponse<List<AuditLogDTO>>> getAuditLogs() {
         return ResponseEntity.ok(ApiResponse.success(settingsService.getAuditLogs()));
+    }
+
+    @GetMapping("/ai-config")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAiConfig() {
+        return ResponseEntity.ok(ApiResponse.success(settingsService.getAiConfig()));
+    }
+
+    @PutMapping("/ai-config")
+    public ResponseEntity<ApiResponse<Void>> updateAiConfig(@RequestBody Map<String, Object> config) {
+        settingsService.updateAiConfig(config);
+        return ResponseEntity.ok(ApiResponse.successMsg("AI 配置已更新"));
+    }
+
+    @GetMapping("/audit-logs/search")
+    public ResponseEntity<ApiResponse<Page<AuditLogDTO>>> searchAuditLogs(
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime since,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime until,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(settingsService.searchAuditLogs(action, userId, since, until, page, size)));
     }
 }

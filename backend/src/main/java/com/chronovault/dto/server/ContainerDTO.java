@@ -3,7 +3,7 @@ package com.chronovault.dto.server;
 import com.chronovault.entity.Container;
 
 public record ContainerDTO(Long id, String name, String type, String cpuUsage, String memoryUsage,
-                           String memoryPercent, String diskIo, String status) {
+                           String memoryPercent, String diskIo, String status, String networks) {
     public static ContainerDTO from(Container c) {
         double cpu = c.getCpuPercent() != null ? c.getCpuPercent() : 0;
         double memPct = c.getMemoryPercent() != null ? c.getMemoryPercent() : 0;
@@ -18,6 +18,7 @@ public record ContainerDTO(Long id, String name, String type, String cpuUsage, S
                 String.format("%.1f%%", cpu),
                 memMb + "MB",
                 String.format("%.0f%%", memPct),
-                c.getDiskIo(), c.getStatus().name());
+                c.getDiskIo(), c.getStatus().name(),
+                c.getNetworks() != null ? c.getNetworks() : "");
     }
 }

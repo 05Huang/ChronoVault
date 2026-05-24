@@ -1,10 +1,11 @@
 import client from './client'
+import type { SimulateRequest, ExecuteRequest, MigrateRequest, RecoveryResult } from '@/types'
 
 export const recoveryApi = {
-  simulate: (data: { serverId: number; snapshotId: number }) =>
-    client.post('/recovery/simulate', data),
-  execute: (data: { serverId: number; snapshotId: number }) =>
-    client.post('/recovery/execute', data),
-  migrate: (data: { sourceServerId: number; targetServerId: number; snapshotId: number }) =>
-    client.post('/recovery/migrate', data),
+  simulate: (data: SimulateRequest) =>
+    client.post<RecoveryResult>('/recovery/simulate', data) as unknown as Promise<RecoveryResult>,
+  execute: (data: ExecuteRequest) =>
+    client.post<RecoveryResult>('/recovery/execute', data) as unknown as Promise<RecoveryResult>,
+  migrate: (data: MigrateRequest) =>
+    client.post<RecoveryResult>('/recovery/migrate', data) as unknown as Promise<RecoveryResult>,
 }

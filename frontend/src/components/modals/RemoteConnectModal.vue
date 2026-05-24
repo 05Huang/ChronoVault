@@ -6,10 +6,10 @@
       </template>
       <template v-else>
         <p class="text-green-400">$ ssh {{ username }}@{{ serverIp }}</p>
-        <p class="text-white/60">Authenticating via ChronoVault Agent...</p>
-        <p class="text-white/60">Connection established. Session ID: cv-sess-{{ sessionId }}</p>
-        <p class="text-primary">Welcome to {{ serverName }}</p>
-        <p class="text-white/80">Last login: {{ lastLogin }}</p>
+        <p class="text-white/60">正在通过 ChronoVault Agent 认证...</p>
+        <p class="text-white/60">连接已建立。会话 ID: cv-sess-{{ sessionId }}</p>
+        <p class="text-primary">欢迎连接到 {{ serverName }}</p>
+        <p class="text-white/80">上次登录: {{ lastLogin }}</p>
         <div class="flex items-center gap-1 pt-1">
           <span class="text-green-400">{{ username }}@{{ serverIp }}:~$</span>
           <span class="w-2 h-4 bg-white/80 animate-pulse"></span>
@@ -54,20 +54,18 @@ function handleDisconnect() {
 
 onMounted(async () => {
   try {
-    const [connRes, serverRes]: any[] = await Promise.all([
+    const [connRes, serverRes] = await Promise.all([
       serversApi.connect(props.serverId).catch(() => null),
       serversApi.get(props.serverId).catch(() => null),
     ])
-    if (serverRes?.data || serverRes) {
-      const s = serverRes.data || serverRes
-      serverIp.value = s.ip || '未知'
-      serverName.value = s.name || 'Server'
-      username.value = s.sshUsername || 'root'
+    if (serverRes) {
+      serverIp.value = serverRes.ip || '未知'
+      serverName.value = serverRes.name || 'Server'
+      username.value = serverRes.sshUsername || 'root'
     }
-    if (connRes?.data || connRes) {
-      const c = connRes.data || connRes
-      sessionId.value = c.sessionId || Math.random().toString(36).slice(2, 8)
-      latency.value = c.latency || Math.floor(Math.random() * 30) + 5
+    if (connRes) {
+      sessionId.value = connRes.sessionId || Math.random().toString(36).slice(2, 8)
+      latency.value = connRes.latency || Math.floor(Math.random() * 30) + 5
     } else {
       sessionId.value = Math.random().toString(36).slice(2, 8)
       latency.value = Math.floor(Math.random() * 30) + 5

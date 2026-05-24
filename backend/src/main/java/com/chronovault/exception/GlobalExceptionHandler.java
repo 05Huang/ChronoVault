@@ -54,6 +54,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(response);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(400, ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneral(Exception ex) {
         log.error("未处理的异常: ", ex);
@@ -68,6 +74,10 @@ public class GlobalExceptionHandler {
 
         public static <T> ApiResponse<T> success(String message, T data) {
             return new ApiResponse<>(200, message, data, LocalDateTime.now());
+        }
+
+        public static ApiResponse<Void> successMsg(String message) {
+            return new ApiResponse<>(200, message, null, LocalDateTime.now());
         }
 
         public static ApiResponse<Void> error(int code, String message) {

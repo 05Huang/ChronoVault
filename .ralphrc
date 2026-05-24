@@ -1,0 +1,24 @@
+# ChronoVault — Ralph Configuration
+PROJECT_NAME="chronovault"
+PROJECT_TYPE="java"
+
+# Claude Code CLI command
+CLAUDE_CODE_CMD="claude"
+
+# Loop settings
+MAX_CALLS_PER_HOUR=300
+CLAUDE_TIMEOUT_MINUTES=60
+CLAUDE_OUTPUT_FORMAT="json"
+
+# Tool permissions — ChronoVault needs these
+ALLOWED_TOOLS="Write,Read,Edit,Bash(*),PowerShell(*)"
+
+# Session management
+SESSION_CONTINUITY=true
+SESSION_EXPIRY_HOURS=48
+
+# Circuit breaker thresholds
+CB_NO_PROGRESS_THRESHOLD=5
+CB_SAME_ERROR_THRESHOLD=8
+CB_COOLDOWN_MINUTES=10
+CB_AUTO_RESET=true

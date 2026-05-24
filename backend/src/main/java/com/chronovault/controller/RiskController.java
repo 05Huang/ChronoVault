@@ -42,7 +42,7 @@ public class RiskController {
     @PostMapping("/{id}/mitigate")
     public ResponseEntity<ApiResponse<Void>> mitigate(@PathVariable Long id) {
         riskService.mitigate(id);
-        return ResponseEntity.ok(ApiResponse.success("风险已缓解", null));
+        return ResponseEntity.ok(ApiResponse.successMsg("风险已缓解"));
     }
 
     @PostMapping("/scan")

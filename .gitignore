@@ -279,7 +279,7 @@ appendonly.aof
 
 # PostgreSQL
 *.sql
-!migrations/**/*.sql
+!**/db/migration/**/*.sql
 
 # ==================== Cloud & Infrastructure ====================
 
@@ -463,6 +463,34 @@ bower_components/
 # Storybook
 storybook-static/
 
+# ==================== Ralph (Autonomous Development) ====================
+# Runtime state files — ignore
+.ralph/logs/
+.ralph/docs/generated/
+.ralph/.ralph_session
+.ralph/.ralph_session_history
+.ralph/.call_count
+.ralph/.token_count
+.ralph/.circuit_breaker_state
+.ralph/.circuit_breaker_history
+.ralph/.exit_signals
+.ralph/.last_reset
+.ralph/.loop_start_sha
+.ralph/progress.json
+.ralph/status.json
+.ralph/live.log
+
+# Configuration files — keep tracked
+# .ralph/PROMPT.md
+# .ralph/fix_plan.md
+# .ralph/AGENT.md
+# .ralph/specs/
+# .ralphrc
+
+# ==================== Claude Code ====================
+.claude/
+skills/
+
 # ==================== Project-Specific ====================
 
 # Frontend build artifacts
@@ -479,15 +507,19 @@ backend/*.pyc
 backend/venv/
 backend/.env
 
+# Agent build output (not the shipped binary)
+agent/chronovault-agent-linux-*
+agent/chronovault-agent
+
 # Database files
 *.sqlite3
 data/*.db
 
 # Upload & storage
 uploads/
-storage/
-tmp/
-temp/
+/storage/
+/tmp/
+/temp/
 
 # Logs & monitoring
 *.log

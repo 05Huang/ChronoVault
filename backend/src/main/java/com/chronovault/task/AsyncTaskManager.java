@@ -15,9 +15,11 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PreDestroy;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 @Slf4j
@@ -33,9 +35,13 @@ public class AsyncTaskManager {
     private ThreadPoolTaskExecutor taskExecutor;
 
     private final Map<Long, Boolean> cancellationFlags = new ConcurrentHashMap<>();
+    private volatile boolean shuttingDown = false;
 
     public AsyncTask submit(TaskType type, Long serverId, Long userId, String message,
                             Consumer<AsyncTask> taskBody) {
+        if (shuttingDown) {
+            throw new IllegalStateException("Server is shutting down, no new tasks accepted");
+        }
         AsyncTask task = AsyncTask.builder()
                 .type(type)
                 .status(TaskStatus.PENDING)
@@ -59,16 +65,21 @@ public class AsyncTaskManager {
     }
 
     private void executeTask(Long taskId, Consumer<AsyncTask> taskBody) {
+        log.info("Async task {} starting execution", taskId);
         AsyncTask task = taskRepository.findById(taskId).orElse(null);
-        if (task == null) return;
-
-        task.setStatus(TaskStatus.RUNNING);
-        task.setStartedAt(LocalDateTime.now());
-        taskRepository.save(task);
-
-        broadcastTaskEvent(task, "任务开始: " + task.getMessage());
+        if (task == null) {
+            log.warn("Async task {} not found in database", taskId);
+            return;
+        }
 
         try {
+            task.setStatus(TaskStatus.RUNNING);
+            task.setStartedAt(LocalDateTime.now());
+            taskRepository.save(task);
+
+            broadcastTaskEvent(task, "任务开始: " + task.getMessage());
+            log.info("Async task {} status set to RUNNING, executing task body...", taskId);
+
             taskBody.accept(task);
 
             if (!isCancelled(taskId)) {
@@ -77,14 +88,19 @@ public class AsyncTaskManager {
                 task.setCompletedAt(LocalDateTime.now());
                 taskRepository.save(task);
                 broadcastTaskEvent(task, "任务完成: " + task.getMessage());
+                log.info("Async task {} completed successfully", taskId);
             }
         } catch (Exception e) {
             log.error("Task {} failed: {}", taskId, e.getMessage(), e);
-            task.setStatus(TaskStatus.FAILED);
-            task.setError(e.getMessage());
-            task.setCompletedAt(LocalDateTime.now());
-            taskRepository.save(task);
-            broadcastTaskEvent(task, "任务失败: " + e.getMessage());
+            try {
+                task.setStatus(TaskStatus.FAILED);
+                task.setError(e.getMessage());
+                task.setCompletedAt(LocalDateTime.now());
+                taskRepository.save(task);
+                broadcastTaskEvent(task, "任务失败: " + e.getMessage());
+            } catch (Exception saveErr) {
+                log.error("Failed to save task error status for task {}: {}", taskId, saveErr.getMessage());
+            }
         } finally {
             cancellationFlags.remove(taskId);
         }
@@ -125,6 +141,27 @@ public class AsyncTaskManager {
         return cancellationFlags.getOrDefault(taskId, false);
     }
 
+    @PreDestroy
+    public void shutdown() {
+        log.info("AsyncTaskManager shutting down — waiting for running tasks to complete...");
+        shuttingDown = true;
+
+        taskExecutor.setWaitForTasksToCompleteOnShutdown(true);
+        taskExecutor.setAwaitTerminationSeconds(60);
+        taskExecutor.shutdown();
+
+        try {
+            if (taskExecutor.getThreadPoolExecutor().awaitTermination(60, TimeUnit.SECONDS)) {
+                log.info("All async tasks completed gracefully");
+            } else {
+                log.warn("Some async tasks did not complete within 60s timeout");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Shutdown interrupted", e);
+        }
+    }
+
     public AsyncTask getStatus(Long taskId) {
         return taskRepository.findById(taskId).orElse(null);
     }
@@ -135,6 +172,7 @@ public class AsyncTaskManager {
                 .message(message)
                 .source("task:" + task.getType().name())
                 .task(task)
+                .createdAt(LocalDateTime.now())
                 .build();
         wsHandler.broadcastEvent(event);
 

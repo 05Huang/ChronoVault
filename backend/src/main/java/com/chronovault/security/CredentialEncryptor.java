@@ -20,7 +20,12 @@ public class CredentialEncryptor {
 
     private final SecretKeySpec keySpec;
 
-    public CredentialEncryptor(@Value("${chronovault.master-key:chronovault-default-master-key-change-me}") String masterKey) {
+    public CredentialEncryptor(@Value("${chronovault.master-key}") String masterKey) {
+        if (masterKey == null || masterKey.isBlank()) {
+            throw new IllegalStateException(
+                "CHRONOVAULT_MASTER_KEY environment variable is required. "
+                + "Generate one with: openssl rand -hex 32");
+        }
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] keyBytes = digest.digest(masterKey.getBytes(StandardCharsets.UTF_8));

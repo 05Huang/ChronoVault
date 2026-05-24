@@ -77,6 +77,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useToastStore } from '@/stores/toast'
 import { useModalStore } from '@/stores/modal'
 import { storageApi } from '@/api/storage'
+import { formatBytes } from '@/utils/format'
 import AddStorageModal from '@/components/modals/AddStorageModal.vue'
 
 const toast = useToastStore()
@@ -101,16 +102,11 @@ function exportReport() {
   toast.success('存储报告已导出')
 }
 
-function formatBytes(bytes: number): string {
-  if (!bytes) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  return (bytes / Math.pow(1024, i)).toFixed(i > 2 ? 1 : 0) + ' ' + units[i]
-}
+import type { StorageOverview, StorageDistribution, StorageHealthCheck } from '@/types'
 
-const overview = ref<any[]>([])
-const distribution = ref<any[]>([])
-const healthChecks = ref<any[]>([])
+const overview = ref<StorageOverview[]>([])
+const distribution = ref<(StorageDistribution & { size: string; color: string })[]>([])
+const healthChecks = ref<(StorageHealthCheck & { icon: string; iconColor: string; badgeClass: string })[]>([])
 
 const typeConfig: Record<string, { label: string; icon: string; iconBg: string; iconColor: string; barColor: string }> = {
   BLOCK: { label: '块存储', icon: 'hard_drive', iconBg: 'bg-primary/10', iconColor: 'text-primary', barColor: 'bg-primary' },
@@ -157,16 +153,16 @@ onMounted(async () => {
       storageApi.getDistribution(),
       storageApi.getHealth(),
     ])
-    overview.value = (overviewRes as any).data || overviewRes || []
-    const distData = (distRes as any).data || distRes || []
-    distribution.value = distData.map((d: any, i: number) => ({
+    overview.value = overviewRes || []
+    const distData = distRes || []
+    distribution.value = distData.map((d: StorageDistribution, i: number) => ({
       ...d,
       size: formatBytes(d.bytes || d.sizeBytes || 0),
       percent: d.percent || 0,
       color: distColors[i % distColors.length],
     }))
-    const healthData = (healthRes as any).data || healthRes || []
-    healthChecks.value = healthData.map((h: any) => {
+    const healthData = healthRes || []
+    healthChecks.value = healthData.map((h: StorageHealthCheck) => {
       const mapped = healthIconMap[h.status] || healthIconMap.HEALTHY
       return { ...h, ...mapped, status: h.status === 'HEALTHY' || h.status === 'healthy' ? '正常' : h.status === 'DEGRADED' || h.status === 'degraded' ? '延迟' : '异常' }
     })

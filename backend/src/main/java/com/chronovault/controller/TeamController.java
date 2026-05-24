@@ -34,4 +34,10 @@ public class TeamController {
     public ResponseEntity<ApiResponse<TeamMemberDTO>> updateMember(@PathVariable Long id, @RequestBody UpdateMemberRequest request) {
         return ResponseEntity.ok(ApiResponse.success(teamService.updateMember(id, request)));
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> removeMember(@PathVariable Long id) {
+        teamService.removeMember(id);
+        return ResponseEntity.ok(ApiResponse.successMsg("成员已移除"));
+    }
 }

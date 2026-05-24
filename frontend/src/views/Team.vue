@@ -87,12 +87,14 @@ const roleBadgeMap: Record<string, string> = {
 
 const avatarColors = ['bg-primary', 'bg-secondary', 'bg-tertiary', 'bg-error', 'bg-green-600']
 
-const teamMembers = ref<any[]>([])
+import type { TeamMember } from '@/types'
+
+const teamMembers = ref<(TeamMember & { initials: string; avatarBg: string; roleBadge: string; status: string; statusColor: string; lastActive: string })[]>([])
 
 onMounted(async () => {
   try {
-    const res: any = await teamApi.getMembers()
-    teamMembers.value = (res.data || res || []).map((m: any, i: number) => ({
+    const res = await teamApi.getMembers()
+    teamMembers.value = (res || []).map((m: TeamMember, i: number) => ({
       ...m,
       initials: m.name?.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) || '??',
       avatarBg: avatarColors[i % avatarColors.length],

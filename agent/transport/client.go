@@ -15,6 +15,7 @@ type Client struct {
 	baseURL    string
 	apiKey     string
 	agentID    string
+	serverID   string
 	httpClient *http.Client
 }
 
@@ -30,17 +31,33 @@ type TaskInfo struct {
 	Status   string `json:"status"`
 	Progress int    `json:"progress"`
 	Message  string `json:"message"`
+
+	// Storage config for SNAPSHOT/RECOVER tasks
+	RepoURL    string   `json:"repoUrl"`
+	Password   string   `json:"password"`
+	StorageType string  `json:"storageType"`
+	Endpoint   string   `json:"endpoint"`
+	Paths      []string `json:"paths"`
+	Excludes   []string `json:"excludes"`
+	ParentID   string   `json:"parentId"`
+	SnapshotID string   `json:"snapshotId"`
+	TargetPath string   `json:"targetPath"`
 }
 
 func NewClient(baseURL, apiKey, agentID string) *Client {
 	return &Client{
-		baseURL: baseURL,
-		apiKey:  apiKey,
-		agentID: agentID,
+		baseURL:  baseURL,
+		apiKey:   apiKey,
+		agentID:  agentID,
+		serverID: "",
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
+}
+
+func (c *Client) SetServerID(serverID string) {
+	c.serverID = serverID
 }
 
 func (c *Client) Register(scanResult scanner.ScanResult) (*RegisterResponse, error) {
@@ -49,6 +66,10 @@ func (c *Client) Register(scanResult scanner.ScanResult) (*RegisterResponse, err
 		"name":         scanResult.System.Hostname,
 		"os":           scanResult.System.OS,
 		"agentVersion": "0.1.0",
+	}
+
+	if c.serverID != "" {
+		body["serverId"] = c.serverID
 	}
 
 	caps, _ := json.Marshal(scanResult)

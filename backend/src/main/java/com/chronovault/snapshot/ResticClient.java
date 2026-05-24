@@ -19,17 +19,101 @@ public class ResticClient {
     private final SshConnectionManager sshManager;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Check if restic is installed on the remote server, install it if not.
+     * Returns true if restic is available after this call.
+     */
+    public boolean ensureResticInstalled(SshConnection conn) {
+        SshConnection.CommandResult check = conn.executeCommand("which restic 2>/dev/null || echo ''");
+        String resticPath = check.stdout().trim();
+        if (!resticPath.isEmpty()) {
+            SshConnection.CommandResult versionCheck = conn.executeCommand(resticPath + " version 2>&1");
+            if (versionCheck.isSuccess() && versionCheck.stdout().contains("restic")) {
+                log.info("Restic already installed at {}: {}", resticPath, versionCheck.stdout().trim().lines().findFirst().orElse(""));
+                return true;
+            }
+        }
+
+        log.info("Restic not found, attempting auto-install...");
+
+        // Method 1: Try direct binary download with sudo to /usr/local/bin
+        String downloadCmd = "curl -fsSL -o /tmp/restic.bz2 https://github.com/restic/restic/releases/download/v0.16.5/restic_0.16.5_linux_amd64.bz2 2>&1 || " +
+                "wget -q -O /tmp/restic.bz2 https://github.com/restic/restic/releases/download/v0.16.5/restic_0.16.5_linux_amd64.bz2 2>&1";
+        SshConnection.CommandResult download = conn.executeCommand(downloadCmd, java.time.Duration.ofMinutes(3));
+
+        if (download.isSuccess()) {
+            // Try with sudo first
+            SshConnection.CommandResult install = conn.executeCommand(
+                    "bunzip2 -f /tmp/restic.bz2 && sudo mv /tmp/restic /usr/local/bin/restic && sudo chmod +x /usr/local/bin/restic && /usr/local/bin/restic version 2>&1");
+            if (install.isSuccess() && install.stdout().contains("restic")) {
+                log.info("Restic installed to /usr/local/bin: {}", install.stdout().trim());
+                return true;
+            }
+
+            // Try user local bin
+            SshConnection.CommandResult install2 = conn.executeCommand(
+                    "bunzip2 -f /tmp/restic.bz2 2>/dev/null; mkdir -p ~/.local/bin && mv /tmp/restic ~/.local/bin/restic && chmod +x ~/.local/bin/restic && ~/.local/bin/restic version 2>&1");
+            if (install2.isSuccess() && install2.stdout().contains("restic")) {
+                log.info("Restic installed to ~/.local/bin: {}", install2.stdout().trim());
+                return true;
+            }
+        }
+
+        // Method 2: Try apt-get (Debian/Ubuntu)
+        SshConnection.CommandResult install3 = conn.executeCommand(
+                "sudo apt-get update -qq 2>/dev/null && sudo apt-get install -y -qq restic 2>&1", java.time.Duration.ofMinutes(5));
+        if (install3.isSuccess()) {
+            SshConnection.CommandResult v = conn.executeCommand("restic version 2>&1");
+            if (v.isSuccess() && v.stdout().contains("restic")) {
+                log.info("Restic installed via apt-get");
+                return true;
+            }
+        }
+
+        // Method 3: Try yum (CentOS/RHEL)
+        SshConnection.CommandResult install4 = conn.executeCommand(
+                "sudo yum install -y restic 2>&1", java.time.Duration.ofMinutes(5));
+        if (install4.isSuccess()) {
+            SshConnection.CommandResult v = conn.executeCommand("restic version 2>&1");
+            if (v.isSuccess() && v.stdout().contains("restic")) {
+                log.info("Restic installed via yum");
+                return true;
+            }
+        }
+
+        log.error("Failed to install restic via all methods");
+        return false;
+    }
+
+    /**
+     * Find the restic binary path on the remote server.
+     */
+    public String getResticPath(SshConnection conn) {
+        SshConnection.CommandResult check = conn.executeCommand("which restic 2>/dev/null || echo ''");
+        String path = check.stdout().trim();
+        if (!path.isEmpty()) return path;
+        // Check common locations
+        SshConnection.CommandResult check2 = conn.executeCommand("test -x /usr/local/bin/restic && echo /usr/local/bin/restic || test -x ~/.local/bin/restic && echo ~/.local/bin/restic || echo restic");
+        return check2.stdout().trim();
+    }
+
     public boolean init(SshConnection conn, String repoUrl, String password) {
+        String restic = getResticPath(conn);
         SshConnection.CommandResult result = conn.executeCommand(
-                String.format("RESTIC_PASSWORD=%s restic init --repo %s 2>&1", shellEscape(password), shellEscape(repoUrl)));
+                String.format("RESTIC_PASSWORD=%s %s init --repo %s 2>&1", shellEscape(password), restic, shellEscape(repoUrl)));
+        if (!result.isSuccess()) {
+            log.warn("Restic init failed (exit={}): {}", result.exitCode(),
+                    result.stdout() != null ? result.stdout().substring(0, Math.min(300, result.stdout().length())) : "");
+        }
         return result.isSuccess();
     }
 
     public ResticSnapshot backup(SshConnection conn, String repoUrl, String password,
                                   List<String> paths, List<String> excludes, String parentId) {
+        String restic = getResticPath(conn);
         StringBuilder cmd = new StringBuilder();
         cmd.append("RESTIC_PASSWORD=").append(shellEscape(password)).append(" ");
-        cmd.append("restic backup ");
+        cmd.append(restic).append(" backup ");
         for (String path : paths) {
             cmd.append(shellEscape(path)).append(" ");
         }
@@ -42,10 +126,22 @@ public class ResticClient {
         cmd.append("--repo ").append(shellEscape(repoUrl)).append(" ");
         cmd.append("--json 2>&1");
 
-        SshConnection.CommandResult result = conn.executeCommand(cmd.toString(), java.time.Duration.ofHours(2));
-        if (!result.isSuccess()) {
-            log.error("Restic backup failed: {}", result.stderr());
+        String fullCmd = cmd.toString();
+        log.info("Restic backup command: {}", fullCmd);
+        SshConnection.CommandResult result = conn.executeCommand(fullCmd, java.time.Duration.ofHours(2));
+        log.info("Restic backup exitCode={}", result.exitCode());
+
+        // Exit code 0 = success, 3 = partial success (some files unreadable)
+        if (result.exitCode() != 0 && result.exitCode() != 3) {
+            log.error("Restic backup failed (exit={}): stdout=[{}] stderr=[{}]",
+                    result.exitCode(),
+                    result.stdout() != null ? result.stdout().substring(0, Math.min(1000, result.stdout().length())) : "",
+                    result.stderr() != null ? result.stderr().substring(0, Math.min(1000, result.stderr().length())) : "");
             return null;
+        }
+
+        if (result.exitCode() == 3) {
+            log.warn("Restic backup completed with warnings (some files unreadable)");
         }
 
         try {
@@ -61,6 +157,9 @@ public class ResticClient {
                     );
                 }
             }
+            log.warn("No snapshot_id found in restic output (exit={}): {}",
+                    result.exitCode(),
+                    result.stdout() != null ? result.stdout().substring(0, Math.min(500, result.stdout().length())) : "");
         } catch (Exception e) {
             log.warn("Failed to parse restic backup output: {}", e.getMessage());
         }
@@ -68,9 +167,10 @@ public class ResticClient {
     }
 
     public List<ResticSnapshotInfo> snapshots(SshConnection conn, String repoUrl, String password) {
+        String restic = getResticPath(conn);
         SshConnection.CommandResult result = conn.executeCommand(
-                String.format("RESTIC_PASSWORD=%s restic snapshots --repo %s --json 2>&1",
-                        shellEscape(password), shellEscape(repoUrl)));
+                String.format("RESTIC_PASSWORD=%s %s snapshots --repo %s --json 2>&1",
+                        shellEscape(password), restic, shellEscape(repoUrl)));
 
         if (!result.isSuccess()) {
             return Collections.emptyList();
@@ -86,34 +186,45 @@ public class ResticClient {
 
     public boolean restore(SshConnection conn, String repoUrl, String password,
                            String snapshotId, String targetPath) {
+        String restic = getResticPath(conn);
         SshConnection.CommandResult result = conn.executeCommand(
-                String.format("RESTIC_PASSWORD=%s restic restore %s --target %s --repo %s 2>&1",
-                        shellEscape(password), shellEscape(snapshotId),
+                String.format("RESTIC_PASSWORD=%s %s restore %s --target %s --repo %s 2>&1",
+                        shellEscape(password), restic, shellEscape(snapshotId),
                         shellEscape(targetPath), shellEscape(repoUrl)),
                 java.time.Duration.ofHours(2));
         return result.isSuccess();
     }
 
     public boolean dryRunRestore(SshConnection conn, String repoUrl, String password, String snapshotId) {
-        SshConnection.CommandResult result = conn.executeCommand(
-                String.format("RESTIC_PASSWORD=%s restic restore %s --dry-run --repo %s 2>&1",
-                        shellEscape(password), shellEscape(snapshotId), shellEscape(repoUrl)));
+        // Use 'restic check' to verify repo integrity (dry-run restore not supported in all versions)
+        String restic = getResticPath(conn);
+        String cmd = String.format("RESTIC_PASSWORD=%s %s check --repo %s 2>&1",
+                shellEscape(password), restic, shellEscape(repoUrl));
+        log.info("Restic check command: {}", cmd);
+        SshConnection.CommandResult result = conn.executeCommand(cmd, java.time.Duration.ofMinutes(10));
+        log.info("Restic check exitCode={}", result.exitCode());
+        if (!result.isSuccess()) {
+            log.error("Restic check failed (exit={}): {}", result.exitCode(),
+                    result.stdout() != null ? result.stdout().substring(0, Math.min(500, result.stdout().length())) : "");
+        }
         return result.isSuccess();
     }
 
     public String diff(SshConnection conn, String repoUrl, String password,
                        String snapshot1, String snapshot2) {
+        String restic = getResticPath(conn);
         SshConnection.CommandResult result = conn.executeCommand(
-                String.format("RESTIC_PASSWORD=%s restic diff %s %s --repo %s 2>&1",
-                        shellEscape(password), shellEscape(snapshot1),
+                String.format("RESTIC_PASSWORD=%s %s diff %s %s --repo %s 2>&1",
+                        shellEscape(password), restic, shellEscape(snapshot1),
                         shellEscape(snapshot2), shellEscape(repoUrl)));
         return result.isSuccess() ? result.stdout() : "";
     }
 
     public boolean check(SshConnection conn, String repoUrl, String password) {
+        String restic = getResticPath(conn);
         SshConnection.CommandResult result = conn.executeCommand(
-                String.format("RESTIC_PASSWORD=%s restic check --repo %s 2>&1",
-                        shellEscape(password), shellEscape(repoUrl)));
+                String.format("RESTIC_PASSWORD=%s %s check --repo %s 2>&1",
+                        shellEscape(password), restic, shellEscape(repoUrl)));
         return result.isSuccess();
     }
 

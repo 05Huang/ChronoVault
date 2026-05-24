@@ -2,15 +2,15 @@
   <div class="p-6 space-y-5">
     <div class="space-y-2">
       <label class="block text-[12px] font-bold text-on-surface-variant">卷名称</label>
-      <input v-model="form.name" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px]" placeholder="e.g., app_data" />
+      <input v-model="form.name" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px]" placeholder="例如 app_data" />
     </div>
     <div class="space-y-2">
       <label class="block text-[12px] font-bold text-on-surface-variant">容器内挂载路径</label>
-      <input v-model="form.path" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px]" placeholder="e.g., /app/data" />
+      <input v-model="form.path" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px]" placeholder="例如 /app/data" />
     </div>
     <div class="space-y-2">
       <label class="block text-[12px] font-bold text-on-surface-variant">主机路径</label>
-      <input v-model="form.hostPath" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px]" placeholder="e.g., /mnt/volumes/app_data" />
+      <input v-model="form.hostPath" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px]" placeholder="例如 /mnt/volumes/app_data" />
     </div>
     <div class="flex justify-end gap-3 pt-2">
       <button @click="$emit('close')" class="px-4 py-2 text-[12px] font-bold text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors">取消</button>

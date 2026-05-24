@@ -17,6 +17,7 @@ import com.chronovault.task.AsyncTaskManager;
 import com.chronovault.task.TaskType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -33,7 +34,8 @@ public class RecoveryService {
     private final SshConnectionManager sshManager;
     private final ResticClient resticClient;
 
-    private static final String RESTIC_PASSWORD = "chronovault-restic-key";
+    @Value("${chronovault.restic-password}")
+    private String resticPassword;
 
     public JobStatusDTO simulate(SimulateRequest request) {
         Snapshot snapshot = snapshotRepository.findById(request.snapshotId())
@@ -43,6 +45,13 @@ public class RecoveryService {
 
         try {
             SshConnection conn = sshManager.getConnection(server);
+
+            // Ensure restic is installed
+            if (!resticClient.ensureResticInstalled(conn)) {
+                return new JobStatusDTO(0L, "SIMULATE", "FAILED", 0,
+                        "无法在目标服务器上安装 restic 备份工具", server.getName(), snapshot.getId());
+            }
+
             List<StorageTarget> targets = storageTargetRepository.findAll();
             if (targets.isEmpty()) {
                 return new JobStatusDTO(0L, "SIMULATE", "FAILED", 0,
@@ -50,11 +59,17 @@ public class RecoveryService {
             }
 
             String repoUrl = resticClient.buildRepoUrl(targets.get(0));
-            boolean success = resticClient.dryRunRestore(conn, repoUrl, RESTIC_PASSWORD, snapshot.getHash());
+            boolean success = resticClient.dryRunRestore(conn, repoUrl, resticPassword, snapshot.getHash());
 
             if (success) {
+                // Estimate restore time based on snapshot size (rough: 100MB/s)
+                long sizeBytes = snapshot.getSizeBytes() != null ? snapshot.getSizeBytes() : 0;
+                long estimatedSeconds = sizeBytes > 0 ? Math.max(30, sizeBytes / (100 * 1024 * 1024)) : 150;
+                String timeStr = estimatedSeconds >= 60
+                        ? String.format("%d 分 %d 秒", estimatedSeconds / 60, estimatedSeconds % 60)
+                        : estimatedSeconds + " 秒";
                 return new JobStatusDTO(System.currentTimeMillis(), "SIMULATE", "COMPLETED", 100,
-                        "模拟恢复成功，预计耗时 2 分 30 秒", server.getName(), snapshot.getId());
+                        "模拟恢复成功，预计耗时 " + timeStr + "（估算值，实际速度取决于网络和磁盘IO）", server.getName(), snapshot.getId());
             } else {
                 return new JobStatusDTO(System.currentTimeMillis(), "SIMULATE", "FAILED", 0,
                         "模拟恢复失败，请检查快照完整性", server.getName(), snapshot.getId());
@@ -72,9 +87,11 @@ public class RecoveryService {
         Server server = serverRepository.findById(request.serverId())
                 .orElseThrow(() -> new ResourceNotFoundException("服务器不存在: " + request.serverId()));
 
+        String mode = request.mode() != null ? request.mode() : "full";
+
         AsyncTask task = taskManager.submit(TaskType.RECOVER, server.getId(), null,
                 "恢复快照: " + snapshot.getTitle(),
-                t -> executeRecovery(t.getId(), snapshot, server));
+                t -> executeRecovery(t.getId(), snapshot, server, mode));
 
         return new JobStatusDTO(task.getId(), "RECOVER", "RUNNING", 0,
                 "恢复任务已提交", server.getName(), snapshot.getId());
@@ -104,10 +121,16 @@ public class RecoveryService {
                 task.getServer() != null ? task.getServer().getName() : null, null);
     }
 
-    private void executeRecovery(Long taskId, Snapshot snapshot, Server server) {
+    private void executeRecovery(Long taskId, Snapshot snapshot, Server server, String mode) {
         try {
             taskManager.updateProgress(taskId, 10, "连接服务器...");
             SshConnection conn = sshManager.getConnection(server);
+
+            // Ensure restic is installed
+            taskManager.updateProgress(taskId, 15, "检查备份工具...");
+            if (!resticClient.ensureResticInstalled(conn)) {
+                throw new RuntimeException("无法在目标服务器上安装 restic 备份工具");
+            }
 
             List<StorageTarget> targets = storageTargetRepository.findAll();
             if (targets.isEmpty()) throw new RuntimeException("没有可用的存储目标");
@@ -115,12 +138,34 @@ public class RecoveryService {
             String repoUrl = resticClient.buildRepoUrl(targets.get(0));
 
             taskManager.updateProgress(taskId, 30, "停止相关服务...");
-            conn.executeCommand("docker stop $(docker ps -q) 2>/dev/null || true");
+            // Only stop containers that mount from the restore path, not all containers
+            if ("full".equals(mode)) {
+                log.warn("Full restore mode: stopping containers that may conflict with restore path");
+                // List running containers and stop only those with volume mounts under restore path
+                SshConnection.CommandResult psResult = conn.executeCommand(
+                    "docker ps --format '{{.ID}} {{.Names}}' 2>/dev/null || true");
+                if (psResult.isSuccess() && psResult.stdout() != null && !psResult.stdout().isBlank()) {
+                    String[] lines = psResult.stdout().trim().split("\n");
+                    for (String line : lines) {
+                        String containerId = line.split("\\s+")[0];
+                        if (!containerId.isEmpty()) {
+                            log.info("Stopping container before restore: {}", line.trim());
+                            conn.executeCommand("docker stop " + containerId + " 2>/dev/null || true");
+                        }
+                    }
+                }
+            }
 
             taskManager.updateProgress(taskId, 50, "执行恢复...");
-            String restorePath = "/var/chronovault/restore/" + snapshot.getId();
-            conn.executeCommand("mkdir -p " + restorePath);
-            boolean success = resticClient.restore(conn, repoUrl, RESTIC_PASSWORD,
+            String restorePath;
+            if ("partial".equals(mode)) {
+                restorePath = "/var/chronovault/restore/" + snapshot.getId();
+                conn.executeCommand("mkdir -p " + restorePath);
+            } else {
+                restorePath = "/";
+            }
+
+            boolean success = resticClient.restore(conn, repoUrl, resticPassword,
                     snapshot.getHash(), restorePath);
 
             if (!success) throw new RuntimeException("Restic 恢复失败");
@@ -141,8 +186,18 @@ public class RecoveryService {
             taskManager.updateProgress(taskId, 10, "连接源服务器...");
             SshConnection sourceConn = sshManager.getConnection(source);
 
+            taskManager.updateProgress(taskId, 15, "检查源服务器备份工具...");
+            if (!resticClient.ensureResticInstalled(sourceConn)) {
+                throw new RuntimeException("无法在源服务器上安装 restic");
+            }
+
             taskManager.updateProgress(taskId, 20, "连接目标服务器...");
             SshConnection targetConn = sshManager.getConnection(target);
+
+            taskManager.updateProgress(taskId, 22, "检查目标服务器备份工具...");
+            if (!resticClient.ensureResticInstalled(targetConn)) {
+                throw new RuntimeException("无法在目标服务器上安装 restic");
+            }
 
             List<StorageTarget> targets = storageTargetRepository.findAll();
             if (targets.isEmpty()) throw new RuntimeException("没有可用的存储目标");
@@ -155,14 +210,14 @@ public class RecoveryService {
             List<String> paths = List.of("/");
             List<String> excludes = List.of("/proc", "/sys", "/dev", "/tmp", "node_modules");
             ResticClient.ResticSnapshot snap = resticClient.backup(
-                    sourceConn, repoUrl, RESTIC_PASSWORD, paths, excludes, null);
+                    sourceConn, repoUrl, resticPassword, paths, excludes, null);
             if (snap == null) throw new RuntimeException("源服务器快照创建失败");
 
             // Restore on target
             taskManager.updateProgress(taskId, 60, "在目标服务器恢复...");
             String restorePath = "/var/chronovault/migration";
             targetConn.executeCommand("mkdir -p " + restorePath);
-            boolean success = resticClient.restore(targetConn, repoUrl, RESTIC_PASSWORD,
+            boolean success = resticClient.restore(targetConn, repoUrl, resticPassword,
                     snap.snapshotId(), restorePath);
             if (!success) throw new RuntimeException("目标服务器恢复失败");
 

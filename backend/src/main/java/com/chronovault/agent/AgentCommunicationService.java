@@ -27,8 +27,25 @@ public class AgentCommunicationService {
 
     @Transactional
     public Map<String, Object> registerAgent(String agentId, String name, String ip, String os,
-                                              String agentVersion, String capabilities) {
-        Server server = serverRepository.findByAgentId(agentId);
+                                              String agentVersion, String capabilities, Long serverId) {
+        Server server = null;
+
+        // If serverId is provided, try to link to that existing server
+        if (serverId != null) {
+            server = serverRepository.findById(serverId).orElse(null);
+            if (server != null) {
+                server.setAgentId(agentId);
+                if (ip != null) server.setIp(ip);
+                if (os != null) server.setOs(os);
+                server.setStatus(Server.ServerStatus.RUNNING);
+                server = serverRepository.save(server);
+            }
+        }
+
+        // Fallback: find by agentId
+        if (server == null) {
+            server = serverRepository.findByAgentId(agentId);
+        }
 
         if (server == null) {
             // Create new server
@@ -45,8 +62,8 @@ public class AgentCommunicationService {
                     .build();
             server = serverRepository.save(server);
         } else {
-            server.setIp(ip);
-            server.setOs(os);
+            if (ip != null) server.setIp(ip);
+            if (os != null) server.setOs(os);
             server.setStatus(Server.ServerStatus.RUNNING);
             server = serverRepository.save(server);
         }

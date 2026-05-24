@@ -7,6 +7,7 @@ import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.AlertService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +22,14 @@ public class AlertController {
     private final AlertService alertService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<AlertDTO>>> getAlerts(@RequestParam(required = false) String filter) {
+    public ResponseEntity<?> getAlerts(
+            @RequestParam(required = false) String filter,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        if (page != null && size != null) {
+            Page<AlertDTO> result = alertService.getAlertsPaged(filter, page, size);
+            return ResponseEntity.ok(ApiResponse.success(result));
+        }
         return ResponseEntity.ok(ApiResponse.success(alertService.getAlerts(filter)));
     }
 
@@ -33,25 +41,25 @@ public class AlertController {
     @PostMapping("/{id}/restart")
     public ResponseEntity<ApiResponse<Void>> restart(@PathVariable Long id) {
         alertService.restartContainer(id);
-        return ResponseEntity.ok(ApiResponse.success("容器重启成功", null));
+        return ResponseEntity.ok(ApiResponse.successMsg("容器重启成功"));
     }
 
     @PostMapping("/{id}/expand-storage")
     public ResponseEntity<ApiResponse<Void>> expandStorage(@PathVariable Long id) {
         alertService.expandStorage(id);
-        return ResponseEntity.ok(ApiResponse.success("存储扩展成功", null));
+        return ResponseEntity.ok(ApiResponse.successMsg("存储扩展成功"));
     }
 
     @PostMapping("/{id}/rollback-config")
     public ResponseEntity<ApiResponse<Void>> rollbackConfig(@PathVariable Long id) {
         alertService.rollbackConfig(id);
-        return ResponseEntity.ok(ApiResponse.success("配置回滚成功", null));
+        return ResponseEntity.ok(ApiResponse.successMsg("配置回滚成功"));
     }
 
     @PostMapping("/{id}/dismiss")
     public ResponseEntity<ApiResponse<Void>> dismiss(@PathVariable Long id) {
         alertService.dismiss(id);
-        return ResponseEntity.ok(ApiResponse.success("告警已忽略", null));
+        return ResponseEntity.ok(ApiResponse.successMsg("告警已忽略"));
     }
 
     @GetMapping("/rules")
@@ -80,5 +88,17 @@ public class AlertController {
     public ResponseEntity<ApiResponse<IntegrationDTO>> updateIntegration(@PathVariable Long id, @RequestBody java.util.Map<String, Object> body) {
         Boolean active = body.containsKey("active") ? (Boolean) body.get("active") : null;
         return ResponseEntity.ok(ApiResponse.success(alertService.updateIntegration(id, active)));
+    }
+
+    @DeleteMapping("/rules/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteRule(@PathVariable Long id) {
+        alertService.deleteRule(id);
+        return ResponseEntity.ok(ApiResponse.successMsg("告警规则已删除"));
+    }
+
+    @DeleteMapping("/integrations/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteIntegration(@PathVariable Long id) {
+        alertService.deleteIntegration(id);
+        return ResponseEntity.ok(ApiResponse.successMsg("集成已删除"));
     }
 }

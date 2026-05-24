@@ -43,11 +43,13 @@ public class AuthService {
             throw new BadRequestException("该邮箱已被注册");
         }
 
+        // First user becomes OWNER, subsequent users become MEMBER
+        boolean isFirstUser = userRepository.count() == 0;
         User user = User.builder()
                 .name(request.name())
                 .email(request.email())
                 .passwordHash(passwordEncoder.encode(request.password()))
-                .role(User.Role.OWNER)
+                .role(isFirstUser ? User.Role.OWNER : User.Role.MEMBER)
                 .status(User.UserStatus.ONLINE)
                 .build();
         userRepository.save(user);

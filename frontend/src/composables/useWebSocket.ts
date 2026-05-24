@@ -1,5 +1,6 @@
-import { ref, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import { Client } from '@stomp/stompjs'
+// @ts-ignore
 import SockJS from 'sockjs-client/dist/sockjs'
 
 interface WebSocketOptions {
@@ -10,6 +11,14 @@ interface WebSocketOptions {
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol}//${window.location.host}/ws/events`
 
+function getWsUrlWithToken(): string {
+  const token = localStorage.getItem('cv_token')
+  if (token) {
+    return `${WS_URL}?token=${encodeURIComponent(token)}`
+  }
+  return WS_URL
+}
+
 let stompClient: Client | null = null
 const connected = ref(false)
 const subscriptions = new Map<string, { unsubscribe: () => void }>()
@@ -19,7 +28,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     if (stompClient?.connected) return
 
     stompClient = new Client({
-      webSocketFactory: () => new SockJS(WS_URL),
+      webSocketFactory: () => new SockJS(getWsUrlWithToken()),
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,

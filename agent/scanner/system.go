@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"runtime"
-	"strings"
 )
 
 func ScanSystem() SystemInfo {

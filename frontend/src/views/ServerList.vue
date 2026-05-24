@@ -60,7 +60,7 @@
           </div>
           <div class="flex items-center gap-2">
             <span class="material-symbols-outlined text-[16px]">schedule</span>
-            <span>已运行: {{ server.uptime }}</span>
+            <span>已运行: {{ server.uptimeSeconds ? Math.floor(server.uptimeSeconds / 3600) + 'h' : 'N/A' }}</span>
           </div>
         </div>
         <div class="mt-4 pt-3 border-t border-outline-variant/20 flex justify-end">
@@ -87,15 +87,16 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { serversApi } from '@/api/servers'
+import type { Server } from '@/types'
 
 const router = useRouter()
 const loading = ref(true)
-const servers = ref<any[]>([])
+const servers = ref<Server[]>([])
 
 onMounted(async () => {
   try {
     const res = await serversApi.getAll()
-    servers.value = (res as any).data || res || []
+    servers.value = res || []
   } catch (e) {
     console.error('Failed to load servers', e)
   } finally {

@@ -1,21 +1,35 @@
 package com.chronovault.service;
 
+import com.chronovault.ai.AiClient;
 import com.chronovault.dto.settings.ApiKeyDTO;
 import com.chronovault.dto.settings.AuditLogDTO;
+import com.chronovault.dto.settings.CreateApiKeyResponse;
 import com.chronovault.dto.settings.GenerateKeyRequest;
 import com.chronovault.entity.ApiKey;
 import com.chronovault.entity.AuditLog;
+import com.chronovault.entity.SystemSetting;
 import com.chronovault.entity.User;
 import com.chronovault.exception.ResourceNotFoundException;
 import com.chronovault.repository.ApiKeyRepository;
 import com.chronovault.repository.AuditLogRepository;
+import com.chronovault.repository.SystemSettingRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.security.MessageDigest;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +37,9 @@ public class SettingsService {
 
     private final ApiKeyRepository apiKeyRepository;
     private final AuditLogRepository auditLogRepository;
+    private final SystemSettingRepository systemSettingRepository;
     private final UserService userService;
+    private final AiClient aiClient;
 
     public List<ApiKeyDTO> getApiKeys(String email) {
         User user = userService.getByEmail(email);
@@ -33,7 +49,7 @@ public class SettingsService {
     }
 
     @Transactional
-    public ApiKeyDTO generateKey(String email, GenerateKeyRequest request) {
+    public CreateApiKeyResponse generateKey(String email, GenerateKeyRequest request) {
         User user = userService.getByEmail(email);
         String rawKey = "cv_" + UUID.randomUUID().toString().replace("-", "");
         String prefix = rawKey.substring(0, 12) + "...";
@@ -58,11 +74,11 @@ public class SettingsService {
                 .user(user)
                 .action("生成 API 密钥: " + request.name())
                 .icon("key")
-                .ipAddress("127.0.0.1")
+                .ipAddress(getClientIp())
                 .build();
         auditLogRepository.save(log);
 
-        return ApiKeyDTO.from(apiKey);
+        return CreateApiKeyResponse.of(ApiKeyDTO.from(apiKey), rawKey);
     }
 
     @Transactional
@@ -76,6 +92,12 @@ public class SettingsService {
         return auditLogRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(AuditLogDTO::from)
                 .toList();
+    }
+
+    public Page<AuditLogDTO> searchAuditLogs(String action, Long userId, LocalDateTime since, LocalDateTime until, int page, int size) {
+        return auditLogRepository.search(action, userId, since, until,
+                PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), Sort.by(Sort.Direction.DESC, "createdAt")))
+                .map(AuditLogDTO::from);
     }
 
     private String hashKey(String key) {
@@ -92,5 +114,83 @@ public class SettingsService {
         } catch (Exception e) {
             return key;
         }
+    }
+
+    public Map<String, Object> getAiConfig() {
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("enabled", getSettingValue("ai.enabled", "true").equalsIgnoreCase("true"));
+        config.put("baseUrl", getSettingValue("ai.base-url", "https://api.xiaomimimo.com/v1"));
+        String apiKey = getSettingValue("ai.api-key", "");
+        config.put("apiKey", maskApiKey(apiKey));
+        config.put("model", getSettingValue("ai.model", "mimo-v2.5-pro"));
+        config.put("maxTokens", Integer.parseInt(getSettingValue("ai.max-tokens", "4096")));
+        config.put("temperature", Double.parseDouble(getSettingValue("ai.temperature", "0.7")));
+        return config;
+    }
+
+    @Transactional
+    public void updateAiConfig(Map<String, Object> config) {
+        if (config.containsKey("enabled")) {
+            saveSetting("ai.enabled", String.valueOf(config.get("enabled")));
+        }
+        if (config.containsKey("baseUrl")) {
+            saveSetting("ai.base-url", String.valueOf(config.get("baseUrl")));
+        }
+        if (config.containsKey("apiKey")) {
+            String val = String.valueOf(config.get("apiKey"));
+            // Only update if not masked
+            if (!val.contains("*")) {
+                saveSetting("ai.api-key", val);
+            }
+        }
+        if (config.containsKey("model")) {
+            saveSetting("ai.model", String.valueOf(config.get("model")));
+        }
+        if (config.containsKey("maxTokens")) {
+            saveSetting("ai.max-tokens", String.valueOf(config.get("maxTokens")));
+        }
+        if (config.containsKey("temperature")) {
+            saveSetting("ai.temperature", String.valueOf(config.get("temperature")));
+        }
+        aiClient.reloadConfig();
+    }
+
+    private String getSettingValue(String key, String defaultValue) {
+        return systemSettingRepository.findById(key)
+                .map(SystemSetting::getValue)
+                .filter(v -> v != null && !v.isBlank())
+                .orElse(defaultValue);
+    }
+
+    private void saveSetting(String key, String value) {
+        SystemSetting setting = systemSettingRepository.findById(key).orElse(new SystemSetting());
+        setting.setKey(key);
+        setting.setValue(value);
+        systemSettingRepository.save(setting);
+    }
+
+    private String maskApiKey(String apiKey) {
+        if (apiKey == null || apiKey.isBlank()) return "";
+        if (apiKey.length() <= 8) return "****";
+        return apiKey.substring(0, 4) + "****" + apiKey.substring(apiKey.length() - 4);
+    }
+
+    private String getClientIp() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                HttpServletRequest request = attrs.getRequest();
+                String ip = request.getHeader("X-Forwarded-For");
+                if (ip != null && !ip.isBlank()) {
+                    return ip.split(",")[0].trim();
+                }
+                ip = request.getHeader("X-Real-IP");
+                if (ip != null && !ip.isBlank()) {
+                    return ip;
+                }
+                return request.getRemoteAddr();
+            }
+        } catch (Exception ignored) {}
+        return "unknown";
     }
 }

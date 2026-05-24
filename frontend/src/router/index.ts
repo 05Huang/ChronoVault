@@ -90,7 +90,7 @@ router.beforeEach((to) => {
   if (!token && !publicPaths.includes(to.path)) {
     return '/login'
   }
-  if (token && (to.path === '/login' || to.path === '/register' || to.path === '/onboarding' || to.path === '/')) {
+  if (token && (to.path === '/login' || to.path === '/register' || to.path === '/')) {
     return '/dashboard'
   }
 })

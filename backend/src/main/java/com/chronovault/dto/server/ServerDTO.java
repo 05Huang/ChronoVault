@@ -3,11 +3,11 @@ package com.chronovault.dto.server;
 import com.chronovault.entity.Server;
 
 public record ServerDTO(Long id, String name, String ip, String os, String status, String uptime,
-                        Integer sshPort, String sshUsername, String sshAuthMethod) {
+                        Long uptimeSeconds, Integer sshPort, String sshUsername, String sshAuthMethod) {
     public static ServerDTO from(Server s) {
         String uptime = s.getUptimeSeconds() != null ? formatUptime(s.getUptimeSeconds()) : "未知";
         return new ServerDTO(s.getId(), s.getName(), s.getIp(), s.getOs(), s.getStatus().name(), uptime,
-                s.getSshPort(), s.getSshUsername(), s.getSshAuthMethod());
+                s.getUptimeSeconds(), s.getSshPort(), s.getSshUsername(), s.getSshAuthMethod());
     }
 
     private static String formatUptime(long seconds) {

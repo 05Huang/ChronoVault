@@ -12,15 +12,33 @@
       <div class="lg:col-span-5 relative">
         <div class="absolute left-6 top-0 bottom-0 w-[2px] opacity-30" style="background: linear-gradient(to bottom, transparent, #0058be, #924700, transparent);"></div>
         <div class="space-y-12">
-          <div v-for="snap in snapshots" :key="snap.id" class="relative pl-16 group" :class="snap.status === 'ARCHIVED' || snap.status === 'archived' ? 'opacity-70 hover:opacity-100' : ''">
+          <div v-for="snap in snapshots" :key="snap.id" class="relative pl-16 group" :class="snap.status === 'ARCHIVED' ? 'opacity-70 hover:opacity-100' : ''">
             <div class="absolute left-[20px] top-1 w-3 h-3 rounded-full ring-4 z-10" :class="dotColors[snap.status] || dotColors.STABLE"></div>
             <div @click="selectSnapshot(snap)" class="glass-panel p-[20px] rounded-xl border-l-4 hover:translate-x-1 transition-transform cursor-pointer" :class="[(borderColors[snap.status] || borderColors.STABLE), selectedSnapshot?.id === snap.id ? 'shimmer-edge' : '']">
               <div class="flex justify-between items-start mb-2">
-                <span class="text-[12px] font-bold tracking-wide" :class="(snap.status === 'STABLE' || snap.status === 'stable') ? 'text-primary' : (snap.status === 'WARNING' || snap.status === 'warning') ? 'text-tertiary' : 'text-outline'">{{ snap.createdAt ? new Date(snap.createdAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : snap.date || 'N/A' }}</span>
+                <span class="text-[12px] font-bold tracking-wide" :class="snap.status === 'STABLE' ? 'text-primary' : snap.status === 'WARNING' ? 'text-tertiary' : 'text-outline'">{{ snap.createdAt ? new Date(snap.createdAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : snap.date || 'N/A' }}</span>
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase" :class="statusColors[snap.status] || statusColors.STABLE">{{ snap.status || 'Stable' }}</span>
               </div>
               <h3 class="text-[24px] font-semibold mb-1">{{ snap.name || snap.title || '快照' }}</h3>
-              <p class="text-on-surface-variant text-[14px] mb-4">{{ snap.description || snap.note || '' }}</p>
+              <p class="text-on-surface-variant text-[14px] mb-3">{{ snap.description || snap.note || '' }}</p>
+              <!-- Tags -->
+              <div v-if="snap.tags && snap.tags.length" class="flex flex-wrap gap-1.5 mb-3">
+                <span
+                  v-for="tag in snap.tags"
+                  :key="tag.id"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                  :style="{ backgroundColor: tag.color + '20', color: tag.color, border: '1px solid ' + tag.color + '40' }"
+                >
+                  {{ tag.name }}
+                  <button
+                    @click.stop="handleRemoveTag(snap.id, tag.name)"
+                    class="ml-0.5 hover:opacity-70 transition-opacity"
+                    title="移除标签"
+                  >
+                    <span class="material-symbols-outlined text-[12px]">close</span>
+                  </button>
+                </span>
+              </div>
               <div class="flex gap-2 items-center">
                 <span v-if="snap.hash" class="text-[10px] text-outline">Hash: {{ snap.hash }}</span>
               </div>
@@ -55,15 +73,47 @@
           </div>
         </div>
 
+        <!-- Tags Panel -->
+        <div v-if="selectedSnapshot" class="glass-panel p-5 rounded-2xl border border-outline-variant/20">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-[20px]">label</span>
+              <span class="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">标签</span>
+            </div>
+            <button @click="openAddTagModal" class="text-[12px] font-bold text-primary flex items-center gap-1 hover:gap-2 transition-all">
+              <span class="material-symbols-outlined text-[16px]">add_circle</span>
+              添加标签
+            </button>
+          </div>
+          <div v-if="selectedSnapshot.tags && selectedSnapshot.tags.length" class="flex flex-wrap gap-2">
+            <span
+              v-for="tag in selectedSnapshot.tags"
+              :key="tag.id"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium"
+              :style="{ backgroundColor: tag.color + '20', color: tag.color, border: '1px solid ' + tag.color + '40' }"
+            >
+              {{ tag.name }}
+              <button
+                @click="handleRemoveTag(selectedSnapshot!.id, tag.name)"
+                class="hover:opacity-70 transition-opacity"
+                title="移除标签"
+              >
+                <span class="material-symbols-outlined text-[14px]">close</span>
+              </button>
+            </span>
+          </div>
+          <p v-else class="text-[13px] text-outline">暂无标签，点击上方按钮添加</p>
+        </div>
+
         <!-- Diff Compare View -->
         <div class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
           <div class="bg-surface-container-high/50 px-6 py-4 flex justify-between items-center border-b border-outline-variant/20">
             <div class="flex items-center gap-4">
-              <span class="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">Diff Compare</span>
+              <span class="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant">差异对比</span>
               <div class="flex items-center gap-2 bg-surface px-3 py-1 rounded-full border border-outline-variant/30 text-[12px]">
-                <span class="text-outline">Current</span>
+                <span class="text-outline">当前</span>
                 <span class="material-symbols-outlined text-[14px]">arrow_right_alt</span>
-                <span class="font-bold text-primary">{{ selectedSnapshot?.name || 'Snapshot' }}</span>
+                <span class="font-bold text-primary">{{ selectedSnapshot?.name || '快照' }}</span>
               </div>
             </div>
             <div class="flex gap-1">
@@ -74,9 +124,9 @@
           </div>
           <div class="p-6 font-[Geist] text-[14px] space-y-4">
             <div class="grid grid-cols-12 gap-4 border-b border-outline-variant/10 pb-2">
-              <div class="col-span-4 text-outline">Configuration Path</div>
-              <div class="col-span-4 text-outline">Previous State</div>
-              <div class="col-span-4 text-outline">New State</div>
+              <div class="col-span-4 text-outline">配置路径</div>
+              <div class="col-span-4 text-outline">变更前</div>
+              <div class="col-span-4 text-outline">变更后</div>
             </div>
             <div v-for="diff in diffs" :key="diff.path" class="grid grid-cols-12 gap-4 items-center">
               <div class="col-span-4 text-on-surface-variant">{{ diff.path }}</div>
@@ -125,19 +175,19 @@
     <!-- Footer Stats -->
     <footer class="grid grid-cols-2 md:grid-cols-4 gap-[16px] pt-8 border-t border-outline-variant/20">
       <div class="space-y-1">
-        <p class="text-outline text-[12px] font-bold uppercase tracking-widest">Total Size</p>
+        <p class="text-outline text-[12px] font-bold uppercase tracking-widest">总大小</p>
         <p class="text-[32px] font-semibold">{{ stats.totalSize ? formatBytes(stats.totalSize) : '-' }}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-outline text-[12px] font-bold uppercase tracking-widest">Snapshots</p>
+        <p class="text-outline text-[12px] font-bold uppercase tracking-widest">快照数</p>
         <p class="text-[32px] font-semibold">{{ snapshots.length }}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-outline text-[12px] font-bold uppercase tracking-widest">Avg. Size</p>
+        <p class="text-outline text-[12px] font-bold uppercase tracking-widest">平均大小</p>
         <p class="text-[32px] font-semibold">{{ stats.avgSize || '-' }}</p>
       </div>
       <div class="space-y-1">
-        <p class="text-outline text-[12px] font-bold uppercase tracking-widest">Latest</p>
+        <p class="text-outline text-[12px] font-bold uppercase tracking-widest">最新快照</p>
         <p class="text-[32px] font-semibold text-primary">{{ stats.latestDate || '-' }}</p>
       </div>
     </footer>
@@ -149,22 +199,19 @@ import { ref, onMounted } from 'vue'
 import { useToastStore } from '@/stores/toast'
 import { useModalStore } from '@/stores/modal'
 import { snapshotsApi } from '@/api/snapshots'
+import { formatBytes } from '@/utils/format'
 import ConfirmModal from '@/components/modals/ConfirmModal.vue'
+import AddTagModal from '@/components/modals/AddTagModal.vue'
 
 const toast = useToastStore()
 const modal = useModalStore()
 
-const snapshots = ref<any[]>([])
-const selectedSnapshot = ref<any>(null)
-const diffs = ref<any[]>([])
-const stats = ref<any>({})
+import type { Snapshot, SnapshotDiff } from '@/types'
 
-function formatBytes(bytes: number): string {
-  if (!bytes) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  return (bytes / Math.pow(1024, i)).toFixed(i > 2 ? 1 : 0) + ' ' + units[i]
-}
+const snapshots = ref<Snapshot[]>([])
+const selectedSnapshot = ref<Snapshot | null>(null)
+const diffs = ref<SnapshotDiff[]>([])
+const stats = ref({ totalSize: 0, avgSize: '-', latestDate: '' })
 
 function openRollbackConfirm() {
   if (!selectedSnapshot.value) {
@@ -175,12 +222,14 @@ function openRollbackConfirm() {
     component: ConfirmModal,
     title: '确认回滚',
     props: {
-      message: `即将回滚至 ${selectedSnapshot.value.name || '选定快照'}。此操作将覆盖当前系统状态，期间 API 服务将短暂离线约 45-60 秒。是否继续？`,
+      message: `即将回滚至 ${selectedSnapshot.value?.name || '选定快照'}。此操作将覆盖当前系统状态，期间 API 服务将短暂离线约 45-60 秒。是否继续？`,
       confirmText: '执行回滚',
       confirmClass: 'bg-error hover:bg-error/90',
       successMessage: '回滚任务已提交，预计 60 秒完成',
       onConfirm: async () => {
-        await snapshotsApi.rollback(selectedSnapshot.value.id)
+        if (selectedSnapshot.value) {
+          await snapshotsApi.rollback(selectedSnapshot.value.id)
+        }
       },
     },
   })
@@ -226,15 +275,62 @@ function showOperationSteps() {
   })
 }
 
-function selectSnapshot(snap: any) {
+function openAddTagModal() {
+  if (!selectedSnapshot.value) {
+    toast.error('请先选择一个快照')
+    return
+  }
+  const snapId = selectedSnapshot.value.id
+  modal.open({
+    component: AddTagModal,
+    title: '添加标签',
+    width: 'max-w-md',
+    props: {
+      snapshotId: snapId,
+      existingTags: selectedSnapshot.value.tags || [],
+      onAdded: () => {
+        refreshSnapshotTags(snapId)
+      },
+    },
+  })
+}
+
+async function handleRemoveTag(snapshotId: number, tagName: string) {
+  try {
+    await snapshotsApi.removeTag(snapshotId, tagName)
+    toast.success(`标签 "${tagName}" 已移除`)
+    await refreshSnapshotTags(snapshotId)
+  } catch (e: any) {
+    toast.error(e?.message || '移除标签失败')
+  }
+}
+
+async function refreshSnapshotTags(snapshotId: number) {
+  try {
+    const updated = await snapshotsApi.get(snapshotId)
+    // Update the tags in the snapshots list
+    const idx = snapshots.value.findIndex(s => s.id === snapshotId)
+    if (idx >= 0) {
+      snapshots.value[idx] = { ...snapshots.value[idx], tags: updated.tags || [] }
+    }
+    // Update selected snapshot
+    if (selectedSnapshot.value?.id === snapshotId) {
+      selectedSnapshot.value = { ...selectedSnapshot.value, tags: updated.tags || [] }
+    }
+  } catch (e) {
+    console.error('Failed to refresh tags', e)
+  }
+}
+
+function selectSnapshot(snap: Snapshot) {
   selectedSnapshot.value = snap
   loadDiff(snap.id)
 }
 
 async function loadDiff(id: number) {
   try {
-    const res: any = await snapshotsApi.getDiff(id)
-    diffs.value = res.data || res || []
+    const res = await snapshotsApi.getDiff(id)
+    diffs.value = res || []
   } catch (e) {
     console.error('Failed to load diff', e)
   }
@@ -242,29 +338,20 @@ async function loadDiff(id: number) {
 
 const statusColors: Record<string, string> = {
   STABLE: 'bg-primary/10 text-primary',
-  stable: 'bg-primary/10 text-primary',
   WARNING: 'bg-tertiary/10 text-tertiary',
-  warning: 'bg-tertiary/10 text-tertiary',
   ARCHIVED: 'bg-outline/10 text-outline',
-  archived: 'bg-outline/10 text-outline',
 }
 
 const dotColors: Record<string, string> = {
   STABLE: 'bg-primary ring-primary/20 shadow-[0_0_15px_rgba(0,88,190,0.5)]',
-  stable: 'bg-primary ring-primary/20 shadow-[0_0_15px_rgba(0,88,190,0.5)]',
   WARNING: 'bg-tertiary ring-tertiary/20 shadow-[0_0_15px_rgba(146,71,0,0.5)]',
-  warning: 'bg-tertiary ring-tertiary/20 shadow-[0_0_15px_rgba(146,71,0,0.5)]',
   ARCHIVED: 'bg-outline ring-outline/10',
-  archived: 'bg-outline ring-outline/10',
 }
 
 const borderColors: Record<string, string> = {
   STABLE: 'border-l-primary',
-  stable: 'border-l-primary',
   WARNING: 'border-l-tertiary',
-  warning: 'border-l-tertiary',
   ARCHIVED: 'border-l-outline-variant',
-  archived: 'border-l-outline-variant',
 }
 
 onMounted(async () => {
@@ -272,12 +359,12 @@ onMounted(async () => {
     const [snapshotsRes] = await Promise.all([
       snapshotsApi.getAll(),
     ])
-    const data = (snapshotsRes as any).data || snapshotsRes || []
+    const data = snapshotsRes || []
     snapshots.value = data
     if (data.length > 0) {
       selectSnapshot(data[0])
     }
-    const totalSize = data.reduce((acc: number, s: any) => acc + (s.sizeBytes || 0), 0)
+    const totalSize = data.reduce((acc: number, s: Snapshot) => acc + (s.sizeBytes || 0), 0)
     const avgSize = data.length > 0 ? Math.round(totalSize / data.length) : 0
     const latestDate = data.length > 0 && data[0].createdAt
       ? new Date(data[0].createdAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })

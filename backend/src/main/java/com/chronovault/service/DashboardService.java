@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +36,7 @@ public class DashboardService {
         long activeServers = serverRepository.countByStatus(Server.ServerStatus.RUNNING);
         long totalContainers = containerRepository.count();
         long totalSnapshots = snapshotRepository.count();
+        long todayBackups = snapshotRepository.countToday();
         long alertsToday = alertRepository.countToday();
         Long usedBytes = storageTargetRepository.sumUsedBytes();
         Long totalBytes = storageTargetRepository.sumTotalBytes();
@@ -49,7 +51,7 @@ public class DashboardService {
                 (int) totalServers,
                 (int) activeServers,
                 (int) totalContainers,
-                (int) totalSnapshots,
+                (int) todayBackups,
                 (int) totalSnapshots,
                 (int) alertsToday,
                 uptimePercent + "%",
@@ -89,45 +91,79 @@ public class DashboardService {
         String summary;
         if (score >= 80) { level = "低风险"; summary = "系统运行良好，未发现显著风险。"; }
         else if (score >= 60) { level = "中风险"; summary = "发现部分潜在风险，建议关注并处理。"; }
-        else { level = "高风险"; summary = "系统存在高风险项，建议立即处理。"; }
+        else if (score >= 40) { level = "高风险"; summary = "系统存在高风险项，建议立即处理。"; }
+        else { level = "极高风险"; summary = "系统处于极度危险状态，需要立即干预。"; }
         return new RiskScoreDTO(Math.round(score * 10.0) / 10.0, level, summary,
                 (int) critical, (int) warning, (int) anomaly);
     }
 
     public TopologyDTO getTopology() {
-        List<TopologyDTO.Node> nodes = serverRepository.findAll().stream()
+        List<Server> servers = serverRepository.findAll();
+        List<TopologyDTO.Node> nodes = servers.stream()
                 .map(s -> new TopologyDTO.Node(s.getId().toString(), s.getName(), "server", s.getStatus().name()))
                 .collect(java.util.stream.Collectors.toList());
+
+        // Only create edges between servers that share the same user (owner)
+        // meaning they belong to the same infrastructure
         List<TopologyDTO.Edge> edges = new ArrayList<>();
-        for (int i = 1; i < nodes.size(); i++) {
-            edges.add(new TopologyDTO.Edge(nodes.get(0).id(), nodes.get(i).id()));
-        }
-        return new TopologyDTO(nodes, edges);
-    }
+        Map<Long, List<TopologyDTO.Node>> byUser = servers.stream()
+                .collect(Collectors.groupingBy(
+                        s -> s.getUser() != null ? s.getUser().getId() : 0L,
+                        Collectors.mapping(
+                                s -> new TopologyDTO.Node(s.getId().toString(), s.getName(), "server", s.getStatus().name()),
+                                Collectors.toList())));
 
-    public List<ActivityTrendDTO> getActivityTrend() {
-        // Aggregate real event data by day
-        Map<String, int[]> dailyData = new TreeMap<>();
-
-        for (int i = 6; i >= 0; i--) {
-            String day = LocalDate.now().minusDays(i).format(DateTimeFormatter.ofPattern("MM-dd"));
-            dailyData.put(day, new int[]{0, 0, 0}); // snapshots, alerts, events
-        }
-
-        List<Event> events = eventRepository.findAll();
-        for (Event event : events) {
-            if (event.getCreatedAt() != null) {
-                String day = event.getCreatedAt().format(DateTimeFormatter.ofPattern("MM-dd"));
-                int[] data = dailyData.get(day);
-                if (data != null) {
-                    if ("snapshot".equals(event.getSource())) data[0]++;
-                    else if ("alert".equals(event.getSource())) data[1]++;
-                    else data[2]++;
+        for (List<TopologyDTO.Node> group : byUser.values()) {
+            for (int i = 0; i < group.size(); i++) {
+                for (int j = i + 1; j < group.size(); j++) {
+                    edges.add(new TopologyDTO.Edge(group.get(i).id(), group.get(j).id()));
                 }
             }
         }
 
-        return dailyData.entrySet().stream()
+        return new TopologyDTO(nodes, edges);
+    }
+
+    public List<ActivityTrendDTO> getActivityTrend(String range) {
+        int days = "24h".equals(range) ? 1 : "7d".equals(range) ? 7 : 30;
+        String pattern = days <= 1 ? "HH:00" : "MM-dd";
+
+        Map<String, int[]> dataMap = new TreeMap<>();
+
+        if (days <= 1) {
+            // 24-hour view: group by hour
+            for (int i = 23; i >= 0; i--) {
+                String key = java.time.LocalTime.now().minusHours(i).format(java.time.format.DateTimeFormatter.ofPattern("HH:00"));
+                dataMap.put(key, new int[]{0, 0, 0});
+            }
+        } else {
+            // Multi-day view: group by day
+            for (int i = days - 1; i >= 0; i--) {
+                String day = LocalDate.now().minusDays(i).format(DateTimeFormatter.ofPattern("MM-dd"));
+                dataMap.put(day, new int[]{0, 0, 0});
+            }
+        }
+
+        java.time.LocalDateTime cutoff = java.time.LocalDateTime.now().minusDays(days);
+        List<Event> events = eventRepository.findByCreatedAtAfterOrderByCreatedAtDesc(cutoff);
+        for (Event event : events) {
+            if (event.getCreatedAt() != null && event.getCreatedAt().isAfter(cutoff)) {
+                String key;
+                if (days <= 1) {
+                    key = event.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("HH:00"));
+                } else {
+                    key = event.getCreatedAt().format(DateTimeFormatter.ofPattern("MM-dd"));
+                }
+                int[] val = dataMap.get(key);
+                if (val != null) {
+                    if ("snapshot".equals(event.getSource())) val[0]++;
+                    else if ("alert".equals(event.getSource())) val[1]++;
+                    else val[2]++;
+                }
+            }
+        }
+
+        return dataMap.entrySet().stream()
                 .map(e -> new ActivityTrendDTO(e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2]))
                 .toList();
     }

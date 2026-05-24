@@ -179,10 +179,16 @@
         </div>
 
         <!-- Action Trigger -->
-        <button @click="startSimulation" class="w-full py-4 bg-primary text-white rounded-2xl text-[24px] font-semibold shadow-lg hover:shadow-primary/30 hover:bg-primary/90 transition-all flex items-center justify-center space-x-3">
-          <span class="material-symbols-outlined">rocket_launch</span>
-          <span>开始模拟验证</span>
-        </button>
+        <div class="space-y-3">
+          <button @click="startSimulation" :disabled="simulating" class="w-full py-4 bg-primary text-white rounded-2xl text-[24px] font-semibold shadow-lg hover:shadow-primary/30 hover:bg-primary/90 transition-all flex items-center justify-center space-x-3 disabled:opacity-50">
+            <span class="material-symbols-outlined">rocket_launch</span>
+            <span>{{ simulating ? '模拟验证中...' : '开始模拟验证' }}</span>
+          </button>
+          <button v-if="simulationResult && simulationResult.status === 'COMPLETED'" @click="executeRecovery" :disabled="executing" class="w-full py-4 bg-error text-white rounded-2xl text-[24px] font-semibold shadow-lg hover:shadow-error/30 hover:bg-error/90 transition-all flex items-center justify-center space-x-3 disabled:opacity-50">
+            <span class="material-symbols-outlined">settings_backup_restore</span>
+            <span>{{ executing ? '执行恢复中...' : '执行恢复 (Rollback)' }}</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -230,12 +236,17 @@ function scrollToMigration() {
 }
 
 const recoveryMode = ref('full')
-const selectedSnapshot = ref<any>(null)
-const snapshots = ref<any[]>([])
-const deltaLines = ref<any[]>([])
+import type { Snapshot, Server } from '@/types'
+
+const selectedSnapshot = ref<Snapshot | null>(null)
+const snapshots = ref<Snapshot[]>([])
+interface DeltaLine { num: number; type: string; content: string; comment?: string }
+const deltaLines = ref<DeltaLine[]>([])
 const simulationResult = ref<any>(null)
-const servers = ref<any[]>([])
+const servers = ref<Server[]>([])
 const targetServerId = ref(0)
+const simulating = ref(false)
+const executing = ref(false)
 
 function openDeployConfirm() {
   modal.open({
@@ -247,7 +258,7 @@ function openDeployConfirm() {
       successMessage: '迁移任务已提交至部署队列',
       onConfirm: async () => {
         if (selectedSnapshot.value && targetServerId.value) {
-          await recoveryApi.migrate({ sourceServerId: selectedSnapshot.value.serverId, targetServerId: targetServerId.value, snapshotId: selectedSnapshot.value.id })
+          await recoveryApi.migrate({ sourceServerId: selectedSnapshot.value.serverId!, targetServerId: targetServerId.value, snapshotId: selectedSnapshot.value.id })
         } else {
           toast.error('请选择目标服务器')
         }
@@ -261,27 +272,64 @@ async function startSimulation() {
     toast.error('请先选择一个快照')
     return
   }
+  simulating.value = true
   try {
-    const res: any = await recoveryApi.simulate({ serverId: selectedSnapshot.value.serverId, snapshotId: selectedSnapshot.value.id })
-    simulationResult.value = res.data || res
+    const res = await recoveryApi.simulate({ serverId: selectedSnapshot.value.serverId!, snapshotId: selectedSnapshot.value.id })
+    simulationResult.value = res
     toast.success('模拟验证已完成')
   } catch (e) {
     toast.error('模拟验证失败')
+  } finally {
+    simulating.value = false
   }
+}
+
+async function executeRecovery() {
+  if (!selectedSnapshot.value) {
+    toast.error('请先选择一个快照')
+    return
+  }
+  modal.open({
+    component: ConfirmModal,
+    title: '确认执行恢复',
+    props: {
+      message: `即将执行${recoveryMode.value === 'full' ? '全量' : '细粒度'}恢复至 ${selectedSnapshot.value.name || '选定快照'}。此操作将覆盖当前系统状态，期间服务将短暂离线。是否继续？`,
+      confirmText: '执行恢复',
+      confirmClass: 'bg-error hover:bg-error/90',
+      successMessage: '恢复任务已提交，正在后台执行',
+      onConfirm: async () => {
+        executing.value = true
+        try {
+          if (!selectedSnapshot.value) return
+          await recoveryApi.execute({
+            serverId: selectedSnapshot.value.serverId!,
+            snapshotId: selectedSnapshot.value.id,
+            mode: recoveryMode.value,
+          })
+          toast.success('恢复任务已提交，预计 2-5 分钟完成')
+        } catch (e: any) {
+          const msg = e?.message || '恢复执行失败'
+          toast.error(msg)
+        } finally {
+          executing.value = false
+        }
+      },
+    },
+  })
 }
 
 onMounted(async () => {
   try {
     const [snapshotsRes, serversRes] = await Promise.all([
       snapshotsApi.getAll(),
-      serversApi.getAll().catch(() => ({ data: [] })),
+      serversApi.getAll().catch(() => []),
     ])
-    snapshots.value = (snapshotsRes as any).data || snapshotsRes || []
-    servers.value = (serversRes as any).data || serversRes || []
+    snapshots.value = snapshotsRes || []
+    servers.value = serversRes || []
     if (snapshots.value.length > 0) {
       selectedSnapshot.value = snapshots.value[0]
-      const diffRes: any = await snapshotsApi.getDiff(snapshots.value[0].id)
-      deltaLines.value = diffRes.data || diffRes || []
+      const diffRes = await snapshotsApi.getDiff(snapshots.value[0].id)
+      deltaLines.value = (diffRes || []).map((d, i) => ({ num: i + 1, type: 'context', content: `${d.path} ${d.prev} → ${d.next}` }))
     }
   } catch (e) {
     console.error('Failed to load recovery data', e)

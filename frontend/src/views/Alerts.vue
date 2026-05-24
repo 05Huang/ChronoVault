@@ -2,40 +2,18 @@
   <div class="p-[24px] space-y-[40px]">
     <!-- Quick Stats -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-[16px]">
-      <div class="glass-panel p-[20px] rounded-xl flex items-center gap-4">
-        <div class="w-12 h-12 rounded-lg bg-error-container flex items-center justify-center text-error">
-          <span class="material-symbols-outlined">priority_high</span>
+      <div v-for="card in severityCards" :key="card.key" @click="toggleSeverityFilter(card.key)"
+        class="glass-panel p-[20px] rounded-xl flex items-center gap-4 cursor-pointer transition-all"
+        :class="[
+          card.borderClass,
+          activeSeverity === card.key ? 'ring-2 ring-primary shadow-lg shadow-primary/10' : 'hover:translate-y-[-2px]'
+        ]">
+        <div class="w-12 h-12 rounded-lg flex items-center justify-center" :class="card.iconBg">
+          <span class="material-symbols-outlined" :class="card.iconColor">{{ card.icon }}</span>
         </div>
         <div>
-          <p class="text-[12px] font-bold text-on-surface-variant">未决严重告警</p>
-          <p class="text-[24px] font-bold">{{ alertStats.critical ?? 0 }}</p>
-        </div>
-      </div>
-      <div class="glass-panel p-[20px] rounded-xl flex items-center gap-4 border-l-4 border-tertiary">
-        <div class="w-12 h-12 rounded-lg bg-tertiary-fixed flex items-center justify-center text-tertiary">
-          <span class="material-symbols-outlined">warning</span>
-        </div>
-        <div>
-          <p class="text-[12px] font-bold text-on-surface-variant">系统警告</p>
-          <p class="text-[24px] font-bold">{{ alertStats.warnings ?? 0 }}</p>
-        </div>
-      </div>
-      <div class="glass-panel p-[20px] rounded-xl flex items-center gap-4">
-        <div class="w-12 h-12 rounded-lg bg-primary-fixed flex items-center justify-center text-primary">
-          <span class="material-symbols-outlined">info</span>
-        </div>
-        <div>
-          <p class="text-[12px] font-bold text-on-surface-variant">运行通知</p>
-          <p class="text-[24px] font-bold">{{ alertStats.notifications ?? 0 }}</p>
-        </div>
-      </div>
-      <div class="glass-panel p-[20px] rounded-xl flex items-center gap-4">
-        <div class="w-12 h-12 rounded-lg bg-secondary-container flex items-center justify-center text-on-secondary-container">
-          <span class="material-symbols-outlined">check_circle</span>
-        </div>
-        <div>
-          <p class="text-[12px] font-bold text-on-surface-variant">今日已修复</p>
-          <p class="text-[24px] font-bold">{{ alertStats.fixedRate ?? '--' }}</p>
+          <p class="text-[12px] font-bold text-on-surface-variant">{{ card.label }}</p>
+          <p class="text-[24px] font-bold">{{ card.value }}</p>
         </div>
       </div>
     </div>
@@ -58,7 +36,7 @@
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-[16px] items-start">
       <!-- Alert Stream -->
       <section class="xl:col-span-8 space-y-4">
-        <div v-for="alert in alerts" :key="alert.id"
+        <div v-for="alert in filteredAlerts" :key="alert.id"
           class="glass-panel rounded-xl border-l-4 overflow-hidden transition-all hover:translate-x-1"
           :class="severityColors[alert.severity] || 'border-outline-variant'">
           <div class="p-[20px] flex flex-col md:flex-row gap-6">
@@ -75,13 +53,13 @@
               </div>
             </div>
             <div class="flex flex-row md:flex-col gap-2 justify-end">
-              <button v-if="alert.severity === 'CRITICAL' || alert.severity === 'critical'" @click="openRestartConfirm(alert.id)" class="flex-1 md:flex-none px-6 py-2.5 bg-error text-white rounded-lg text-[12px] font-bold hover:bg-error/90 transition-colors shadow-lg shadow-error/20 flex items-center justify-center gap-2">
+              <button v-if="alert.severity === 'CRITICAL'" @click="openRestartConfirm(alert.id)" class="flex-1 md:flex-none px-6 py-2.5 bg-error text-white rounded-lg text-[12px] font-bold hover:bg-error/90 transition-colors shadow-lg shadow-error/20 flex items-center justify-center gap-2">
                 <span class="material-symbols-outlined text-[18px]">restart_alt</span> 自动重启
               </button>
-              <button v-if="alert.severity === 'PREDICTIVE' || alert.severity === 'predictive'" @click="openExpandStorage(alert.id)" class="flex-1 md:flex-none px-6 py-2.5 bg-primary text-white rounded-lg text-[12px] font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
+              <button v-if="alert.severity === 'PREDICTIVE'" @click="openExpandStorage(alert.id)" class="flex-1 md:flex-none px-6 py-2.5 bg-primary text-white rounded-lg text-[12px] font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
                 <span class="material-symbols-outlined text-[18px]">add_task</span> 扩展存储
               </button>
-              <button v-if="alert.severity === 'WARNING' || alert.severity === 'warning'" @click="openRollbackConfig(alert.id)" class="flex-1 md:flex-none px-6 py-2.5 bg-surface-container-highest text-on-surface text-[12px] font-bold rounded-lg hover:bg-outline-variant/30 transition-colors flex items-center justify-center gap-2">
+              <button v-if="alert.severity === 'WARNING'" @click="openRollbackConfig(alert.id)" class="flex-1 md:flex-none px-6 py-2.5 bg-surface-container-highest text-on-surface text-[12px] font-bold rounded-lg hover:bg-outline-variant/30 transition-colors flex items-center justify-center gap-2">
                 <span class="material-symbols-outlined text-[18px]">undo</span> 回滚配置
               </button>
               <button @click="showAlertDetail(alert)" class="flex-1 md:flex-none px-6 py-2.5 bg-surface-container-highest text-on-surface text-[12px] font-bold rounded-lg hover:bg-outline-variant/30 transition-colors flex items-center justify-center gap-2">
@@ -149,8 +127,8 @@
         <div class="glass-panel rounded-xl overflow-hidden">
           <div class="p-[20px] bg-surface-container-high/50 flex items-center justify-between">
             <h3 class="font-bold text-on-surface text-sm uppercase tracking-wide">事件流 (实时)</h3>
-            <span class="flex items-center gap-1 text-[10px] text-primary font-bold">
-              <span class="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></span> LIVE
+            <span class="flex items-center gap-1 text-[10px] font-bold" :class="connected ? 'text-primary' : 'text-outline'">
+              <span class="w-1.5 h-1.5 rounded-full animate-ping" :class="connected ? 'bg-primary' : 'bg-outline'"></span> {{ connected ? 'LIVE' : 'OFFLINE' }}
             </span>
           </div>
           <div class="p-[20px] space-y-3 max-h-[300px] overflow-y-auto">
@@ -172,12 +150,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useToastStore } from '@/stores/toast'
 import { useModalStore } from '@/stores/modal'
 import { alertsApi } from '@/api/alerts'
 import { integrationsApi } from '@/api/integrations'
 import { aiApi } from '@/api/ai'
+import { useWebSocket } from '@/composables/useWebSocket'
 import AddIntegrationModal from '@/components/modals/AddIntegrationModal.vue'
 import AlertRuleModal from '@/components/modals/AlertRuleModal.vue'
 import ConfirmModal from '@/components/modals/ConfirmModal.vue'
@@ -193,7 +172,7 @@ function openAlertRule() {
   modal.open({ component: AlertRuleModal, title: '创建新告警规则', width: 'max-w-md' })
 }
 
-function openIntegrationConfig(integration: any) {
+function openIntegrationConfig(integration: IntegrationDisplay) {
   modal.open({
     component: ConfirmModal,
     title: `${integration.name} 集成配置`,
@@ -245,7 +224,7 @@ function openRollbackConfig(alertId: number) {
   })
 }
 
-function showAlertDetail(alert: any) {
+function showAlertDetail(alert: Alert) {
   modal.open({
     component: ConfirmModal,
     title: '告警详情',
@@ -259,8 +238,8 @@ function showAlertDetail(alert: any) {
 
 async function generateAiReport() {
   try {
-    const res = await aiApi.generateReport() as any
-    const report = res?.data || res || '报告生成失败'
+    const res = await aiApi.generateReport()
+    const report = res || '报告生成失败'
     modal.open({
       component: ConfirmModal,
       title: 'AI 分析报告',
@@ -277,7 +256,7 @@ async function generateAiReport() {
 
 function exportAlertHistory() {
   const csv = ['时间,级别,标题,来源,状态']
-  alerts.value.forEach((a: any) => {
+  alerts.value.forEach((a: Alert) => {
     csv.push(`${a.time || a.createdAt || ''},${a.severity || ''},${a.title || ''},${a.source || ''},${a.status || ''}`)
   })
   const blob = new Blob([csv.join('\n')], { type: 'text/csv' })
@@ -291,12 +270,77 @@ function exportAlertHistory() {
 }
 
 const activeFilter = ref('全部来源')
+const activeSeverity = ref<string | null>('CRITICAL')
 const filters = ['全部来源', 'Docker', 'DB', 'System', 'AI']
 
-const alertStats = ref<any>({})
-const alerts = ref<any[]>([])
-const integrations = ref<any[]>([])
-const events = ref<any[]>([])
+const { connected, connect, subscribe, disconnect } = useWebSocket()
+
+const severityCards = computed(() => [
+  { key: 'CRITICAL', label: '未决严重告警', value: alertStats.value.critical ?? 0, icon: 'priority_high', iconBg: 'bg-error-container', iconColor: 'text-error', borderClass: '' },
+  { key: 'WARNING', label: '系统警告', value: alertStats.value.warning ?? 0, icon: 'warning', iconBg: 'bg-tertiary-fixed', iconColor: 'text-tertiary', borderClass: 'border-l-4 border-tertiary' },
+  { key: 'PREDICTIVE', label: '预测告警', value: alertStats.value.predictive ?? 0, icon: 'auto_awesome', iconBg: 'bg-primary-fixed', iconColor: 'text-primary', borderClass: '' },
+  { key: 'FIXED', label: '已解决', value: alertStats.value.resolvedCount ?? 0, icon: 'check_circle', iconBg: 'bg-secondary-container', iconColor: 'text-on-secondary-container', borderClass: '' },
+])
+
+function toggleSeverityFilter(key: string) {
+  activeSeverity.value = activeSeverity.value === key ? null : key
+}
+
+const filteredAlerts = computed(() => {
+  let result = alerts.value
+
+  // Filter by severity (stat card click)
+  if (activeSeverity.value) {
+    if (activeSeverity.value === 'FIXED') {
+      result = result.filter((a: Alert) => (a.status || '').toUpperCase() === 'RESOLVED')
+    } else {
+      result = result.filter((a: Alert) => (a.severity || '').toUpperCase() === activeSeverity.value)
+    }
+  }
+
+  // Filter by source (tab click)
+  if (activeFilter.value !== '全部来源') {
+    const filterMap: Record<string, string[]> = {
+      'Docker': ['docker', 'container'],
+      'DB': ['database', 'db', 'mysql', 'postgres', 'redis'],
+      'System': ['system', 'cpu', 'memory', 'disk'],
+      'AI': ['ai', 'predictive', 'anomaly'],
+    }
+    const keywords = filterMap[activeFilter.value] || []
+    result = result.filter((a: Alert) => {
+      const source = (a.source || '').toLowerCase()
+      const title = (a.title || '').toLowerCase()
+      return keywords.some(k => source.includes(k) || title.includes(k))
+    })
+  }
+
+  return result
+})
+
+import type { Alert, AlertStats } from '@/types'
+
+interface IntegrationDisplay {
+  name: string
+  type?: string
+  desc?: string
+  url?: string
+  active: boolean
+  initial: string | null
+  icon: string | null
+  iconBg: string
+}
+
+interface EventItem {
+  time: string
+  tag: string
+  tagColor: string
+  text: string
+}
+
+const alertStats = ref<AlertStats>({} as AlertStats)
+const alerts = ref<Alert[]>([])
+const integrations = ref<IntegrationDisplay[]>([])
+const events = ref<EventItem[]>([])
 const aiAnalysis = ref('')
 
 const integrationIcons: Record<string, { initial: string | null; icon: string | null; iconBg: string }> = {
@@ -332,35 +376,55 @@ const severityBadge: Record<string, string> = {
 
 onMounted(async () => {
   try {
-    const [statsRes, alertsRes, integrationsRes, eventsRes] = await Promise.all([
+    const [statsRes, alertsRes, integrationsRes] = await Promise.all([
       alertsApi.getStats(),
       alertsApi.getAll(),
       integrationsApi.getAll(),
-      alertsApi.getAll().catch(() => ({ data: [] })),
     ])
-    alertStats.value = (statsRes as any).data || statsRes || {}
-    alerts.value = (alertsRes as any).data || alertsRes || []
-    const intData = (integrationsRes as any).data || integrationsRes || []
-    integrations.value = intData.map((i: any) => {
+    alertStats.value = statsRes || {}
+    alerts.value = alertsRes || []
+    const intData = integrationsRes || []
+    integrations.value = intData.map((i: Record<string, any>) => {
       const iconCfg = integrationIcons[i.type] || integrationIcons.WEBHOOK
       return { ...i, ...iconCfg, active: i.active !== false }
     })
-    // Populate events from alerts data as event stream
-    const alertsData = (alertsRes as any).data || alertsRes || []
-    events.value = alertsData.slice(0, 10).map((a: any) => ({
+    // Populate initial events from alerts data
+    const alertsData = alertsRes || []
+    events.value = alertsData.slice(0, 10).map((a: Alert) => ({
       time: a.time || a.createdAt || '',
       tag: a.severity || 'INFO',
       tagColor: severityBadge[a.severity] || 'text-primary',
       text: a.title || a.message || '',
     }))
+
+    // Connect to WebSocket for real-time events
+    connect()
+    setTimeout(() => {
+      subscribe('/topic/events', (data: Record<string, any>) => {
+        if (data.type === 'HEARTBEAT') return
+        const newEvent = {
+          time: data.createdAt || new Date().toLocaleTimeString('zh-CN'),
+          tag: data.level || 'INFO',
+          tagColor: severityBadge[data.level] || 'text-primary',
+          text: data.message || data.title || '',
+        }
+        events.value.unshift(newEvent)
+        if (events.value.length > 50) events.value.pop()
+      })
+    }, 1000)
+
     // Generate AI analysis from alerts
-    const criticalCount = alertsData.filter((a: any) => a.severity === 'CRITICAL' || a.severity === 'critical').length
-    const warningCount = alertsData.filter((a: any) => a.severity === 'WARNING' || a.severity === 'warning').length
+    const criticalCount = alertsData.filter((a: Alert) => a.severity === 'CRITICAL').length
+    const warningCount = alertsData.filter((a: Alert) => a.severity === 'WARNING').length
     if (criticalCount > 0 || warningCount > 0) {
       aiAnalysis.value = `在过去 24 小时内，系统检测到 ${criticalCount} 次严重告警和 ${warningCount} 次警告。建议优先处理严重告警以确保系统稳定性。`
     }
   } catch (e) {
     console.error('Failed to load alerts data', e)
   }
+})
+
+onUnmounted(() => {
+  disconnect()
 })
 </script>

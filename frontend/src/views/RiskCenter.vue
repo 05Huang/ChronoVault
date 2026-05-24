@@ -32,7 +32,7 @@
           </div>
         </div>
         <div class="mt-6 text-center">
-          <p class="text-[14px] text-on-surface-variant">较上周<span :class="(riskScore.changePercent ?? 0) < 0 ? 'text-secondary' : 'text-error'"> {{ (riskScore.changePercent ?? 0) < 0 ? '下降' : '上升' }}了 <span class="font-bold">{{ Math.abs(riskScore.changePercent ?? 0) }}%</span></span></p>
+          <p class="text-[14px] text-on-surface-variant">{{ riskScore.summary || '系统风险评估' }}</p>
           <div class="flex gap-1 mt-4 justify-center">
             <div class="h-1.5 w-8 rounded-full bg-secondary"></div>
             <div class="h-1.5 w-8 rounded-full bg-secondary"></div>
@@ -71,7 +71,7 @@
         </div>
         <div class="grid grid-cols-4 md:grid-cols-10 gap-4">
           <div v-for="node in nodes" :key="node.id"
-            @click="$router.push('/servers/prod-east-01')"
+            @click="$router.push('/servers/' + node.id)"
             class="aspect-square rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer relative"
             :class="node.bgClass" :title="node.title">
             <span class="material-symbols-outlined" :class="node.iconColor">dns</span>
@@ -92,9 +92,9 @@
               <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase" :class="risk.badgeClass">{{ risk.level }}</span>
               <h4 class="text-[18px] font-bold text-on-surface">{{ risk.title }}</h4>
             </div>
-            <p class="text-[14px] text-on-surface-variant">{{ risk.desc }}</p>
+            <p class="text-[14px] text-on-surface-variant">{{ risk.description }}</p>
             <div class="mt-4 flex gap-4 text-[12px] text-outline">
-              <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> {{ risk.time }}</span>
+              <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> {{ risk.discoveredAt || '' }}</span>
               <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">tag</span> {{ risk.category }}</span>
             </div>
           </div>
@@ -128,10 +128,35 @@ import ConfirmModal from '@/components/modals/ConfirmModal.vue'
 const toast = useToastStore()
 const modal = useModalStore()
 
-const riskScore = ref<any>({})
-const nodes = ref<any[]>([])
-const risks = ref<any[]>([])
-const trendData = ref<any>({})
+import type { RiskScore, RiskNode, Risk, RiskTrendPoint } from '@/types'
+
+interface RiskNodeDisplay extends RiskNode {
+  bgClass: string
+  iconColor: string
+  pulse?: boolean
+  pulseColor?: string
+  ping?: boolean
+  pingColor?: string
+  title: string
+}
+
+interface RiskDisplay extends Risk {
+  borderClass: string
+  badgeClass: string
+  actionClass: string
+  actionText?: string
+}
+
+interface TrendData {
+  days: string[]
+  stability: number[]
+  security: number[]
+}
+
+const riskScore = ref<RiskScore>({} as RiskScore)
+const nodes = ref<RiskNodeDisplay[]>([])
+const risks = ref<RiskDisplay[]>([])
+const trendData = ref<TrendData>({} as TrendData)
 const chartRef = ref<HTMLElement>()
 
 function openDeepScan() {
@@ -147,7 +172,7 @@ function openDeepScan() {
   })
 }
 
-function openRiskAction(risk: any) {
+function openRiskAction(risk: RiskDisplay) {
   const isCritical = risk.level === 'CRITICAL' || risk.level === 'Critical'
   modal.open({
     component: ConfirmModal,
@@ -164,8 +189,8 @@ function openRiskAction(risk: any) {
 
 function exportReport() {
   const csv = ['级别,标题,描述,来源,状态,发现时间']
-  risks.value.forEach((r: any) => {
-    csv.push(`${r.level || ''},${r.title || ''},${(r.description || '').replace(/,/g, '，')},${r.source || ''},${r.status || ''},${r.discoveredAt || ''}`)
+  risks.value.forEach((r: RiskDisplay) => {
+    csv.push(`${r.level || ''},${r.title || ''},${(r.description || '').replace(/,/g, '，')},${r.category || ''},${r.status || ''},${r.discoveredAt || ''}`)
   })
   const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -203,15 +228,20 @@ onMounted(async () => {
       riskApi.getNodes(),
       riskApi.getRisks(),
     ])
-    riskScore.value = (scoreRes as any).data || scoreRes || {}
-    trendData.value = (trendRes as any).data || trendRes || {}
-    const nodesData = (nodesRes as any).data || nodesRes || []
-    nodes.value = nodesData.map((n: any) => {
+    riskScore.value = scoreRes || {}
+    const trendList: RiskTrendPoint[] = trendRes || []
+    trendData.value = {
+      days: trendList.map((t) => t.date),
+      stability: trendList.map((t) => t.stability),
+      security: trendList.map((t) => t.security),
+    }
+    const nodesData: RiskNode[] = nodesRes || []
+    nodes.value = nodesData.map((n) => {
       const health = nodeHealthMap[n.status] || nodeHealthMap.HEALTHY
       return { ...n, ...health, title: `${n.name}: ${n.status}` }
     })
-    const risksData = (risksRes as any).data || risksRes || []
-    risks.value = risksData.map((r: any) => {
+    const risksData: Risk[] = risksRes || []
+    risks.value = risksData.map((r) => {
       const levelCfg = riskLevelMap[r.level] || riskLevelMap.WARNING
       return { ...r, ...levelCfg }
     })

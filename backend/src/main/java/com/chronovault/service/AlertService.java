@@ -8,6 +8,9 @@ import com.chronovault.entity.User;
 import com.chronovault.exception.ResourceNotFoundException;
 import com.chronovault.repository.AlertRepository;
 import com.chronovault.repository.AlertRuleRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import com.chronovault.repository.IntegrationRepository;
 import com.chronovault.repository.ServerRepository;
 import com.chronovault.dto.integration.IntegrationDTO;
@@ -46,6 +49,21 @@ public class AlertService {
             alerts = alertRepository.findAllByOrderByCreatedAtDesc();
         }
         return alerts.stream().map(AlertDTO::from).toList();
+    }
+
+    public Page<AlertDTO> getAlertsPaged(String filter, int page, int size) {
+        var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Alert> result;
+        if ("critical".equals(filter)) {
+            result = alertRepository.findBySeverity(Alert.AlertSeverity.CRITICAL, pageable);
+        } else if ("warning".equals(filter)) {
+            result = alertRepository.findBySeverity(Alert.AlertSeverity.WARNING, pageable);
+        } else if ("predictive".equals(filter)) {
+            result = alertRepository.findBySeverity(Alert.AlertSeverity.PREDICTIVE, pageable);
+        } else {
+            result = alertRepository.findAll(pageable);
+        }
+        return result.map(AlertDTO::from);
     }
 
     public AlertStatsDTO getStats() {
@@ -191,5 +209,110 @@ public class AlertService {
         if (active != null) integration.setActive(active);
         integrationRepository.save(integration);
         return IntegrationDTO.from(integration);
+    }
+
+    @Transactional
+    public void deleteRule(Long id) {
+        AlertRule rule = alertRuleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("告警规则不存在: " + id));
+        alertRuleRepository.delete(rule);
+    }
+
+    @Transactional
+    public void deleteIntegration(Long id) {
+        com.chronovault.entity.Integration integration = integrationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("集成不存在: " + id));
+        integrationRepository.delete(integration);
+    }
+
+    /**
+     * Send alert notification to all active integrations for the user.
+     */
+    public void notifyAlert(String email, Alert alert) {
+        User user = userService.getByEmail(email);
+        List<com.chronovault.entity.Integration> integrations = integrationRepository.findByUserId(user.getId());
+        for (com.chronovault.entity.Integration integration : integrations) {
+            if (!Boolean.TRUE.equals(integration.getActive())) continue;
+            try {
+                sendToChannel(integration, alert);
+            } catch (Exception e) {
+                log.error("Failed to send notification via {}: {}", integration.getType(), e.getMessage());
+            }
+        }
+    }
+
+    private void sendToChannel(com.chronovault.entity.Integration integration, Alert alert) {
+        String message = String.format("[%s] %s: %s",
+                alert.getSeverity(), alert.getTitle(), alert.getDescription());
+        switch (integration.getType()) {
+            case SLACK -> sendSlackWebhook(integration.getUrl(), message);
+            case DINGTALK -> sendDingTalkWebhook(integration.getUrl(), message);
+            case WEBHOOK -> sendGenericWebhook(integration.getUrl(), alert);
+            case EMAIL -> sendEmail(integration.getUrl(), alert);
+            default -> log.warn("Unsupported integration type: {}", integration.getType());
+        }
+    }
+
+    private void sendSlackWebhook(String webhookUrl, String message) {
+        try {
+            String payload = String.format("{\"text\":\"%s\"}", escapeJson(message));
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(webhookUrl))
+                    .header("Content-Type", "application/json")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(payload))
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .build();
+            java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                log.error("Slack webhook failed: {}", response.statusCode());
+            }
+        } catch (Exception e) {
+            log.error("Slack webhook error: {}", e.getMessage());
+        }
+    }
+
+    private void sendDingTalkWebhook(String webhookUrl, String message) {
+        try {
+            String payload = String.format("{\"msgtype\":\"text\",\"text\":{\"content\":\"%s\"}}", escapeJson(message));
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(webhookUrl))
+                    .header("Content-Type", "application/json")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(payload))
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .build();
+            client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            log.error("DingTalk webhook error: {}", e.getMessage());
+        }
+    }
+
+    private void sendGenericWebhook(String webhookUrl, Alert alert) {
+        try {
+            String payload = String.format("{\"title\":\"%s\",\"severity\":\"%s\",\"description\":\"%s\",\"source\":\"%s\"}",
+                    escapeJson(alert.getTitle()), alert.getSeverity(),
+                    escapeJson(alert.getDescription()), alert.getSource());
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(webhookUrl))
+                    .header("Content-Type", "application/json")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(payload))
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .build();
+            client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            log.error("Webhook error: {}", e.getMessage());
+        }
+    }
+
+    private void sendEmail(String emailAddress, Alert alert) {
+        // Email sending requires SMTP configuration — log for now
+        log.info("Email notification to {}: [{}] {}", emailAddress, alert.getSeverity(), alert.getTitle());
+    }
+
+    private String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
     }
 }

@@ -13,7 +13,7 @@
 
     <groupId>com.chronovault</groupId>
     <artifactId>chronovault-backend</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>ChronoVault Backend</name>
     <description>Smart Server Time Machine Platform - Backend</description>
 
@@ -99,6 +99,12 @@
             <artifactId>sshd-sftp</artifactId>
             <version>2.12.1</version>
         </dependency>
+        <!-- Ed25519 key support -->
+        <dependency>
+            <groupId>net.i2p.crypto</groupId>
+            <artifactId>eddsa</artifactId>
+            <version>0.3.0</version>
+        </dependency>
 
         <!-- AWS S3 -->
         <dependency>
@@ -125,6 +131,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
+        <!-- OpenAPI / Swagger UI -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.5.0</version>
         </dependency>
 
         <!-- Lombok -->

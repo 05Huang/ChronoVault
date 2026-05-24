@@ -30,7 +30,7 @@ public class AiController {
     @PostMapping("/recommendations/{id}/apply")
     public ResponseEntity<ApiResponse<Void>> applyRecommendation(@PathVariable Long id) {
         aiService.applyRecommendation(id);
-        return ResponseEntity.ok(ApiResponse.success("建议已应用", null));
+        return ResponseEntity.ok(ApiResponse.successMsg("建议已应用"));
     }
 
     @GetMapping("/risk-radar")
@@ -46,5 +46,10 @@ public class AiController {
     @PostMapping("/generate-report")
     public ResponseEntity<ApiResponse<String>> generateReport() {
         return ResponseEntity.ok(ApiResponse.success(aiService.generateReport()));
+    }
+
+    @GetMapping("/server-analysis/{serverId}")
+    public ResponseEntity<ApiResponse<ServerAnalysisDTO>> analyzeServer(@PathVariable Long serverId) {
+        return ResponseEntity.ok(ApiResponse.success(aiService.analyzeServer(serverId)));
     }
 }

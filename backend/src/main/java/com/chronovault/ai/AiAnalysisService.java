@@ -13,8 +13,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -55,59 +58,76 @@ public class AiAnalysisService {
         scores.put("网络防护", networkProtection);
         scores.put("存储健康", storageHealth);
 
-        // Try AI enhancement
-        if (aiClient.isEnabled()) {
-            try {
-                String prompt = buildRiskRadarPrompt(scores);
-                String response = aiClient.chat(
-                        "你是一个服务器基础设施风险分析师。根据提供的指标数据，分析并调整风险评分。返回JSON格式的5个维度评分(0-100)。",
-                        prompt);
-                if (response != null) {
-                    Map<String, Double> aiScores = parseScores(response);
-                    if (aiScores != null && !aiScores.isEmpty()) {
-                        scores = aiScores;
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("AI risk radar enhancement failed: {}", e.getMessage());
-            }
-        }
-
         cacheService.put(CACHE_RISK_RADAR, scores, CACHE_TTL);
         return scores;
     }
 
-    public List<Map<String, Object>> getStoragePrediction() {
-        List<Map<String, Object>> cached = cacheService.get(CACHE_STORAGE_PREDICTION,
-                new TypeReference<List<Map<String, Object>>>() {});
+    public Map<String, Object> getStoragePrediction() {
+        Map<String, Object> cached = cacheService.get(CACHE_STORAGE_PREDICTION,
+                new TypeReference<Map<String, Object>>() {});
         if (cached != null) return cached;
 
-        List<Map<String, Object>> predictions = new ArrayList<>();
-
-        // Get historical storage data
-        Long currentUsed = storageTargetRepository.sumUsedBytes();
-        if (currentUsed == null) currentUsed = 0L;
-
-        // Calculate growth rate from snapshots
         List<Snapshot> snapshots = snapshotRepository.findAll();
-        long totalSnapshotSize = snapshots.stream()
-                .mapToLong(s -> s.getSizeBytes() != null ? s.getSizeBytes() : 0)
-                .sum();
 
-        // Simple linear projection
-        double monthlyGrowth = totalSnapshotSize > 0 ? totalSnapshotSize / Math.max(1, snapshots.size()) * 30.0 : 50L * 1073741824L;
-        long projected = currentUsed;
+        // Group snapshots by month to build actual historical usage
+        Map<YearMonth, Long> monthlyUsage = new TreeMap<>();
+        for (Snapshot s : snapshots) {
+            if (s.getSizeBytes() == null || s.getCreatedAt() == null) continue;
+            YearMonth ym = YearMonth.from(s.getCreatedAt());
+            monthlyUsage.merge(ym, s.getSizeBytes(), Long::sum);
+        }
+
+        // Build cumulative actual usage
+        List<String> months = new ArrayList<>();
+        List<Long> actual = new ArrayList<>();
+        long cumulative = 0;
+        for (Map.Entry<YearMonth, Long> entry : monthlyUsage.entrySet()) {
+            cumulative += entry.getValue();
+            months.add(entry.getKey().getMonthValue() + "月");
+            actual.add(cumulative);
+        }
+
+        // Calculate average monthly growth from actual data
+        double monthlyGrowth;
+        if (actual.size() >= 2) {
+            long totalGrowth = actual.get(actual.size() - 1) - actual.get(0);
+            monthlyGrowth = (double) totalGrowth / (actual.size() - 1);
+        } else if (cumulative > 0) {
+            monthlyGrowth = cumulative * 0.1; // 10% monthly growth estimate
+        } else {
+            Long currentUsed = storageTargetRepository.sumUsedBytes();
+            monthlyGrowth = (currentUsed != null && currentUsed > 0) ? currentUsed * 0.05 : 1024L * 1024L * 1024L;
+        }
+
+        // Predict next 6 months
+        List<Long> predicted = new ArrayList<>();
+        long projected = !actual.isEmpty() ? actual.get(actual.size() - 1) : (storageTargetRepository.sumUsedBytes() != null ? storageTargetRepository.sumUsedBytes() : 0L);
+        YearMonth lastMonth = !monthlyUsage.isEmpty() ? monthlyUsage.keySet().iterator().next() : YearMonth.now();
+        // Get the last key from the TreeMap
+        for (YearMonth ym : monthlyUsage.keySet()) lastMonth = ym;
 
         for (int i = 1; i <= 6; i++) {
             projected += (long) monthlyGrowth;
-            Map<String, Object> month = new LinkedHashMap<>();
-            month.put("label", "+" + i + "月");
-            month.put("bytes", projected);
-            predictions.add(month);
+            predicted.add(projected);
+            YearMonth nextMonth = lastMonth.plusMonths(i);
+            if (months.size() < 12) { // Cap at 12 months total
+                months.add(nextMonth.getMonthValue() + "月");
+            }
         }
 
-        cacheService.put(CACHE_STORAGE_PREDICTION, predictions, CACHE_TTL);
-        return predictions;
+        // Pad actual list with nulls for prediction months
+        List<Long> actualPadded = new ArrayList<>(actual);
+        while (actualPadded.size() < months.size()) {
+            actualPadded.add(null);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("months", months);
+        result.put("actual", actualPadded);
+        result.put("predicted", predicted);
+
+        cacheService.put(CACHE_STORAGE_PREDICTION, result, CACHE_TTL);
+        return result;
     }
 
     public String generateReport() {
@@ -153,6 +173,89 @@ public class AiAnalysisService {
         return generateFallbackReport(servers, snapshotCount, usedBytes, totalBytes, critical, warning);
     }
 
+    public String analyzeEnvironment(Long serverId, Map<String, Object> scanData) {
+        Server server = serverRepository.findById(serverId)
+                .orElse(null);
+        String serverName = server != null ? server.getName() : "未知服务器";
+
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("服务器名称: ").append(serverName).append("\n\n");
+        prompt.append("环境扫描数据:\n");
+        prompt.append("- 操作系统: ").append(scanData.getOrDefault("os", "未知")).append("\n");
+        prompt.append("- 磁盘: ").append(scanData.getOrDefault("disk", "未知")).append("\n");
+        prompt.append("- 内存: ").append(scanData.getOrDefault("memory", "未知")).append("\n");
+        prompt.append("- 运行时间: ").append(scanData.getOrDefault("uptime", "未知")).append("\n");
+        prompt.append("- Docker 已安装: ").append(scanData.getOrDefault("dockerInstalled", false)).append("\n");
+
+        Object containersObj = scanData.get("containers");
+        if (containersObj instanceof List<?> containers && !containers.isEmpty()) {
+            prompt.append("- 容器数量: ").append(containers.size()).append("\n");
+            for (Object c : containers) {
+                if (c instanceof Map<?, ?> m) {
+                    prompt.append("  - ").append(m.get("name")).append(" (").append(m.get("image"))
+                            .append("): ").append(m.get("status")).append("\n");
+                }
+            }
+        }
+
+        Object dbsObj = scanData.get("databases");
+        if (dbsObj instanceof List<?> dbs && !dbs.isEmpty()) {
+            prompt.append("- 检测到数据库:\n");
+            for (Object d : dbs) {
+                if (d instanceof Map<?, ?> m) {
+                    prompt.append("  - ").append(m.get("type")).append(" (端口 ").append(m.get("port")).append(")\n");
+                }
+            }
+        }
+
+        String analysis = aiClient.chat(
+                "你是服务器运维专家。分析以下服务器环境数据，给出：\n1. 环境概况总结\n2. 潜在风险和问题\n3. 优化建议\n4. 安全建议\n\n用中文回答，格式清晰。",
+                prompt.toString());
+
+        if (analysis != null) {
+            return analysis;
+        }
+        return generateFallbackEnvironmentAnalysis(scanData);
+    }
+
+    private String generateFallbackEnvironmentAnalysis(Map<String, Object> data) {
+        StringBuilder report = new StringBuilder();
+        report.append("## 服务器环境分析报告\n");
+        report.append("> 基础分析（AI 服务未连接，基于规则引擎生成）\n\n");
+        report.append("### 1. 环境概况\n");
+        report.append("- 操作系统: ").append(data.getOrDefault("os", "未知")).append("\n");
+        report.append("- 磁盘使用: ").append(data.getOrDefault("disk", "未知")).append("\n");
+        report.append("- 内存使用: ").append(data.getOrDefault("memory", "未知")).append("\n");
+        report.append("- 运行时间: ").append(data.getOrDefault("uptime", "未知")).append("\n\n");
+
+        boolean dockerInstalled = Boolean.TRUE.equals(data.get("dockerInstalled"));
+        report.append("### 2. Docker 状态\n");
+        if (dockerInstalled) {
+            Object containersObj = data.get("containers");
+            int count = containersObj instanceof List<?> ? ((List<?>) containersObj).size() : 0;
+            report.append("- Docker 已安装，检测到 ").append(count).append(" 个容器\n");
+        } else {
+            report.append("- Docker 未安装\n");
+        }
+
+        Object dbsObj = data.get("databases");
+        if (dbsObj instanceof List<?> dbs && !dbs.isEmpty()) {
+            report.append("\n### 3. 数据库服务\n");
+            for (Object d : dbs) {
+                if (d instanceof Map<?, ?> m) {
+                    report.append("- ").append(m.get("type")).append(" 运行在端口 ").append(m.get("port")).append("\n");
+                }
+            }
+        }
+
+        report.append("\n### 4. 建议\n");
+        report.append("- 建议配置定期快照备份\n");
+        report.append("- 建议监控磁盘和内存使用率\n");
+        if (dockerInstalled) report.append("- 建议定期更新容器镜像以修复安全漏洞\n");
+
+        return report.toString();
+    }
+
     private double calculateDataSecurityScore() {
         long critical = riskRepository.countByLevel(Risk.RiskLevel.CRITICAL);
         return Math.max(0, 100 - critical * 15);
@@ -161,14 +264,31 @@ public class AiAnalysisService {
     private double calculateSystemStabilityScore() {
         List<Server> servers = serverRepository.findAll();
         if (servers.isEmpty()) return 100;
-        long active = servers.stream().filter(s -> s.getStatus() == Server.ServerStatus.RUNNING).count();
+        long active = 0;
+        for (Server server : servers) {
+            if (server.getStatus() == Server.ServerStatus.RUNNING) {
+                active++;
+            } else {
+                // Test actual SSH connectivity as fallback
+                try {
+                    sshManager.getConnection(server);
+                    active++;
+                } catch (Exception ignored) {}
+            }
+        }
         return Math.round((double) active / servers.size() * 100);
     }
 
     private double calculateBackupScore() {
-        long snapshots = snapshotRepository.count();
-        if (snapshots == 0) return 50;
-        return Math.min(100, 60 + snapshots * 5);
+        long total = snapshotRepository.count();
+        if (total == 0) return 0;
+        long success = snapshotRepository.countByStatus(Snapshot.SnapshotStatus.STABLE);
+        long recent = snapshotRepository.countToday();
+        // Score based on: success rate (40pts) + total count (30pts) + recency (30pts)
+        double successRate = (double) success / total;
+        double countScore = Math.min(1.0, total / 10.0);
+        double recencyScore = recent > 0 ? 1.0 : 0.5;
+        return Math.round((successRate * 40 + countScore * 30 + recencyScore * 30) * 10.0) / 10.0;
     }
 
     private double calculateNetworkScore() {
@@ -191,15 +311,21 @@ public class AiAnalysisService {
         return sb.toString();
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Double> parseScores(String json) {
         try {
-            // Try to extract JSON from response
             int start = json.indexOf('{');
             int end = json.lastIndexOf('}');
             if (start >= 0 && end > start) {
                 String jsonStr = json.substring(start, end + 1);
-                return objectMapper.readValue(jsonStr, Map.class);
+                Map<String, Object> raw = objectMapper.readValue(jsonStr,
+                        new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                Map<String, Double> result = new LinkedHashMap<>();
+                for (var entry : raw.entrySet()) {
+                    if (entry.getValue() instanceof Number n) {
+                        result.put(entry.getKey(), n.doubleValue());
+                    }
+                }
+                return result;
             }
         } catch (Exception e) {
             log.debug("Failed to parse AI scores: {}", e.getMessage());
@@ -210,7 +336,8 @@ public class AiAnalysisService {
     private String generateFallbackReport(List<Server> servers, long snapshots, Long used, Long total,
                                            long critical, long warning) {
         StringBuilder report = new StringBuilder();
-        report.append("## ChronoVault 系统分析报告\n\n");
+        report.append("## ChronoVault 系统分析报告\n");
+        report.append("> 基础分析（AI 服务未连接，基于规则引擎生成）\n\n");
         report.append("### 1. 系统健康评估\n");
         report.append("- 在线服务器: ").append(servers.size()).append(" 台\n");
         report.append("- 快照总数: ").append(snapshots).append("\n");
