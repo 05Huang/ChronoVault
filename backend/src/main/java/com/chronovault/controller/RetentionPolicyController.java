@@ -74,4 +74,14 @@ public class RetentionPolicyController {
         retentionService.deletePolicy(id);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+
+    @GetMapping("/{id}/dry-run")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> dryRun(@PathVariable Long id) {
+        List<Long> snapshotIds = retentionService.dryRunRetention(id);
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "snapshotIds", snapshotIds,
+                "count", snapshotIds.size(),
+                "message", "将删除 " + snapshotIds.size() + " 个快照"
+        )));
+    }
 }

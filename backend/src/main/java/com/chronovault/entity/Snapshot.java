@@ -41,6 +41,17 @@ public class Snapshot {
     @Column(name = "microservice_count")
     private Integer microserviceCount;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "branch_id")
+    private ServerBranch branch;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean verified = false;
+
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -52,5 +63,5 @@ public class Snapshot {
     }
 
     public enum SnapshotStatus { STABLE, WARNING, ARCHIVED }
-    public enum SnapshotType { FULL, INCREMENTAL }
+    public enum SnapshotType { FULL, INCREMENTAL, STASH }
 }

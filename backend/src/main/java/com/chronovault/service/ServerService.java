@@ -26,6 +26,7 @@ public class ServerService {
     private final ServerRepository serverRepository;
     private final ContainerRepository containerRepository;
     private final VolumeRepository volumeRepository;
+    private final ServerBranchRepository branchRepository;
     private final UserService userService;
     private final DockerOperationService dockerService;
     private final SshConnectionManager sshManager;
@@ -56,6 +57,15 @@ public class ServerService {
                 .uptimeSeconds(0L)
                 .build();
         serverRepository.save(server);
+
+        // Create default "main" branch for the new server
+        ServerBranch mainBranch = ServerBranch.builder()
+                .server(server)
+                .name("main")
+                .description("默认分支")
+                .isDefault(true)
+                .build();
+        branchRepository.save(mainBranch);
 
         // Probe SSH to set real status
         try {

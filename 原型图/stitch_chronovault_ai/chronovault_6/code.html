@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Geist:wght@400;500;600;700;900&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed": "#ffdcc6",
+                        "primary-fixed-dim": "#adc6ff",
+                        "outline-variant": "#c2c6d6",
+                        "background": "#f9f9ff",
+                        "on-error-container": "#93000a",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-primary-container": "#fefcff",
+                        "surface-container-low": "#f2f3fd",
+                        "secondary-container": "#57dffe",
+                        "on-background": "#191b23",
+                        "on-surface": "#191b23",
+                        "on-secondary": "#ffffff",
+                        "surface-container": "#ecedf7",
+                        "primary-container": "#2170e4",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#b75b00",
+                        "secondary-fixed-dim": "#4cd7f6",
+                        "outline": "#727785",
+                        "on-surface-variant": "#424754",
+                        "on-secondary-fixed-variant": "#004e5c",
+                        "surface-tint": "#005ac2",
+                        "primary-fixed": "#d8e2ff",
+                        "on-tertiary-container": "#fffbff",
+                        "tertiary-fixed-dim": "#ffb786",
+                        "surface-dim": "#d8d9e3",
+                        "tertiary": "#924700",
+                        "on-secondary-container": "#006172",
+                        "on-secondary-fixed": "#001f26",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-high": "#e6e7f2",
+                        "on-primary-fixed-variant": "#004395",
+                        "surface-container-highest": "#e1e2ec",
+                        "secondary-fixed": "#acedff",
+                        "on-tertiary-fixed-variant": "#723600",
+                        "on-tertiary-fixed": "#311400",
+                        "inverse-surface": "#2e3038",
+                        "on-error": "#ffffff",
+                        "surface-variant": "#e1e2ec",
+                        "surface-bright": "#f9f9ff",
+                        "surface": "#f9f9ff",
+                        "secondary": "#00687a",
+                        "primary": "#0058be",
+                        "inverse-primary": "#adc6ff",
+                        "on-primary-fixed": "#001a42",
+                        "on-primary": "#ffffff",
+                        "inverse-on-surface": "#eff0fa"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "16px",
+                        "container-margin": "24px",
+                        "card-padding": "20px",
+                        "unit": "4px",
+                        "section-gap": "40px"
+                    },
+                    "fontFamily": {
+                        "display-lg": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "mono-code": ["Geist"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Geist"],
+                        "headline-xl": ["Geist"]
+                    },
+                    "fontSize": {
+                        "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                        "headline-lg": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "mono-code": ["14px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "headline-xl": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            border: 0.5px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .active-pulse {
+            position: relative;
+        }
+        .active-pulse::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            background: inherit;
+            border-radius: inherit;
+            animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            z-index: -1;
+        }
+        @keyframes pulse-ring {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex overflow-hidden">
+<!-- SideNavBar Shell -->
+<aside class="hidden md:flex flex-col h-screen w-60 left-0 bg-surface-container-low border-r border-outline-variant/20 shadow-none py-6 space-y-2 z-40 fixed">
+<div class="px-6 mb-8">
+<h1 class="font-headline-lg text-headline-lg font-black text-on-surface">ChronoVault</h1>
+<p class="font-label-md text-label-md text-primary mt-1">AI Time Machine</p>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined mr-3">dashboard</span>
+<span class="font-label-md">Overview</span>
+</a>
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined mr-3">dns</span>
+<span class="font-label-md">Servers</span>
+</a>
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined mr-3">history</span>
+<span class="font-label-md">Snapshots</span>
+</a>
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined mr-3">restore</span>
+<span class="font-label-md">Recovery</span>
+</a>
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined mr-3">storage</span>
+<span class="font-label-md">Storage</span>
+</a>
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined mr-3">psychology</span>
+<span class="font-label-md">AI Insights</span>
+</a>
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined mr-3">security</span>
+<span class="font-label-md">Risk Center</span>
+</a>
+<!-- Active Tab: Alerts -->
+<a class="flex items-center px-4 py-2 bg-primary-container/10 text-primary border-r-2 border-primary transition-colors rounded-l-lg group" href="#">
+<span class="material-symbols-outlined mr-3" style="font-variation-settings: 'FILL' 1;">notifications_active</span>
+<span class="font-label-md font-bold">Alerts</span>
+</a>
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined mr-3">groups</span>
+<span class="font-label-md">Team</span>
+</a>
+<a class="flex items-center px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined mr-3">settings</span>
+<span class="font-label-md">Settings</span>
+</a>
+</nav>
+<div class="px-6 pt-6 border-t border-outline-variant/20">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary text-[10px] font-bold">JD</div>
+<div class="flex-1 overflow-hidden">
+<p class="text-xs font-bold truncate">Admin User</p>
+<p class="text-[10px] text-on-surface-variant truncate text-opacity-70">Pro Account</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="flex-1 ml-0 md:ml-60 flex flex-col h-screen overflow-hidden">
+<!-- TopNavBar Shell -->
+<header class="flex justify-between items-center w-full px-container-margin h-16 bg-surface-bright/80 backdrop-blur-xl border-b border-outline-variant/30 shadow-sm z-50 sticky top-0">
+<div class="flex items-center gap-6">
+<h2 class="font-headline-lg text-headline-lg font-bold tracking-tighter text-on-surface">告警中心</h2>
+<div class="hidden lg:flex items-center gap-1 bg-surface-container px-3 py-1.5 rounded-full border border-outline-variant/30">
+<span class="material-symbols-outlined text-outline text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-sm w-64 placeholder:text-outline-variant" placeholder="搜索事件、源或日志内容..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high/50 transition-all active:scale-90">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high/50 transition-all active:scale-90">
+<span class="material-symbols-outlined text-on-surface-variant">search_check</span>
+</button>
+<div class="h-8 w-[1px] bg-outline-variant/30 mx-1"></div>
+<img alt="User Profile Avatar" class="w-8 h-8 rounded-full border border-primary/20 shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2dQ4auoseju3lqz840oPRzfFTNhsIBEPeo8uK3_JOUBt7mnldJra5GnzieMDHSrdMMuCGirQ-aXaX0gQi6KTdIjP4xiBYg3FTM9JdvNL5e5T9sxErFtS7d49eluq_52jLZwX9IRWJP30gUT1uGZ2V_zODimLXiYK3Sn_T3kLvKHTAjpEQIeBTym0K0IEhCbl-ubbka2WOAP_fIa7jNJlb6ugV7q91ltJoOsc-9liC390ux4a6al4cDbyK_d69ERiUy7NpNbUowjKW"/>
+</div>
+</header>
+<!-- Content Area -->
+<div class="flex-1 overflow-y-auto p-container-margin space-y-section-gap">
+<!-- Quick Stats & Filter Bar -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter">
+<div class="glass-card p-card-padding rounded-xl flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-error-container flex items-center justify-center text-error">
+<span class="material-symbols-outlined active-pulse bg-error rounded-full text-white p-0.5">priority_high</span>
+</div>
+<div>
+<p class="text-label-md text-on-surface-variant">未决严重告警</p>
+<p class="text-headline-lg font-bold">12</p>
+</div>
+</div>
+<div class="glass-card p-card-padding rounded-xl flex items-center gap-4 border-l-4 border-tertiary">
+<div class="w-12 h-12 rounded-lg bg-tertiary-fixed flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<div>
+<p class="text-label-md text-on-surface-variant">系统警告</p>
+<p class="text-headline-lg font-bold">45</p>
+</div>
+</div>
+<div class="glass-card p-card-padding rounded-xl flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">info</span>
+</div>
+<div>
+<p class="text-label-md text-on-surface-variant">运行通知</p>
+<p class="text-headline-lg font-bold">128</p>
+</div>
+</div>
+<div class="glass-card p-card-padding rounded-xl flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined">check_circle</span>
+</div>
+<div>
+<p class="text-label-md text-on-surface-variant">今日已修复</p>
+<p class="text-headline-lg font-bold">89%</p>
+</div>
+</div>
+</div>
+<!-- Dashboard Logic: Bento Grid for Stream & Settings -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-gutter items-start">
+<!-- Left: Alert Stream (8 cols) -->
+<section class="xl:col-span-8 space-y-gutter">
+<div class="flex items-center justify-between mb-4">
+<div class="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+<button class="px-4 py-1.5 rounded-full bg-on-background text-background font-label-md">全部来源</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors font-label-md text-on-surface-variant border border-outline-variant/30 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">terminal</span> Docker
+                            </button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors font-label-md text-on-surface-variant border border-outline-variant/30 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">database</span> DB
+                            </button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors font-label-md text-on-surface-variant border border-outline-variant/30 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">settings_ethernet</span> System
+                            </button>
+<button class="px-4 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-label-md flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">auto_awesome</span> AI
+                            </button>
+</div>
+<button class="text-primary font-label-md flex items-center gap-1 hover:underline">
+<span class="material-symbols-outlined text-[18px]">history</span> 导出历史
+                        </button>
+</div>
+<!-- Alert Cards -->
+<div class="space-y-4">
+<!-- Critical Alert Card -->
+<div class="glass-card rounded-xl border-l-4 border-error overflow-hidden transition-all hover:translate-x-1">
+<div class="p-card-padding flex flex-col md:flex-row gap-6">
+<div class="flex-1">
+<div class="flex items-center gap-2 mb-2">
+<span class="px-2 py-0.5 rounded bg-error/10 text-error text-[10px] font-bold uppercase tracking-wider">Critical</span>
+<span class="text-label-md text-on-surface-variant">3 分钟前 • Node-082 (Tokyo-East)</span>
+</div>
+<h3 class="font-headline-lg text-lg mb-2">内存溢出导致容器崩溃 (OOM Kill)</h3>
+<p class="text-body-sm text-on-surface-variant mb-4">生产环境集群中 `chrono-worker-v2` 实例因消耗 32GB RAM 触发内核 OOM-Killer。</p>
+<!-- Analysis Snippet -->
+<div class="bg-inverse-surface text-surface rounded-lg p-3 font-mono-code text-[12px] opacity-90 border border-white/10 mb-4">
+<p class="text-primary-fixed-dim">// Root Cause Analysis by AI</p>
+<p class="mt-1">发现循环引用：at src/engine/core.ts:442:10</p>
+<p>Heap usage peaked at 98.4% before termination.</p>
+</div>
+</div>
+<div class="flex flex-row md:flex-col gap-2 justify-end">
+<button class="flex-1 md:flex-none px-6 py-2.5 bg-error text-white rounded-lg font-label-md hover:bg-error/90 transition-colors shadow-lg shadow-error/20 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">restart_alt</span> 自动重启
+                                    </button>
+<button class="flex-1 md:flex-none px-6 py-2.5 bg-surface-container-highest text-on-surface font-label-md rounded-lg hover:bg-outline-variant/30 transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">visibility</span> 详情
+                                    </button>
+</div>
+</div>
+</div>
+<!-- AI Insight Alert Card -->
+<div class="glass-card rounded-xl border-l-4 border-primary overflow-hidden transition-all hover:translate-x-1">
+<div class="absolute top-0 right-0 p-4">
+<div class="px-2 py-1 bg-primary-container text-white rounded text-[10px] font-bold animate-pulse">AI 预测告警</div>
+</div>
+<div class="p-card-padding flex flex-col md:flex-row gap-6">
+<div class="flex-1">
+<div class="flex items-center gap-2 mb-2">
+<span class="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">Predictive</span>
+<span class="text-label-md text-on-surface-variant">15 分钟前 • Database Cluster Alpha</span>
+</div>
+<h3 class="font-headline-lg text-lg mb-2">磁盘空间预计在 2 小时内耗尽</h3>
+<p class="text-body-sm text-on-surface-variant mb-4">基于当前增长率 (4.2GB/min)，存储卷 `vol-8821` 将在 UTC 14:30 达到临界值。</p>
+<div class="flex items-center gap-4">
+<div class="h-2 flex-1 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[82%] rounded-full"></div>
+</div>
+<span class="font-mono-code text-xs font-bold text-primary">82% Used</span>
+</div>
+</div>
+<div class="flex flex-row md:flex-col gap-2 justify-end">
+<button class="flex-1 md:flex-none px-6 py-2.5 bg-primary text-white rounded-lg font-label-md hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add_task</span> 扩展存储
+                                    </button>
+<button class="flex-1 md:flex-none px-6 py-2.5 bg-surface-container-highest text-on-surface font-label-md rounded-lg hover:bg-outline-variant/30 transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">close</span> 忽略
+                                    </button>
+</div>
+</div>
+</div>
+<!-- Warning Alert Card -->
+<div class="glass-card rounded-xl border-l-4 border-tertiary overflow-hidden transition-all hover:translate-x-1">
+<div class="p-card-padding flex flex-col md:flex-row gap-6">
+<div class="flex-1">
+<div class="flex items-center gap-2 mb-2">
+<span class="px-2 py-0.5 rounded bg-tertiary/10 text-tertiary text-[10px] font-bold uppercase tracking-wider">Warning</span>
+<span class="text-label-md text-on-surface-variant">1 小时前 • API Gateway</span>
+</div>
+<h3 class="font-headline-lg text-lg mb-2">P99 延迟超过 500ms 阈值</h3>
+<p class="text-body-sm text-on-surface-variant mb-4">最近 500 次请求中，尾部延迟显著增加，主要集中在 /v1/auth 接口。</p>
+</div>
+<div class="flex flex-row md:flex-col gap-2 justify-end">
+<button class="flex-1 md:flex-none px-6 py-2.5 bg-surface-container-highest text-on-surface font-label-md rounded-lg hover:bg-outline-variant/30 transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">undo</span> 回滚配置
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Right: Integrations & Settings (4 cols) -->
+<aside class="xl:col-span-4 space-y-gutter">
+<!-- Notification Settings Card -->
+<div class="glass-card rounded-xl overflow-hidden">
+<div class="p-card-padding border-b border-outline-variant/20 bg-surface-container-low">
+<h3 class="font-bold text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">hub</span> 通知集成
+                            </h3>
+</div>
+<div class="p-card-padding space-y-4">
+<div class="flex items-center justify-between p-3 rounded-lg border border-outline-variant/20 hover:bg-surface-container/30 transition-colors cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-[#4A154B] flex items-center justify-center text-white font-bold">S</div>
+<div>
+<p class="text-body-sm font-bold">Slack</p>
+<p class="text-[10px] text-on-surface-variant">#alerts-prod 频道已连接</p>
+</div>
+</div>
+<div class="w-8 h-4 bg-primary rounded-full relative">
+<div class="absolute right-1 top-1 w-2 h-2 bg-white rounded-full"></div>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 rounded-lg border border-outline-variant/20 hover:bg-surface-container/30 transition-colors cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-secondary flex items-center justify-center text-white">
+<span class="material-symbols-outlined">alternate_email</span>
+</div>
+<div>
+<p class="text-body-sm font-bold">Email</p>
+<p class="text-[10px] text-on-surface-variant">admin@chronovault.io</p>
+</div>
+</div>
+<div class="w-8 h-4 bg-primary rounded-full relative">
+<div class="absolute right-1 top-1 w-2 h-2 bg-white rounded-full"></div>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 rounded-lg border border-outline-variant/20 hover:bg-surface-container/30 transition-colors cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-on-background flex items-center justify-center text-white">
+<span class="material-symbols-outlined">webhook</span>
+</div>
+<div>
+<p class="text-body-sm font-bold">Webhook</p>
+<p class="text-[10px] text-on-surface-variant">未配置目标 URL</p>
+</div>
+</div>
+<div class="w-8 h-4 bg-outline-variant rounded-full relative">
+<div class="absolute left-1 top-1 w-2 h-2 bg-white rounded-full"></div>
+</div>
+</div>
+<button class="w-full py-2 border-2 border-dashed border-outline-variant/50 rounded-lg text-on-surface-variant text-label-md font-bold hover:border-primary/50 hover:text-primary transition-all">
+                                + 添加新集成
+                            </button>
+</div>
+</div>
+<!-- AI Root Cause Summary (Visual Decoration/Insight) -->
+<div class="glass-card rounded-xl p-card-padding bg-gradient-to-br from-primary-container/5 to-secondary-container/10">
+<div class="flex items-center gap-3 mb-4">
+<span class="material-symbols-outlined text-primary active-pulse bg-white rounded-full p-1 shadow-sm">auto_awesome</span>
+<h3 class="font-bold">AI 异常模式分析</h3>
+</div>
+<p class="text-body-sm text-on-surface-variant leading-relaxed mb-4">
+                            在过去的 24 小时内，系统检测到 <span class="text-primary font-bold">3 次</span> 类似的数据库连接超时事件。这可能与 API 层的连接池泄露有关。
+                        </p>
+<img class="w-full h-32 object-cover rounded-lg mb-4 opacity-80 border border-outline-variant/20" data-alt="A clean, professional data visualization dashboard showcasing complex server telemetry data. The design uses high-end glassmorphism elements with a light-mode color scheme of soft blues and crisp whites. Geometric nodes and glowing connections represent a server topology. The overall atmosphere is technical, sophisticated, and focused on precision data analysis." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsu81QL_1kNDEADbC1goNsh6D35OI-YuiaHFgMj3nu_R6YmxnfaBGY4cW_1x_1sYWivZ6aSC5e8KHJqh7klji7BMhw_TgAXmO40Ig8-XvATPaV2lEUNBJw_mPe6SkXmv4KWKVjhdP9zh5PHf3WPlb5uAhPn8Yzgdjpz5mOjNu4Wvm2Rp8lNmLNd3NpdZ2wGaNn2XtmZOywNji7u_tyMe9NyFji6iIhj2i79qpFMSKrORfQrq_0G_lBLRXIyRIOFt6-4Q3SIWBWsFAf"/>
+<button class="w-full py-2 bg-white text-primary border border-primary/20 rounded-lg text-label-md font-bold hover:bg-primary/5 transition-all">
+                            生成详细分析报告
+                        </button>
+</div>
+<!-- Active Events Log (Dense) -->
+<div class="glass-card rounded-xl overflow-hidden">
+<div class="p-card-padding bg-surface-container-high/50 flex items-center justify-between">
+<h3 class="font-bold text-on-surface text-sm uppercase tracking-wide">事件流 (实时)</h3>
+<span class="flex items-center gap-1 text-[10px] text-primary font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></span> LIVE
+                            </span>
+</div>
+<div class="p-card-padding space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
+<div class="flex gap-3 text-[11px] items-start border-b border-outline-variant/10 pb-2">
+<span class="text-outline shrink-0">14:02:11</span>
+<span class="text-on-surface-variant">Config updated on <b class="text-on-surface">Edge-01</b></span>
+</div>
+<div class="flex gap-3 text-[11px] items-start border-b border-outline-variant/10 pb-2">
+<span class="text-outline shrink-0">14:01:45</span>
+<span class="text-error font-bold">[ERR]</span>
+<span class="text-on-surface-variant">Redis reconnection failed. Retrying...</span>
+</div>
+<div class="flex gap-3 text-[11px] items-start border-b border-outline-variant/10 pb-2">
+<span class="text-outline shrink-0">13:58:22</span>
+<span class="text-on-surface-variant">User <b class="text-on-surface">mark_admin</b> logged in</span>
+</div>
+<div class="flex gap-3 text-[11px] items-start border-b border-outline-variant/10 pb-2">
+<span class="text-outline shrink-0">13:55:01</span>
+<span class="text-primary font-bold">[INFO]</span>
+<span class="text-on-surface-variant">Daily snapshot successful: vol-snap-99</span>
+</div>
+<div class="flex gap-3 text-[11px] items-start border-b border-outline-variant/10 pb-2">
+<span class="text-outline shrink-0">13:52:10</span>
+<span class="text-tertiary font-bold">[WARN]</span>
+<span class="text-on-surface-variant">CPU spike detected on K8s cluster node-02</span>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</div>
+</main>
+<!-- FAB for quick action -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">add</span>
+</button>
+</body></html>

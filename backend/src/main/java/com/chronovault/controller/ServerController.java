@@ -4,8 +4,11 @@ import com.chronovault.ai.AiAnalysisService;
 import com.chronovault.dto.server.*;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.AgentInstallService;
+import com.chronovault.service.AutoSnapshotService;
+import com.chronovault.service.ServerCloneService;
 import com.chronovault.service.ServerHealthMonitor;
 import com.chronovault.service.ServerService;
+import com.chronovault.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +27,9 @@ public class ServerController {
     private final ServerHealthMonitor healthMonitor;
     private final AiAnalysisService aiAnalysisService;
     private final AgentInstallService agentInstallService;
+    private final ServerCloneService cloneService;
+    private final AutoSnapshotService autoSnapshotService;
+    private final UserService userService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<ServerDTO>>> getServers(Authentication auth) {
@@ -39,6 +45,24 @@ public class ServerController {
     public ResponseEntity<ApiResponse<ServerDTO>> createServer(Authentication auth, @Valid @RequestBody CreateServerRequest request) {
         ServerDTO server = serverService.createServer(auth.getName(), request.name(), request.ip(), request.os());
         return ResponseEntity.ok(ApiResponse.success(server));
+    }
+
+    @PostMapping("/clone")
+    public ResponseEntity<ApiResponse<String>> cloneServer(
+            Authentication auth,
+            @Valid @RequestBody CloneServerRequest request) {
+        Long userId = userService.getByEmail(auth.getName()).getId();
+        cloneService.cloneServer(request, userId);
+        return ResponseEntity.ok(ApiResponse.success("克隆任务已提交，正在后台执行"));
+    }
+
+    @PutMapping("/{id}/auto-snapshot")
+    public ResponseEntity<ApiResponse<Void>> toggleAutoSnapshot(
+            @PathVariable Long id,
+            @RequestBody Map<String, Boolean> body) {
+        Boolean enabled = body.get("enabled");
+        autoSnapshotService.setAutoSnapshotEnabled(id, enabled != null && enabled);
+        return ResponseEntity.ok(ApiResponse.successMsg("自动快照已" + (enabled != null && enabled ? "开启" : "关闭")));
     }
 
     @GetMapping("/{id}/containers")

@@ -1,8 +1,10 @@
 package com.chronovault.snapshot;
 
 import com.chronovault.entity.*;
+import com.chronovault.repository.ContainerStateRepository;
 import com.chronovault.repository.SnapshotManifestRepository;
 import com.chronovault.repository.SnapshotRepository;
+import com.chronovault.service.SnapshotHookService;
 import com.chronovault.ssh.SshConnection;
 import com.chronovault.ssh.SshConnectionManager;
 import com.chronovault.storage.StorageRouter;
@@ -27,6 +29,8 @@ public class SnapshotEngine {
     private final ResticClient resticClient;
     private final SnapshotRepository snapshotRepository;
     private final SnapshotManifestRepository manifestRepository;
+    private final ContainerStateRepository containerStateRepository;
+    private final SnapshotHookService hookService;
     private final StorageRouter storageRouter;
     private final AsyncTaskManager taskManager;
 
@@ -43,7 +47,8 @@ public class SnapshotEngine {
     }
 
     public Snapshot createSnapshot(Server server, StorageTarget storageTarget, String title,
-                                    String note, Snapshot.SnapshotType type, Long userId) {
+                                    String note, Snapshot.SnapshotType type, Long userId,
+                                    List<String> paths, List<String> excludes) {
         Snapshot snapshot = Snapshot.builder()
                 .server(server)
                 .title(title)
@@ -54,17 +59,21 @@ public class SnapshotEngine {
         snapshot = snapshotRepository.save(snapshot);
 
         Snapshot finalSnapshot = snapshot;
+        List<String> finalPaths = paths != null && !paths.isEmpty() ? paths : null;
+        List<String> finalExcludes = excludes != null && !excludes.isEmpty() ? excludes : null;
         taskManager.submit(TaskType.SNAPSHOT, server.getId(), userId,
                 "创建快照: " + title,
-                task -> executeSnapshot(task.getId(), finalSnapshot, server, storageTarget, type));
+                task -> executeSnapshot(task.getId(), finalSnapshot, server, storageTarget, type, finalPaths, finalExcludes));
 
         return snapshot;
     }
 
     private void executeSnapshot(Long taskId, Snapshot snapshot, Server server,
-                                  StorageTarget storageTarget, Snapshot.SnapshotType type) {
+                                  StorageTarget storageTarget, Snapshot.SnapshotType type,
+                                  List<String> customPaths, List<String> customExcludes) {
         try {
             taskManager.updateProgress(taskId, 10, "连接服务器...");
+            this.currentServerId = server.getId();
             SshConnection conn = sshManager.getConnection(server);
 
             // Ensure restic is installed on the target server
@@ -108,8 +117,12 @@ public class SnapshotEngine {
 
             // Execute backup
             taskManager.updateProgress(taskId, 50, "执行快照备份...");
-            List<String> paths = List.of("/");
-            List<String> excludes = List.of("/proc", "/sys", "/dev", "/tmp", "/var/cache", "node_modules", ".git");
+            List<String> paths = customPaths != null && !customPaths.isEmpty()
+                    ? customPaths
+                    : List.of("/");
+            List<String> excludes = customExcludes != null && !customExcludes.isEmpty()
+                    ? customExcludes
+                    : List.of("/proc", "/sys", "/dev", "/tmp", "/var/cache", "node_modules", ".git");
 
             ResticClient.ResticSnapshot resticSnapshot = resticClient.backup(
                     conn, repoUrl, resticPassword, paths, excludes, parentId);
@@ -121,6 +134,10 @@ public class SnapshotEngine {
             // Post-snapshot hooks
             taskManager.updateProgress(taskId, 80, "执行后置钩子...");
             runPostSnapshotHooks(conn);
+
+            // Capture Docker container state
+            taskManager.updateProgress(taskId, 85, "捕获容器状态...");
+            captureContainerState(conn, snapshot);
 
             // Update snapshot record
             snapshot.setHash(resticSnapshot.snapshotId());
@@ -145,27 +162,103 @@ public class SnapshotEngine {
     }
 
     private void runPreSnapshotHooks(SshConnection conn) {
-        // MySQL lock
+        // Built-in hooks: MySQL lock
         SshConnection.CommandResult mysqlCheck = conn.executeCommand("docker ps --format '{{.Names}}' | grep -i mysql");
         if (mysqlCheck.isSuccess() && !mysqlCheck.stdout().isBlank()) {
             String container = mysqlCheck.stdout().trim().split("\n")[0];
             conn.executeCommand("docker exec " + container + " mysql -e 'FLUSH TABLES WITH READ LOCK;' 2>/dev/null || true");
         }
 
-        // Redis save
+        // Built-in hooks: Redis save
         SshConnection.CommandResult redisCheck = conn.executeCommand("docker ps --format '{{.Names}}' | grep -i redis");
         if (redisCheck.isSuccess() && !redisCheck.stdout().isBlank()) {
             String container = redisCheck.stdout().trim().split("\n")[0];
             conn.executeCommand("docker exec " + container + " redis-cli BGSAVE 2>/dev/null || true");
         }
+
+        // User-configured hooks
+        try {
+            hookService.executeHooks(conn, getCurrentServerId(), SnapshotHook.HookType.PRE_SNAPSHOT);
+        } catch (Exception e) {
+            log.warn("Failed to execute user pre-snapshot hooks: {}", e.getMessage());
+        }
     }
 
     private void runPostSnapshotHooks(SshConnection conn) {
-        // Unlock MySQL
+        // Built-in hooks: Unlock MySQL
         SshConnection.CommandResult mysqlCheck = conn.executeCommand("docker ps --format '{{.Names}}' | grep -i mysql");
         if (mysqlCheck.isSuccess() && !mysqlCheck.stdout().isBlank()) {
             String container = mysqlCheck.stdout().trim().split("\n")[0];
             conn.executeCommand("docker exec " + container + " mysql -e 'UNLOCK TABLES;' 2>/dev/null || true");
+        }
+
+        // User-configured hooks
+        try {
+            hookService.executeHooks(conn, getCurrentServerId(), SnapshotHook.HookType.POST_SNAPSHOT);
+        } catch (Exception e) {
+            log.warn("Failed to execute user post-snapshot hooks: {}", e.getMessage());
+        }
+    }
+
+    private Long currentServerId;
+
+    private Long getCurrentServerId() {
+        return currentServerId;
+    }
+
+    private void captureContainerState(SshConnection conn, Snapshot snapshot) {
+        try {
+            // List running containers
+            SshConnection.CommandResult psResult = conn.executeCommand(
+                    "docker ps --format '{{.Names}}\\t{{.Image}}\\t{{.Status}}' 2>/dev/null");
+            if (!psResult.isSuccess() || psResult.stdout().isBlank()) {
+                log.info("No Docker containers found on server");
+                return;
+            }
+
+            List<ContainerState> states = new ArrayList<>();
+            for (String line : psResult.stdout().lines().toList()) {
+                if (line.isBlank()) continue;
+                String[] parts = line.split("\t", 3);
+                if (parts.length < 2) continue;
+
+                String name = parts[0].trim();
+                String image = parts.length > 1 ? parts[1].trim() : "";
+                String status = parts.length > 2 ? parts[2].trim() : "";
+
+                // Get detailed info via docker inspect
+                SshConnection.CommandResult inspectResult = conn.executeCommand(
+                        "docker inspect " + name + " --format '{{json .HostConfig.PortBindings}}|{{json .Mounts}}|{{json .NetworkSettings.Networks}}' 2>/dev/null");
+
+                String ports = "[]";
+                String volumes = "[]";
+                String networks = "[]";
+
+                if (inspectResult.isSuccess() && !inspectResult.stdout().isBlank()) {
+                    String[] inspectParts = inspectResult.stdout().trim().split("\\|", 3);
+                    if (inspectParts.length > 0) ports = inspectParts[0].trim();
+                    if (inspectParts.length > 1) volumes = inspectParts[1].trim();
+                    if (inspectParts.length > 2) networks = inspectParts[2].trim();
+                }
+
+                ContainerState state = ContainerState.builder()
+                        .snapshot(snapshot)
+                        .containerName(name)
+                        .image(image)
+                        .status(status)
+                        .ports(ports)
+                        .volumes(volumes)
+                        .networks(networks)
+                        .build();
+                states.add(state);
+            }
+
+            if (!states.isEmpty()) {
+                containerStateRepository.saveAll(states);
+                log.info("Captured {} container states for snapshot {}", states.size(), snapshot.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to capture container state: {}", e.getMessage());
         }
     }
 

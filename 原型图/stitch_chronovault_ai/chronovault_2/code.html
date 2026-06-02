@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>登录 - ChronoVault</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Geist:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-fixed": "#311400",
+                        "secondary-container": "#57dffe",
+                        "on-primary-fixed-variant": "#004395",
+                        "surface-dim": "#d8d9e3",
+                        "tertiary-container": "#b75b00",
+                        "primary-fixed": "#d8e2ff",
+                        "on-primary-container": "#fefcff",
+                        "surface-container-highest": "#e1e2ec",
+                        "tertiary-fixed": "#ffdcc6",
+                        "on-error": "#ffffff",
+                        "outline": "#727785",
+                        "inverse-on-surface": "#eff0fa",
+                        "secondary": "#00687a",
+                        "on-secondary-fixed-variant": "#004e5c",
+                        "on-secondary-container": "#006172",
+                        "background": "#f9f9ff",
+                        "secondary-fixed": "#acedff",
+                        "on-primary-fixed": "#001a42",
+                        "error": "#ba1a1a",
+                        "surface-tint": "#005ac2",
+                        "on-surface": "#191b23",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#ecedf7",
+                        "primary-fixed-dim": "#adc6ff",
+                        "secondary-fixed-dim": "#4cd7f6",
+                        "on-secondary-fixed": "#001f26",
+                        "outline-variant": "#c2c6d6",
+                        "on-error-container": "#93000a",
+                        "surface": "#f9f9ff",
+                        "on-background": "#191b23",
+                        "primary": "#0058be",
+                        "surface-container-high": "#e6e7f2",
+                        "on-primary": "#ffffff",
+                        "tertiary": "#924700",
+                        "tertiary-fixed-dim": "#ffb786",
+                        "surface-container-low": "#f2f3fd",
+                        "surface-bright": "#f9f9ff",
+                        "primary-container": "#2170e4",
+                        "inverse-primary": "#adc6ff",
+                        "on-surface-variant": "#424754",
+                        "on-tertiary-container": "#fffbff",
+                        "inverse-surface": "#2e3038",
+                        "surface-variant": "#e1e2ec",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed-variant": "#723600"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "section-gap": "40px",
+                        "container-margin": "24px",
+                        "card-padding": "20px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-xl": ["Geist"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Geist"],
+                        "body-lg": ["Inter"],
+                        "display-lg": ["Geist"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Geist"],
+                        "mono-code": ["Geist"]
+                    },
+                    "fontSize": {
+                        "headline-xl": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "headline-lg": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                        "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "mono-code": ["14px", {"lineHeight": "1.6", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+        }
+        .hero-gradient {
+            background: radial-gradient(circle at top left, #adc6ff 0%, transparent 40%),
+                        radial-gradient(circle at bottom right, #acedff 0%, transparent 40%),
+                        #f9f9ff;
+        }
+        .shimmer-border {
+            position: relative;
+            overflow: hidden;
+        }
+        .shimmer-border::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(from 0deg, transparent, rgba(0, 88, 190, 0.1), transparent 30%);
+            animation: rotate 6s linear infinite;
+            z-index: -1;
+        }
+        @keyframes rotate {
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-background font-body-md text-on-background min-h-screen selection:bg-primary-fixed selection:text-on-primary-fixed">
+<main class="relative min-h-screen w-full flex items-center justify-center overflow-hidden hero-gradient">
+<!-- AI Infrastructure Visualization Background Elements -->
+<div class="absolute inset-0 z-0 pointer-events-none opacity-40">
+<div class="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[120px]"></div>
+<div class="absolute bottom-1/3 right-1/4 w-[500px] h-[500px] bg-secondary/15 rounded-full blur-[150px]"></div>
+<div class="absolute inset-0 opacity-10" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDREc2Bchzi6qn6RNe6aSHXlthWawRVL7pdEe0Wye3IdNtwbsPzm_4MhJaqvQhwtQiZqehHiKGzXIbF8kRQAQ_v4B0cobLrnKKwtpzm4zhIKyfdz9LB-7MavRYB1o9L_nPYTavmu_vUlwfEPstEY76l3Zak0-RpNV3ihOvJEjpL5u0Vy46FhtJoYL-wmPz_mUDG2zpVB5mXA1B8FxADdE4E1y6iNPbY0QbaH1PaU8W2XtHMVokbQDdWjqvCJMchBf75UffSRpPduGSC');"></div>
+<!-- Abstract Server Topology/Network Nodes -->
+<svg class="absolute inset-0 w-full h-full text-primary/10" xmlns="http://www.w3.org/2000/svg">
+<circle cx="10%" cy="20%" fill="currentColor" r="2"></circle>
+<circle cx="15%" cy="25%" fill="currentColor" r="2"></circle>
+<circle cx="20%" cy="15%" fill="currentColor" r="2"></circle>
+<line stroke="currentColor" stroke-width="0.5" x1="10%" x2="15%" y1="20%" y2="25%"></line>
+<line stroke="currentColor" stroke-width="0.5" x1="15%" x2="20%" y1="25%" y2="15%"></line>
+<circle cx="85%" cy="70%" fill="currentColor" r="3"></circle>
+<circle cx="90%" cy="80%" fill="currentColor" r="2"></circle>
+<circle cx="80%" cy="85%" fill="currentColor" r="2"></circle>
+<line stroke="currentColor" stroke-width="0.5" x1="85%" x2="90%" y1="70%" y2="80%"></line>
+<line stroke="currentColor" stroke-width="0.5" x1="85%" x2="80%" y1="70%" y2="85%"></line>
+</svg>
+</div>
+<div class="relative z-10 w-full max-w-[440px] px-container-margin py-section-gap">
+<!-- Brand Identity -->
+<div class="text-center mb-10">
+<div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary shadow-lg shadow-primary/20 mb-6 group transition-transform duration-500 hover:rotate-12">
+<span class="material-symbols-outlined text-on-primary text-[32px]" data-weight="fill">dns</span>
+</div>
+<h1 class="font-headline-xl text-headline-xl text-on-surface tracking-tighter mb-2">ChronoVault</h1>
+<p class="font-body-md text-on-surface-variant opacity-80">你的服务器时间机器 (Your Server Time Machine)</p>
+</div>
+<!-- Login Box (Glassmorphism) -->
+<div class="glass-panel rounded-3xl p-card-padding md:p-10 border border-white/50 shadow-2xl">
+<form class="space-y-6">
+<div class="space-y-2">
+<label class="block font-label-md text-label-md text-on-surface-variant ml-1" for="email">邮箱地址</label>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">mail</span>
+<input class="w-full pl-12 pr-4 py-3.5 bg-surface-container-lowest/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-body-sm placeholder:text-outline-variant" id="email" placeholder="name@company.com" type="email"/>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between items-center ml-1">
+<label class="block font-label-md text-label-md text-on-surface-variant" for="password">访问密码</label>
+<a class="text-label-md font-label-md text-primary hover:underline" href="#">忘记密码?</a>
+</div>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">lock</span>
+<input class="w-full pl-12 pr-4 py-3.5 bg-surface-container-lowest/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-body-sm placeholder:text-outline-variant" id="password" placeholder="••••••••" type="password"/>
+</div>
+</div>
+<button class="w-full py-4 px-6 bg-primary text-on-primary font-headline-lg text-body-md rounded-xl hover:bg-primary-container transition-all active:scale-95 shadow-lg shadow-primary/20 flex items-center justify-center gap-2" type="submit">
+<span>立即登录</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</form>
+<div class="relative my-8">
+<div class="absolute inset-0 flex items-center">
+<div class="w-full border-t border-outline-variant/30"></div>
+</div>
+<div class="relative flex justify-center">
+<span class="px-4 bg-transparent text-label-md font-label-md text-outline">或者使用第三方账号</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<button class="flex items-center justify-center gap-3 py-3 px-4 bg-surface-container-lowest/50 border border-outline-variant rounded-xl hover:bg-surface-container-high transition-colors active:scale-95 group">
+<img alt="GitHub Logo" class="w-5 h-5 opacity-70 group-hover:opacity-100 transition-opacity" data-alt="A clean, minimalist vector icon of the GitHub Octocat logo in deep charcoal grey. The logo is centered on a transparent background, rendered with sharp lines and professional digital aesthetic, representing developer tools and collaboration." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_lRhXNQtjsxCS334eCBBVwqdoCf4BYCIdir4vsiwgrd1rxLv8ziA68oH1lFzi3lAdBWMBvsdfaBb9TdOpyc0qg1zYAFaNrnz1-raacvlFfHfLL92CugLZopwtTOLbMSFzkuYORvPR-GDX__1ctz1Y5xQ_x-2BtoL-FzQERX84RyYjrRsWtLz9QVbB0sQccJWdFi-3AANyB8awmIeQv6V-xCoN0WnvpnGQ6D2UB2qZtxNt8gs8iF50RKPZwj18N12kQfNgYnC_gMXa"/>
+<span class="font-label-md text-label-md text-on-surface">GitHub</span>
+</button>
+<button class="flex items-center justify-center gap-3 py-3 px-4 bg-surface-container-lowest/50 border border-outline-variant rounded-xl hover:bg-surface-container-high transition-colors active:scale-95 group">
+<img alt="Google Logo" class="w-5 h-5" data-alt="The official Google 'G' logo rendered in its classic four-color scheme of blue, red, yellow, and green. The icon is crisp and high-resolution, set against a transparent background, conveying modern accessibility and cloud ecosystem integration." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBcWkrTW53hCspd2CeOQWZdsWxb0lrMubYXK1u-jjfh8KnzXmmCu-bajKWox-7GYVLDAZb8r1HJ6mqR66hyA55kq62FEnwz11K6a6OmpqKWVCEFm-RLLbRfUzlT9fRhizfYvCNd5jZvBPXCjfDQp2BqKCpqvSit5jjB8ilhO4qqJz3MVlzAPXa8lBsJu9TyrLFJFcUeZ4j5WqbyqsKC-nsYDCABSEXedYqZ5u6icGCjHmtZRjyFeDeq1HfM_HIZi_7fT4_9fCls6sNH"/>
+<span class="font-label-md text-label-md text-on-surface">Google</span>
+</button>
+</div>
+<p class="text-center mt-8 font-body-sm text-body-sm text-on-surface-variant">
+                    还没有账号? <a class="text-primary font-bold hover:underline" href="#">立即注册</a>
+</p>
+</div>
+<!-- Trust Badges / Footer -->
+<div class="mt-12 flex flex-col items-center space-y-6 opacity-60">
+<div class="flex items-center gap-8 grayscale hover:grayscale-0 transition-all duration-500">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">verified_user</span>
+<span class="font-label-md text-label-md">端到端加密</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">bolt</span>
+<span class="font-label-md text-label-md">毫秒级同步</span>
+</div>
+</div>
+<div class="flex gap-4 font-label-md text-label-md">
+<a class="hover:text-primary" href="#">服务条款</a>
+<span class="text-outline-variant">•</span>
+<a class="hover:text-primary" href="#">隐私政策</a>
+<span class="text-outline-variant">•</span>
+<a class="hover:text-primary" href="#">帮助中心</a>
+</div>
+</div>
+</div>
+<!-- Decorative Floating Insight Card (Asymmetric Layout) -->
+<div class="hidden xl:block absolute right-[-5%] top-[20%] w-80 glass-panel p-6 rounded-3xl transform -rotate-3 border-l-4 border-l-primary/30 shadow-xl pointer-events-none">
+<div class="flex items-center gap-3 mb-4">
+<div class="p-2 rounded-lg bg-primary-container/20 text-primary">
+<span class="material-symbols-outlined text-[20px]">psychology</span>
+</div>
+<span class="font-label-md text-label-md text-primary font-bold">AI 智能观察</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4">“检测到您的主服务器正在进行常规快照备份，当前健康度 99.8%。”</p>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-4/5 rounded-full"></div>
+</div>
+</div>
+<div class="hidden xl:block absolute left-[-2%] bottom-[15%] w-72 glass-panel p-6 rounded-3xl transform rotate-6 border-r-4 border-r-secondary/30 shadow-xl pointer-events-none">
+<div class="flex items-center gap-3 mb-3">
+<span class="material-symbols-outlined text-secondary text-[24px]" data-weight="fill">history</span>
+<span class="font-label-md text-label-md text-secondary font-bold">回溯时间线</span>
+</div>
+<div class="space-y-3">
+<div class="flex items-center gap-3 opacity-40">
+<div class="w-2 h-2 rounded-full bg-outline-variant"></div>
+<div class="h-2 w-24 bg-outline-variant/30 rounded-full"></div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+<div class="h-2 w-32 bg-secondary/20 rounded-full"></div>
+</div>
+<div class="flex items-center gap-3 opacity-40">
+<div class="w-2 h-2 rounded-full bg-outline-variant"></div>
+<div class="h-2 w-20 bg-outline-variant/30 rounded-full"></div>
+</div>
+</div>
+</div>
+</main>
+<!-- Global Decoration Light Leak -->
+<div class="fixed top-0 right-0 w-[800px] h-[800px] bg-secondary-container/10 rounded-full blur-[180px] -mr-96 -mt-96 pointer-events-none z-0"></div>
+<div class="fixed bottom-0 left-0 w-[600px] h-[600px] bg-primary-container/10 rounded-full blur-[150px] -ml-64 -mb-64 pointer-events-none z-0"></div>
+</body></html>

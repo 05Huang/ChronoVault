@@ -10,6 +10,49 @@
             <span class="w-1.5 h-1.5 rounded-full animate-pulse" :class="serverStatusDotClass"></span>
             {{ serverStatusText }}
           </span>
+          <!-- Branch Selector -->
+          <div v-if="branches.length > 0" class="relative">
+            <button @click="showBranchDropdown = !showBranchDropdown"
+              class="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-secondary-container/30 border border-secondary-container text-[11px] font-bold text-on-secondary-container hover:bg-secondary-container/50 transition-all">
+              <span class="material-symbols-outlined text-[14px]">call_split</span>
+              {{ activeBranch?.name || 'main' }}
+              <span class="material-symbols-outlined text-[12px]">expand_more</span>
+            </button>
+            <!-- Dropdown -->
+            <div v-if="showBranchDropdown" class="absolute top-full left-0 mt-2 w-72 bg-surface-container rounded-xl border border-outline-variant/30 shadow-xl z-50 overflow-hidden">
+              <div class="p-3 border-b border-outline-variant/20">
+                <p class="text-[11px] font-bold text-on-surface-variant mb-2">切换分支</p>
+                <div v-for="branch in branches" :key="branch.id"
+                  @click="switchBranch(branch)"
+                  class="flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors"
+                  :class="activeBranch?.id === branch.id ? 'bg-primary/10 text-primary' : 'hover:bg-surface-container-high text-on-surface'">
+                  <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[16px]"
+                      :class="activeBranch?.id === branch.id ? 'text-primary' : 'text-outline'">call_split</span>
+                    <span class="text-[12px] font-bold">{{ branch.name }}</span>
+                    <span v-if="branch.isDefault" class="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold">默认</span>
+                  </div>
+                  <button v-if="!branch.isDefault" @click.stop="deleteBranch(branch)"
+                    class="p-1 rounded hover:bg-error/10 text-outline hover:text-error transition-colors">
+                    <span class="material-symbols-outlined text-[14px]">delete</span>
+                  </button>
+                </div>
+              </div>
+              <!-- Create new branch -->
+              <div class="p-3 bg-surface-container-low/50">
+                <p class="text-[11px] font-bold text-on-surface-variant mb-2">创建新分支</p>
+                <div class="flex gap-2">
+                  <input v-model="newBranchName" @keydown.enter="createBranch"
+                    class="flex-1 px-3 py-1.5 bg-white/50 border border-outline-variant rounded-lg text-[12px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                    placeholder="分支名称" />
+                  <button @click="createBranch" :disabled="!newBranchName.trim() || creatingBranch"
+                    class="px-3 py-1.5 bg-primary text-white rounded-lg text-[11px] font-bold hover:bg-primary/90 transition-all disabled:opacity-50">
+                    {{ creatingBranch ? '...' : '创建' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="flex flex-wrap gap-x-6 gap-y-2 text-on-surface-variant text-[14px] opacity-80">
           <div class="flex items-center gap-1.5">
@@ -27,9 +70,32 @@
         </div>
       </div>
       <div class="flex gap-3">
+        <button @click="showBlamePanel = !showBlamePanel" class="px-4 py-2 rounded-lg bg-surface-container-lowest text-on-surface border border-outline-variant/50 text-[12px] font-bold flex items-center gap-2 hover:bg-surface-container-high transition-all">
+          <span class="material-symbols-outlined text-lg">person_search</span>
+          变更历史
+        </button>
+        <button @click="showHooksPanel = !showHooksPanel" class="px-4 py-2 rounded-lg bg-surface-container-lowest text-on-surface border border-outline-variant/50 text-[12px] font-bold flex items-center gap-2 hover:bg-surface-container-high transition-all">
+          <span class="material-symbols-outlined text-lg">webhook</span>
+          Hooks
+          <span v-if="hooks.length > 0" class="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">{{ hooks.length }}</span>
+        </button>
+        <button @click="scanDrift" :disabled="driftScanning" class="px-4 py-2 rounded-lg bg-surface-container-lowest text-on-surface border border-outline-variant/50 text-[12px] font-bold flex items-center gap-2 hover:bg-surface-container-high transition-all disabled:opacity-50">
+          <span class="material-symbols-outlined text-lg" :class="driftScanning ? 'animate-spin' : ''">radar</span>
+          {{ driftScanning ? '检测中...' : '状态检测' }}
+        </button>
         <button @click="openRemoteConnect" class="px-4 py-2 rounded-lg bg-surface-container-lowest text-on-surface border border-outline-variant/50 text-[12px] font-bold flex items-center gap-2 hover:bg-surface-container-high transition-all">
           <span class="material-symbols-outlined text-lg">terminal</span>
           远程连接
+        </button>
+        <button @click="toggleAutoSnapshot" class="relative px-4 py-2 rounded-lg text-[12px] font-bold flex items-center gap-2 transition-all"
+          :class="server.autoSnapshotEnabled ? 'bg-green-500/10 text-green-600 border border-green-600/20' : 'bg-surface-container-lowest text-on-surface border border-outline-variant/50'">
+          <span class="material-symbols-outlined text-lg" :style="server.autoSnapshotEnabled ? 'font-variation-settings: FILL 1' : ''">auto_awesome</span>
+          自动快照 {{ server.autoSnapshotEnabled ? '已开启' : '已关闭' }}
+        </button>
+        <button @click="showStashPanel = !showStashPanel" class="relative px-4 py-2 rounded-lg bg-tertiary-container text-on-tertiary-container text-[12px] font-bold flex items-center gap-2 hover:bg-tertiary-container/80 transition-all">
+          <span class="material-symbols-outlined text-lg">archive</span>
+          快速暂存
+          <span v-if="stashes.length > 0" class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-error text-white text-[9px] font-bold flex items-center justify-center">{{ stashes.length }}</span>
         </button>
         <button @click="openNewSnapshot" class="px-4 py-2 rounded-lg bg-primary text-white text-[12px] font-bold flex items-center gap-2 hover:opacity-90 shadow-lg shadow-primary/20 transition-all">
           <span class="material-symbols-outlined text-lg">cached</span>
@@ -37,6 +103,264 @@
         </button>
       </div>
     </section>
+
+    <!-- Stash Panel (toggled) -->
+    <div v-if="showStashPanel" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
+      <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-tertiary text-[24px]" style="font-variation-settings: 'FILL' 1;">archive</span>
+          <div>
+            <h3 class="text-[20px] font-semibold">快速暂存</h3>
+            <p class="text-[12px] text-on-surface-variant">暂存当前状态，7天后自动过期</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button @click="createStash" :disabled="stashing" class="px-4 py-2 bg-tertiary text-white rounded-lg text-[12px] font-bold hover:bg-tertiary/90 transition-all disabled:opacity-50 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px]">{{ stashing ? 'hourglass_empty' : 'add_circle' }}</span>
+            {{ stashing ? '暂存中...' : '创建暂存' }}
+          </button>
+          <button v-if="stashes.length > 0" @click="popStash" class="px-4 py-2 bg-primary text-white rounded-lg text-[12px] font-bold hover:bg-primary/90 transition-all flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px]">unarchive</span>
+            恢复最新暂存
+          </button>
+        </div>
+      </div>
+      <div class="p-6">
+        <div v-if="stashes.length === 0" class="text-center py-8">
+          <span class="material-symbols-outlined text-[48px] text-outline/40">archive</span>
+          <p class="text-[14px] text-outline mt-2">暂无暂存快照</p>
+        </div>
+        <div v-else class="space-y-3">
+          <div v-for="stash in stashes" :key="stash.id"
+            class="flex items-center justify-between p-3 rounded-xl bg-surface-container/50 border border-outline-variant/20 hover:border-tertiary/30 transition-all">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-tertiary text-[20px]">inventory_2</span>
+              <div>
+                <p class="text-[14px] font-bold">{{ stash.name || stash.title || 'Stash' }}</p>
+                <p class="text-[11px] text-outline font-[Geist]">{{ stash.createdAt ? new Date(stash.createdAt).toLocaleString('zh-CN') : '' }}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span v-if="stash.hash" class="text-[10px] text-outline font-[Geist]">Hash: {{ stash.hash.substring(0, 8) }}...</span>
+              <button @click="discardStash(stash.id)" class="p-1.5 rounded-lg hover:bg-error/10 text-outline hover:text-error transition-colors" title="丢弃暂存">
+                <span class="material-symbols-outlined text-[16px]">delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blame Panel (toggled) -->
+    <div v-if="showBlamePanel" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
+      <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary text-[24px]" style="font-variation-settings: 'FILL' 1;">person_search</span>
+          <div>
+            <h3 class="text-[20px] font-semibold">变更历史 (Blame)</h3>
+            <p class="text-[12px] text-on-surface-variant">谁在什么时候做了什么操作</p>
+          </div>
+        </div>
+        <button @click="showBlamePanel = false" class="p-2 hover:bg-surface-container-high rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+      <div class="p-6">
+        <div v-if="blameLoading" class="space-y-3">
+          <div v-for="i in 5" :key="i" class="h-12 animate-pulse bg-surface-container-highest rounded-xl"></div>
+        </div>
+        <div v-else-if="blameEntries.length === 0" class="text-center py-8">
+          <span class="material-symbols-outlined text-[48px] text-outline/40">person_search</span>
+          <p class="text-[14px] text-outline mt-2">暂无变更记录</p>
+        </div>
+        <div v-else class="space-y-1">
+          <div v-for="entry in blameEntries" :key="entry.id"
+            class="flex items-start gap-3 p-3 rounded-xl hover:bg-surface-container/50 transition-colors">
+            <div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0 mt-0.5">
+              <span class="material-symbols-outlined text-[16px]" :class="getChangeTypeColor(entry.changeType)">
+                {{ getChangeTypeIcon(entry.changeType) }}
+              </span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-[13px]">
+                <span class="font-bold">{{ entry.userName }}</span>
+                <span class="text-on-surface-variant"> {{ entry.action }}</span>
+              </p>
+              <p v-if="entry.details" class="text-[11px] text-outline mt-0.5 truncate">{{ entry.details }}</p>
+            </div>
+            <span class="text-[10px] text-outline whitespace-nowrap font-[Geist]">{{ formatBlameTime(entry.timestamp) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hooks Panel (toggled) -->
+    <div v-if="showHooksPanel" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
+      <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary text-[24px]" style="font-variation-settings: 'FILL' 1;">webhook</span>
+          <div>
+            <h3 class="text-[20px] font-semibold">预/后置钩子 (Hooks)</h3>
+            <p class="text-[12px] text-on-surface-variant">在快照/恢复前后自动执行自定义命令</p>
+          </div>
+        </div>
+        <button @click="showHooksPanel = false" class="p-2 hover:bg-surface-container-high rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-5">
+        <!-- Hook Form -->
+        <div class="bg-surface-container/50 rounded-xl p-4 border border-outline-variant/20 space-y-3">
+          <p class="text-[12px] font-bold text-on-surface-variant">{{ editingHook ? '编辑 Hook' : '创建新 Hook' }}</p>
+          <div class="grid grid-cols-2 gap-3">
+            <input v-model="hookForm.name" class="px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="Hook 名称" />
+            <select v-model="hookForm.hookType" class="px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none appearance-none">
+              <option value="PRE_SNAPSHOT">快照前 (PRE_SNAPSHOT)</option>
+              <option value="POST_SNAPSHOT">快照后 (POST_SNAPSHOT)</option>
+              <option value="PRE_RESTORE">恢复前 (PRE_RESTORE)</option>
+              <option value="POST_RESTORE">恢复后 (POST_RESTORE)</option>
+            </select>
+          </div>
+          <textarea v-model="hookForm.command" rows="2"
+            class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[13px] font-[Geist] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+            placeholder="要执行的命令，例如: docker exec mysql mysql -e 'FLUSH TABLES WITH READ LOCK;'"></textarea>
+          <div class="flex items-center gap-3">
+            <label class="flex items-center gap-2 text-[12px] text-on-surface-variant cursor-pointer">
+              <input type="checkbox" v-model="hookForm.enabled" class="rounded border-outline-variant" />
+              启用
+            </label>
+            <input v-model.number="hookForm.orderIndex" type="number" min="0"
+              class="w-20 px-3 py-1.5 bg-white/50 border border-outline-variant rounded-lg text-[12px] text-center focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+              placeholder="顺序" />
+            <input v-model.number="hookForm.timeoutSeconds" type="number" min="1" max="300"
+              class="w-24 px-3 py-1.5 bg-white/50 border border-outline-variant rounded-lg text-[12px] text-center focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+              placeholder="超时秒数" />
+            <div class="flex-1"></div>
+            <button v-if="editingHook" @click="cancelHookEdit" class="px-3 py-1.5 text-[11px] font-bold text-outline hover:bg-surface-container-high rounded-lg transition-colors">取消</button>
+            <button @click="saveHook" :disabled="!hookForm.name || !hookForm.command"
+              class="px-4 py-1.5 bg-primary text-white rounded-lg text-[11px] font-bold hover:bg-primary/90 transition-all disabled:opacity-50">
+              {{ editingHook ? '更新' : '创建' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Hooks List -->
+        <div v-if="hooks.length === 0" class="text-center py-6">
+          <span class="material-symbols-outlined text-[36px] text-outline/40">webhook</span>
+          <p class="text-[13px] text-outline mt-2">暂无自定义钩子</p>
+        </div>
+        <div v-else class="space-y-2">
+          <div v-for="hook in hooks" :key="hook.id"
+            class="flex items-center gap-3 p-3 rounded-xl border border-outline-variant/20 transition-all"
+            :class="hook.enabled ? 'bg-surface-container/30' : 'bg-surface-container-highest/30 opacity-60'">
+            <span class="material-symbols-outlined text-[18px]"
+              :class="hook.hookType.includes('PRE') ? 'text-primary' : 'text-tertiary'">webhook</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-[13px] font-bold">{{ hook.name }}</p>
+              <p class="text-[11px] text-outline font-[Geist] truncate">{{ hook.command }}</p>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold"
+              :class="hook.hookType.includes('PRE') ? 'bg-primary/10 text-primary' : 'bg-tertiary/10 text-tertiary'">
+              {{ hook.hookType.replace('_', ' ') }}
+            </span>
+            <button @click="editHook(hook)" class="p-1.5 rounded-lg hover:bg-surface-container-high text-outline transition-colors" title="编辑">
+              <span class="material-symbols-outlined text-[14px]">edit</span>
+            </button>
+            <button @click="deleteHook(hook.id)" class="p-1.5 rounded-lg hover:bg-error/10 text-outline hover:text-error transition-colors" title="删除">
+              <span class="material-symbols-outlined text-[14px]">delete</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drift Detection Report -->
+    <div v-if="showDriftSection" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
+      <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary text-[24px]" style="font-variation-settings: 'FILL' 1;">radar</span>
+          <div>
+            <h3 class="text-[20px] font-semibold">状态检测报告</h3>
+            <p class="text-[12px] text-on-surface-variant" v-if="driftReport">
+              {{ driftReport.totalChanges === 0 ? '无变更检测到' : '检测到 ' + driftReport.totalChanges + ' 项变更' }}
+              <span class="text-outline"> · {{ driftReport.scannedAt }}</span>
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span v-if="driftReport" class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+            :class="driftReport.status === 'CLEAN' ? 'bg-green-500/10 text-green-600' : driftReport.status === 'MINOR' ? 'bg-amber-500/10 text-amber-600' : 'bg-error/10 text-error'">
+            {{ driftReport.status === 'CLEAN' ? '正常' : driftReport.status === 'MINOR' ? '轻微变更' : '显著变更' }}
+          </span>
+          <button @click="showDriftSection = false" class="p-2 hover:bg-surface-container-high rounded-lg transition-colors">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+      </div>
+      <div class="p-6">
+        <div v-if="driftScanning" class="space-y-3">
+          <div v-for="i in 3" :key="i" class="h-12 animate-pulse bg-surface-container-highest rounded-xl"></div>
+        </div>
+        <div v-else-if="!driftReport" class="text-center py-8">
+          <span class="material-symbols-outlined text-[48px] text-outline/40">radar</span>
+          <p class="text-[14px] text-outline mt-2">点击"状态检测"开始扫描</p>
+        </div>
+        <div v-else class="space-y-4">
+          <!-- Container Drifts -->
+          <div v-if="driftReport.containerDrifts.length > 0" class="space-y-2">
+            <p class="text-[12px] font-bold text-on-surface-variant flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[16px]">deployed_code</span>
+              容器变更 ({{ driftReport.containerDrifts.length }})
+            </p>
+            <div v-for="cd in driftReport.containerDrifts" :key="cd.containerName"
+              class="p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-3">
+              <span class="material-symbols-outlined text-[16px] text-amber-600">warning</span>
+              <div class="flex-1">
+                <p class="text-[13px] font-bold">{{ cd.containerName }}</p>
+                <p class="text-[11px] text-amber-700">{{ cd.details }}</p>
+              </div>
+              <span class="text-[10px] text-amber-600 font-bold">{{ cd.driftType }}</span>
+            </div>
+          </div>
+
+          <!-- File Drifts -->
+          <div v-if="driftReport.fileDrifts.length > 0" class="space-y-2">
+            <p class="text-[12px] font-bold text-on-surface-variant flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[16px]">description</span>
+              配置文件检查 ({{ driftReport.fileDrifts.length }})
+            </p>
+            <div v-for="fd in driftReport.fileDrifts" :key="fd.filePath"
+              class="p-3 rounded-lg bg-surface-container/50 border border-outline-variant/20 flex items-center gap-3">
+              <span class="material-symbols-outlined text-[16px] text-primary">check_circle</span>
+              <div class="flex-1">
+                <p class="text-[13px] font-bold font-[Geist]">{{ fd.filePath }}</p>
+                <p class="text-[11px] text-outline font-[Geist]">MD5: {{ fd.currentHash }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Port Drifts -->
+          <div v-if="driftReport.portDrifts.length > 0" class="space-y-2">
+            <p class="text-[12px] font-bold text-on-surface-variant flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[16px]">lan</span>
+              端口监听 ({{ driftReport.portDrifts.length }})
+            </p>
+            <div class="grid grid-cols-3 gap-2">
+              <div v-for="pd in driftReport.portDrifts.slice(0, 12)" :key="pd.port"
+                class="p-2 rounded-lg bg-surface-container/50 border border-outline-variant/20 text-center">
+                <p class="text-[14px] font-bold font-[Geist]">{{ pd.port }}</p>
+                <p class="text-[10px] text-outline">{{ pd.protocol }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="driftReport.totalChanges === 0" class="text-center py-6">
+            <span class="material-symbols-outlined text-[48px] text-green-500" style="font-variation-settings: 'FILL' 1;">verified</span>
+            <p class="text-[14px] text-green-600 mt-2 font-bold">服务器状态正常，未检测到漂移</p>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Bento Grid for Core Metrics & Topology -->
     <div class="grid grid-cols-12 gap-[16px]">
@@ -324,6 +648,11 @@ import { useToastStore } from '@/stores/toast'
 import { useModalStore } from '@/stores/modal'
 import { serversApi } from '@/api/servers'
 import { aiApi } from '@/api/ai'
+import { branchesApi } from '@/api/branches'
+import { stashApi } from '@/api/stash'
+import { blameApi } from '@/api/blame'
+import { hooksApi } from '@/api/hooks'
+import { driftApi } from '@/api/drift'
 import { formatBytes } from '@/utils/format'
 import TerminalModal from '@/components/modals/TerminalModal.vue'
 import AddMountPathModal from '@/components/modals/AddMountPathModal.vue'
@@ -335,7 +664,7 @@ const toast = useToastStore()
 const modal = useModalStore()
 const serverId = Number(route.params.id)
 
-import type { Server, Container, Volume, AiServerAnalysis } from '@/types'
+import type { Server, Container, Volume, AiServerAnalysis, ServerBranch, Snapshot, ChangeAttribution, SnapshotHook, DriftReport } from '@/types'
 
 const server = ref<Server>({} as Server)
 const containers = ref<(Container & { metric1: any; metric2: any })[]>([])
@@ -348,6 +677,49 @@ const sshConfig = ref({ port: 22, username: 'root', authMethod: 'PASSWORD', cred
 const sshTesting = ref(false)
 const sshSaving = ref(false)
 const sshTestResult = ref<{ success: boolean; message: string } | null>(null)
+
+// Branch state
+const branches = ref<ServerBranch[]>([])
+const activeBranch = ref<ServerBranch | null>(null)
+const showBranchDropdown = ref(false)
+const newBranchName = ref('')
+const creatingBranch = ref(false)
+
+// Stash state
+const stashes = ref<Snapshot[]>([])
+const showStashPanel = ref(false)
+const stashing = ref(false)
+
+// Blame state
+const blameEntries = ref<ChangeAttribution[]>([])
+const showBlamePanel = ref(false)
+const blameLoading = ref(false)
+
+// Hooks state
+const hooks = ref<SnapshotHook[]>([])
+const showHooksPanel = ref(false)
+const editingHook = ref<Partial<SnapshotHook> | null>(null)
+const hookForm = ref({ name: '', hookType: 'PRE_SNAPSHOT' as SnapshotHook['hookType'], command: '', timeoutSeconds: 60, enabled: true, orderIndex: 0 })
+
+// Drift detection state
+const driftReport = ref<DriftReport | null>(null)
+const driftScanning = ref(false)
+const showDriftSection = ref(false)
+
+async function scanDrift() {
+  if (!server.value?.id) return
+  driftScanning.value = true
+  driftReport.value = null
+  showDriftSection.value = true
+  try {
+    const res = await driftApi.detect(server.value.id)
+    driftReport.value = res
+  } catch (e: any) {
+    toast.error(e?.message || '漂移检测失败')
+  } finally {
+    driftScanning.value = false
+  }
+}
 
 // Topology
 const topologyCanvas = ref<HTMLElement | null>(null)
@@ -700,6 +1072,216 @@ async function refreshContainers() {
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
+// Branch functions
+async function loadBranches() {
+  try {
+    const res = await branchesApi.getAll(serverId)
+    branches.value = res || []
+    activeBranch.value = branches.value.find(b => b.isDefault) || branches.value[0] || null
+  } catch (e) {
+    console.warn('Failed to load branches', e)
+  }
+}
+
+async function switchBranch(branch: ServerBranch) {
+  if (activeBranch.value?.id === branch.id) {
+    showBranchDropdown.value = false
+    return
+  }
+  try {
+    await branchesApi.switch(serverId, branch.id)
+    activeBranch.value = branch
+    showBranchDropdown.value = false
+    toast.success(`已切换到分支: ${branch.name}`)
+  } catch (e: any) {
+    toast.error(e?.message || '切换分支失败')
+  }
+}
+
+async function createBranch() {
+  const name = newBranchName.value.trim()
+  if (!name) return
+  creatingBranch.value = true
+  try {
+    const newBranch = await branchesApi.create(serverId, { name })
+    branches.value.push(newBranch)
+    newBranchName.value = ''
+    toast.success(`分支 "${name}" 已创建`)
+  } catch (e: any) {
+    toast.error(e?.message || '创建分支失败')
+  } finally {
+    creatingBranch.value = false
+  }
+}
+
+async function deleteBranch(branch: ServerBranch) {
+  if (branch.isDefault) {
+    toast.error('不能删除默认分支')
+    return
+  }
+  try {
+    await branchesApi.delete(serverId, branch.id)
+    branches.value = branches.value.filter(b => b.id !== branch.id)
+    if (activeBranch.value?.id === branch.id) {
+      activeBranch.value = branches.value.find(b => b.isDefault) || branches.value[0] || null
+    }
+    toast.success(`分支 "${branch.name}" 已删除`)
+  } catch (e: any) {
+    toast.error(e?.message || '删除分支失败')
+  }
+}
+
+// Auto-snapshot toggle
+async function toggleAutoSnapshot() {
+  const newState = !server.value.autoSnapshotEnabled
+  try {
+    await serversApi.toggleAutoSnapshot(serverId, newState)
+    server.value.autoSnapshotEnabled = newState
+    toast.success(`自动快照已${newState ? '开启' : '关闭'}`)
+  } catch (e: any) {
+    toast.error(e?.message || '操作失败')
+  }
+}
+
+// Hooks functions
+async function loadHooks() {
+  try {
+    const res = await hooksApi.getAll(serverId)
+    hooks.value = res || []
+  } catch (e) {
+    console.warn('Failed to load hooks', e)
+  }
+}
+
+async function saveHook() {
+  try {
+    if (editingHook.value?.id) {
+      await hooksApi.update(serverId, editingHook.value.id, hookForm.value)
+      toast.success('Hook 已更新')
+    } else {
+      await hooksApi.create(serverId, hookForm.value)
+      toast.success('Hook 已创建')
+    }
+    editingHook.value = null
+    hookForm.value = { name: '', hookType: 'PRE_SNAPSHOT', command: '', timeoutSeconds: 60, enabled: true, orderIndex: 0 }
+    await loadHooks()
+  } catch (e: any) {
+    toast.error(e?.message || '保存失败')
+  }
+}
+
+function editHook(hook: SnapshotHook) {
+  editingHook.value = hook
+  hookForm.value = { ...hook }
+}
+
+async function deleteHook(hookId: number) {
+  try {
+    await hooksApi.delete(serverId, hookId)
+    hooks.value = hooks.value.filter(h => h.id !== hookId)
+    toast.success('Hook 已删除')
+  } catch (e: any) {
+    toast.error(e?.message || '删除失败')
+  }
+}
+
+function cancelHookEdit() {
+  editingHook.value = null
+  hookForm.value = { name: '', hookType: 'PRE_SNAPSHOT', command: '', timeoutSeconds: 60, enabled: true, orderIndex: 0 }
+}
+
+// Blame functions
+async function loadBlame() {
+  blameLoading.value = true
+  try {
+    const res = await blameApi.getServerBlame(serverId)
+    blameEntries.value = res || []
+  } catch (e) {
+    console.warn('Failed to load blame', e)
+  } finally {
+    blameLoading.value = false
+  }
+}
+
+function getChangeTypeIcon(type?: string): string {
+  if (!type) return 'edit'
+  if (type.includes('CREATED')) return 'add_circle'
+  if (type.includes('DELETED')) return 'delete'
+  if (type.includes('RESTORED') || type.includes('REVERTED')) return 'settings_backup_restore'
+  if (type.includes('BRANCH')) return 'call_split'
+  if (type.includes('STASH')) return 'archive'
+  return 'edit'
+}
+
+function getChangeTypeColor(type?: string): string {
+  if (!type) return 'text-outline'
+  if (type.includes('CREATED')) return 'text-green-500'
+  if (type.includes('DELETED')) return 'text-error'
+  if (type.includes('RESTORED') || type.includes('REVERTED')) return 'text-primary'
+  if (type.includes('BRANCH')) return 'text-secondary'
+  if (type.includes('STASH')) return 'text-tertiary'
+  return 'text-outline'
+}
+
+function formatBlameTime(ts: string): string {
+  if (!ts) return ''
+  try {
+    const d = new Date(ts)
+    const now = new Date()
+    const diffMs = now.getTime() - d.getTime()
+    const diffMin = Math.floor(diffMs / 60000)
+    if (diffMin < 1) return '刚刚'
+    if (diffMin < 60) return `${diffMin} 分钟前`
+    const diffHr = Math.floor(diffMin / 60)
+    if (diffHr < 24) return `${diffHr} 小时前`
+    const diffDay = Math.floor(diffHr / 24)
+    return `${diffDay} 天前`
+  } catch { return ts }
+}
+
+// Stash functions
+async function loadStashes() {
+  try {
+    const res = await stashApi.list(serverId)
+    stashes.value = res || []
+  } catch (e) {
+    console.warn('Failed to load stashes', e)
+  }
+}
+
+async function createStash() {
+  stashing.value = true
+  try {
+    const result = await stashApi.create(serverId, '手动暂存')
+    stashes.value.unshift(result)
+    toast.success('已创建暂存快照')
+  } catch (e: any) {
+    toast.error(e?.message || '暂存失败')
+  } finally {
+    stashing.value = false
+  }
+}
+
+async function popStash() {
+  try {
+    const result = await stashApi.pop(serverId)
+    toast.success(result || '已恢复暂存快照')
+    await loadStashes()
+  } catch (e: any) {
+    toast.error(e?.message || '恢复暂存失败')
+  }
+}
+
+async function discardStash(stashId: number) {
+  try {
+    await stashApi.discard(serverId, stashId)
+    stashes.value = stashes.value.filter(s => s.id !== stashId)
+    toast.success('暂存快照已丢弃')
+  } catch (e: any) {
+    toast.error(e?.message || '丢弃暂存失败')
+  }
+}
+
 onMounted(async () => {
   try {
     const [serverRes, containersRes, volumesRes, logsRes] = await Promise.all([
@@ -708,6 +1290,12 @@ onMounted(async () => {
       serversApi.getVolumes(serverId),
       serversApi.getLogs(serverId),
     ])
+
+    // Load branches, stashes, blame, and hooks
+    loadBranches()
+    loadStashes()
+    loadBlame()
+    loadHooks()
 
     // AI analysis runs separately (may be slow, up to 30s)
     aiLoading.value = true

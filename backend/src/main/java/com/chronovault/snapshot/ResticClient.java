@@ -166,6 +166,37 @@ public class ResticClient {
         return null;
     }
 
+    /**
+     * List files/directories in a snapshot at a given path.
+     * Returns the raw output of `restic ls {hash} --path {path} --json`.
+     */
+    public String listFiles(SshConnection conn, String repoUrl, String password,
+                             String snapshotId, String path) {
+        String restic = getResticPath(conn);
+        String target = path != null && !path.isBlank() ? path : "/";
+        String cmd = String.format("RESTIC_PASSWORD=%s %s ls %s --path %s --repo %s 2>&1",
+                shellEscape(password), restic, shellEscape(snapshotId),
+                shellEscape(target), shellEscape(repoUrl));
+        log.info("Restic ls command: {}", cmd);
+        SshConnection.CommandResult result = conn.executeCommand(cmd, java.time.Duration.ofMinutes(5));
+        return result.isSuccess() ? result.stdout() : "";
+    }
+
+    /**
+     * Dump a single file's content from a snapshot.
+     * Returns the file content as a string.
+     */
+    public String dumpFile(SshConnection conn, String repoUrl, String password,
+                            String snapshotId, String filePath) {
+        String restic = getResticPath(conn);
+        String cmd = String.format("RESTIC_PASSWORD=%s %s dump %s %s --repo %s 2>&1",
+                shellEscape(password), restic, shellEscape(snapshotId),
+                shellEscape(filePath), shellEscape(repoUrl));
+        log.info("Restic dump command: {}", cmd);
+        SshConnection.CommandResult result = conn.executeCommand(cmd, java.time.Duration.ofMinutes(5));
+        return result.isSuccess() ? result.stdout() : "";
+    }
+
     public List<ResticSnapshotInfo> snapshots(SshConnection conn, String repoUrl, String password) {
         String restic = getResticPath(conn);
         SshConnection.CommandResult result = conn.executeCommand(
@@ -195,6 +226,65 @@ public class ResticClient {
         return result.isSuccess();
     }
 
+    /**
+     * Restore specific files from a snapshot using --include flags.
+     * Only restores the listed paths (files/directories) to the target location.
+     */
+    public boolean restoreSelective(SshConnection conn, String repoUrl, String password,
+                                    String snapshotId, List<String> includePaths, String targetPath) {
+        String restic = getResticPath(conn);
+        StringBuilder cmd = new StringBuilder();
+        cmd.append("RESTIC_PASSWORD=").append(shellEscape(password)).append(" ");
+        cmd.append(restic).append(" restore ").append(shellEscape(snapshotId)).append(" ");
+        cmd.append("--target ").append(shellEscape(targetPath)).append(" ");
+        for (String path : includePaths) {
+            cmd.append("--include ").append(shellEscape(path)).append(" ");
+        }
+        cmd.append("--repo ").append(shellEscape(repoUrl)).append(" 2>&1");
+
+        String fullCmd = cmd.toString();
+        log.info("Restic selective restore command: {}", fullCmd);
+        SshConnection.CommandResult result = conn.executeCommand(fullCmd, java.time.Duration.ofHours(2));
+        log.info("Restic selective restore exitCode={}", result.exitCode());
+        if (!result.isSuccess()) {
+            log.error("Restic selective restore failed (exit={}): stdout=[{}] stderr=[{}]",
+                    result.exitCode(),
+                    result.stdout() != null ? result.stdout().substring(0, Math.min(1000, result.stdout().length())) : "",
+                    result.stderr() != null ? result.stderr().substring(0, Math.min(1000, result.stderr().length())) : "");
+        }
+        return result.isSuccess();
+    }
+
+    /**
+     * Restore specific paths from a snapshot directly to the server root (/).
+     * This is used for revert operations — it overwrites the target files with
+     * the versions from the parent snapshot.
+     */
+    public boolean restoreToServer(SshConnection conn, String repoUrl, String password,
+                                    String snapshotId, List<String> includePaths) {
+        String restic = getResticPath(conn);
+        StringBuilder cmd = new StringBuilder();
+        cmd.append("RESTIC_PASSWORD=").append(shellEscape(password)).append(" ");
+        cmd.append(restic).append(" restore ").append(shellEscape(snapshotId)).append(" ");
+        cmd.append("--target / ");
+        for (String path : includePaths) {
+            cmd.append("--include ").append(shellEscape(path)).append(" ");
+        }
+        cmd.append("--repo ").append(shellEscape(repoUrl)).append(" 2>&1");
+
+        String fullCmd = cmd.toString();
+        log.info("Restic restore-to-server command: {}", fullCmd);
+        SshConnection.CommandResult result = conn.executeCommand(fullCmd, java.time.Duration.ofHours(2));
+        log.info("Restic restore-to-server exitCode={}", result.exitCode());
+        if (!result.isSuccess()) {
+            log.error("Restic restore-to-server failed (exit={}): stdout=[{}] stderr=[{}]",
+                    result.exitCode(),
+                    result.stdout() != null ? result.stdout().substring(0, Math.min(1000, result.stdout().length())) : "",
+                    result.stderr() != null ? result.stderr().substring(0, Math.min(1000, result.stderr().length())) : "");
+        }
+        return result.isSuccess();
+    }
+
     public boolean dryRunRestore(SshConnection conn, String repoUrl, String password, String snapshotId) {
         // Use 'restic check' to verify repo integrity (dry-run restore not supported in all versions)
         String restic = getResticPath(conn);
@@ -220,11 +310,82 @@ public class ResticClient {
         return result.isSuccess() ? result.stdout() : "";
     }
 
+    /**
+     * Dump specific files from a snapshot to a local directory on the server.
+     * Used for cherry-pick operations: extracts files then transfers them to target.
+     */
+    public boolean dumpFiles(SshConnection conn, String repoUrl, String password,
+                              String snapshotId, List<String> paths, String targetDir) {
+        String restic = getResticPath(conn);
+        StringBuilder cmd = new StringBuilder();
+        cmd.append("RESTIC_PASSWORD=").append(shellEscape(password)).append(" ");
+        cmd.append(restic).append(" dump ").append(shellEscape(snapshotId)).append(" ");
+        for (String path : paths) {
+            cmd.append(shellEscape(path)).append(" ");
+        }
+        cmd.append("--repo ").append(shellEscape(repoUrl)).append(" 2>&1 | ");
+        cmd.append("sudo tee /dev/null > /dev/null && echo DUMP_OK");
+
+        // Use restore --include to extract to temp dir instead (more reliable)
+        String fullCmd = String.format(
+                "RESTIC_PASSWORD=%s %s restore %s --include %s --target %s --repo %s 2>&1 && echo RESTORE_OK",
+                shellEscape(password), restic, shellEscape(snapshotId),
+                shellEscape(String.join(",", paths)),
+                shellEscape(targetDir), shellEscape(repoUrl));
+
+        log.info("Restic dump command: {}", fullCmd);
+        SshConnection.CommandResult result = conn.executeCommand(fullCmd, java.time.Duration.ofHours(1));
+        log.info("Restic dump exitCode={}", result.exitCode());
+        return result.isSuccess() || (result.stdout() != null && result.stdout().contains("RESTORE_OK"));
+    }
+
+    /**
+     * Copy files from one directory to another on the same server using cp.
+     */
+    public boolean copyFiles(SshConnection conn, String sourceDir, List<String> paths, String destDir) {
+        StringBuilder cmd = new StringBuilder();
+        cmd.append("sudo mkdir -p ").append(shellEscape(destDir)).append(" && ");
+        for (String path : paths) {
+            // Resolve the file within the source directory structure
+            cmd.append("sudo cp --parents ").append(shellEscape(sourceDir + path)).append(" ").append(shellEscape("/")).append(" 2>/dev/null || ");
+            cmd.append("sudo cp ").append(shellEscape(sourceDir + path)).append(" ").append(shellEscape(destDir)).append(" 2>/dev/null || ");
+        }
+        cmd.append("true");
+
+        String fullCmd = cmd.toString();
+        log.info("Copy files command: {}", fullCmd);
+        SshConnection.CommandResult result = conn.executeCommand(fullCmd, java.time.Duration.ofMinutes(10));
+        return result.isSuccess();
+    }
+
     public boolean check(SshConnection conn, String repoUrl, String password) {
         String restic = getResticPath(conn);
         SshConnection.CommandResult result = conn.executeCommand(
                 String.format("RESTIC_PASSWORD=%s %s check --repo %s 2>&1",
                         shellEscape(password), restic, shellEscape(repoUrl)));
+        return result.isSuccess();
+    }
+
+    /**
+     * Copy a snapshot from one restic repository to another using `restic copy`.
+     * Both repos must be accessible from the same server.
+     */
+    public boolean copySnapshot(SshConnection conn, String sourceRepoUrl, String sourcePassword,
+                                 String targetRepoUrl, String targetPassword, String snapshotId) {
+        String restic = getResticPath(conn);
+        String cmd = String.format(
+                "RESTIC_PASSWORD=%s %s copy --repo %s --repo2 %s --password-command 'echo %s' %s 2>&1",
+                shellEscape(sourcePassword), restic, shellEscape(sourceRepoUrl),
+                shellEscape(targetRepoUrl), shellEscape(targetPassword), shellEscape(snapshotId));
+        log.info("Restic copy command: {}", cmd);
+        SshConnection.CommandResult result = conn.executeCommand(cmd, java.time.Duration.ofHours(2));
+        log.info("Restic copy exitCode={}", result.exitCode());
+        if (!result.isSuccess()) {
+            log.error("Restic copy failed (exit={}): stdout=[{}] stderr=[{}]",
+                    result.exitCode(),
+                    result.stdout() != null ? result.stdout().substring(0, Math.min(1000, result.stdout().length())) : "",
+                    result.stderr() != null ? result.stderr().substring(0, Math.min(1000, result.stderr().length())) : "");
+        }
         return result.isSuccess();
     }
 

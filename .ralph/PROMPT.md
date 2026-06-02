@@ -66,20 +66,6 @@ Checklist for each backend feature:
 - [ ] The entry point is visible in the navigation or page layout
 - [ ] The feature works end-to-end (API call -> display result)
 
-### Rule 7: FEATURES BEFORE HARDENING
-Execute fix_plan.md phases in strict order:
-1. Phase 1: Core Product Features — COMPLETE ALL before moving on
-2. Phase 2: Drift Detection — COMPLETE before moving on
-3. Phase 3: Snapshot Enhancements — COMPLETE before moving on
-4. Phase 4: Frontend Pages — COMPLETE before moving on
-5. Phase 5: Agent Improvements — COMPLETE before moving on
-6. Phase 6: WebSocket — COMPLETE before moving on
-7. THEN AND ONLY THEN: "Later Priority" (validation, audit, tests, caching, docs)
-
-Do NOT skip ahead to hardening tasks while feature tasks remain.
-Do NOT interleave feature and hardening tasks.
-A feature-rich product without tests is better than a tested product without features.
-
 ## Technology Stack
 - Java 17, Spring Boot 3.2.5, PostgreSQL 15, Redis 7, Flyway
 - Vue 3.5, TypeScript 6, Vite 8, Tailwind CSS 4, Pinia

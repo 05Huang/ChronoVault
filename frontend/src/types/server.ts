@@ -8,6 +8,8 @@ export interface Server {
   sshPort?: number
   sshUsername?: string
   sshAuthMethod?: 'password' | 'key'
+  autoSnapshotEnabled?: boolean
+  groupId?: number
   createdAt?: string
   updatedAt?: string
 }
@@ -16,6 +18,14 @@ export interface CreateServerRequest {
   name: string
   ip: string
   os?: string
+}
+
+export interface CloneServerRequest {
+  sourceServerId: number
+  targetServerIp: string
+  targetName?: string
+  targetSshPort?: number
+  targetSshUsername?: string
 }
 
 export interface UpdateSshConfigRequest {

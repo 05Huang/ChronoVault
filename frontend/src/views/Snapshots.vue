@@ -6,6 +6,337 @@
     <div class="absolute w-1.5 h-1.5 top-[60%] left-[15%] bg-primary opacity-10 blur-[1px] rounded-full pointer-events-none"></div>
     <div class="absolute w-1 h-1 top-[80%] left-[70%] bg-primary opacity-10 blur-[1px] rounded-full pointer-events-none"></div>
 
+    <!-- Verify Result -->
+    <div v-if="verifyResult" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30 p-6">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="material-symbols-outlined text-[24px]"
+          :class="verifyResult.verified ? 'text-green-500' : 'text-error'"
+          style="font-variation-settings: 'FILL' 1;">
+          {{ verifyResult.verified ? 'verified' : 'error' }}
+        </span>
+        <div>
+          <h3 class="text-[20px] font-semibold" :class="verifyResult.verified ? 'text-green-500' : 'text-error'">
+            {{ verifyResult.verified ? '验证通过' : '验证失败' }}
+          </h3>
+          <p class="text-[12px] text-on-surface-variant">
+            耗时 {{ (verifyResult.durationMs / 1000).toFixed(1) }} 秒
+            <span v-if="verifyResult.errors"> — {{ verifyResult.errors }}</span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Container States -->
+    <div v-if="containerStates.length > 0" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
+      <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50 cursor-pointer"
+        @click="showContainers = !showContainers">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-secondary text-[24px]" style="font-variation-settings: 'FILL' 1;">deployed_code</span>
+          <div>
+            <h3 class="text-[20px] font-semibold">容器状态</h3>
+            <p class="text-[12px] text-on-surface-variant">快照时捕获了 {{ containerStates.length }} 个容器</p>
+          </div>
+        </div>
+        <span class="material-symbols-outlined text-[20px] text-outline transition-transform" :class="showContainers ? 'rotate-180' : ''">expand_more</span>
+      </div>
+      <div v-show="showContainers" class="p-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div v-for="cs in containerStates" :key="cs.id"
+            class="p-4 rounded-xl bg-surface-container/50 border border-outline-variant/20">
+            <div class="flex items-center gap-3 mb-2">
+              <span class="material-symbols-outlined text-[18px]"
+                :class="cs.status.includes('Up') ? 'text-green-500' : 'text-error'">circle</span>
+              <div>
+                <p class="text-[14px] font-bold">{{ cs.containerName }}</p>
+                <p class="text-[11px] text-outline truncate">{{ cs.image }}</p>
+              </div>
+            </div>
+            <p class="text-[11px] text-on-surface-variant">{{ cs.status }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bisect Wizard (toggled) -->
+    <div v-if="showBisect" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
+      <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary text-[24px]" style="font-variation-settings: 'FILL' 1;">binary</span>
+          <div>
+            <h3 class="text-[24px] font-semibold">二分查找 (Bisect)</h3>
+            <p class="text-[12px] text-on-surface-variant">快速定位哪个快照引入了问题</p>
+          </div>
+        </div>
+        <button @click="showBisect = false" class="p-2 hover:bg-surface-container-high rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+
+      <!-- Step 1: Select good/bad snapshots -->
+      <div v-if="!bisectSession" class="p-6 space-y-6">
+        <p class="text-[14px] text-on-surface-variant">选择一个已知正常的快照（好）和一个已知有问题的快照（坏），系统将通过二分法快速定位引入问题的快照。</p>
+
+        <div class="grid grid-cols-2 gap-6">
+          <!-- Good snapshot selector -->
+          <div class="space-y-3">
+            <label class="flex items-center gap-2 text-[12px] font-bold text-on-surface-variant">
+              <span class="w-3 h-3 rounded-full bg-green-500"></span>
+              已知正常快照 (Good)
+            </label>
+            <select v-model="bisectGoodId" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none text-[14px] appearance-none">
+              <option :value="0" disabled>选择好快照</option>
+              <option v-for="s in snapshots" :key="s.id" :value="s.id">{{ s.name || s.title || '快照' }} ({{ s.createdAt ? new Date(s.createdAt).toLocaleDateString('zh-CN') : '' }})</option>
+            </select>
+          </div>
+
+          <!-- Bad snapshot selector -->
+          <div class="space-y-3">
+            <label class="flex items-center gap-2 text-[12px] font-bold text-on-surface-variant">
+              <span class="w-3 h-3 rounded-full bg-error"></span>
+              已知异常快照 (Bad)
+            </label>
+            <select v-model="bisectBadId" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-error/20 focus:border-error outline-none text-[14px] appearance-none">
+              <option :value="0" disabled>选择坏快照</option>
+              <option v-for="s in snapshots" :key="s.id" :value="s.id">{{ s.name || s.title || '快照' }} ({{ s.createdAt ? new Date(s.createdAt).toLocaleDateString('zh-CN') : '' }})</option>
+            </select>
+          </div>
+        </div>
+
+        <button @click="startBisect" :disabled="!bisectGoodId || !bisectBadId || bisectStarting" class="bg-primary text-white font-bold px-6 py-3 rounded-xl shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2">
+          <span class="material-symbols-outlined text-[18px]">play_arrow</span>
+          {{ bisectStarting ? '启动中...' : '开始二分查找' }}
+        </button>
+      </div>
+
+      <!-- Step 2: Testing snapshots -->
+      <div v-else-if="bisectSession.status === 'IN_PROGRESS'" class="p-6 space-y-6">
+        <!-- Progress bar -->
+        <div class="space-y-2">
+          <div class="flex justify-between items-center">
+            <span class="text-[12px] font-bold text-on-surface-variant">进度</span>
+            <span class="text-[12px] text-outline font-[Geist]">{{ bisectSession.totalSteps - bisectSession.stepsRemaining }} / {{ bisectSession.totalSteps }}</span>
+          </div>
+          <div class="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden">
+            <div class="bg-primary h-full rounded-full transition-all duration-500" :style="{ width: ((bisectSession.totalSteps - bisectSession.stepsRemaining) / bisectSession.totalSteps * 100) + '%' }"></div>
+          </div>
+          <p class="text-[11px] text-outline">还剩 {{ bisectSession.stepsRemaining }} 步</p>
+        </div>
+
+        <!-- Current snapshot to test -->
+        <div class="bg-primary/5 border border-primary/20 rounded-xl p-6">
+          <p class="text-[12px] font-bold text-primary mb-2">请测试以下快照：</p>
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <span class="material-symbols-outlined text-primary text-[24px]" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+            </div>
+            <div>
+              <h4 class="text-[20px] font-semibold">{{ bisectSession.currentSnapshotName }}</h4>
+              <p class="text-[12px] text-on-surface-variant">ID: {{ bisectSession.currentSnapshotId }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verdict buttons -->
+        <div class="flex gap-4">
+          <button @click="markBisect('good')" class="flex-1 py-4 bg-green-500 text-white font-bold rounded-xl text-[14px] shadow-lg hover:shadow-green-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-[20px]">check_circle</span>
+            此快照正常 (Good)
+          </button>
+          <button @click="markBisect('bad')" class="flex-1 py-4 bg-error text-white font-bold rounded-xl text-[14px] shadow-lg hover:shadow-error/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-[20px]">cancel</span>
+            此快照异常 (Bad)
+          </button>
+        </div>
+
+        <button @click="showBisect = false; bisectSession = null" class="text-[12px] text-outline hover:text-on-surface transition-colors">放弃查找</button>
+      </div>
+
+      <!-- Step 3: Culprit found -->
+      <div v-else-if="bisectSession.status === 'FOUND'" class="p-6 space-y-6">
+        <div class="text-center py-4">
+          <div class="w-16 h-16 rounded-full bg-error/10 flex items-center justify-center mx-auto mb-4">
+            <span class="material-symbols-outlined text-error text-[32px]" style="font-variation-settings: 'FILL' 1;">gpp_maybe</span>
+          </div>
+          <h3 class="text-[24px] font-semibold mb-2">找到问题快照！</h3>
+          <p class="text-[14px] text-on-surface-variant">以下快照引入了问题：</p>
+        </div>
+
+        <div class="bg-error/5 border border-error/20 rounded-xl p-6 text-center">
+          <h4 class="text-[20px] font-semibold text-error mb-1">{{ bisectSession.culpritSnapshotName }}</h4>
+          <p class="text-[12px] text-on-surface-variant">建议回滚此快照或排查此时间点的变更</p>
+        </div>
+
+        <div class="flex gap-3">
+          <button @click="showBisect = false; bisectSession = null" class="flex-1 py-3 bg-surface-container-high text-on-surface font-bold rounded-xl text-[12px] hover:bg-surface-container-highest transition-all">
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparison Panel (toggled) -->
+    <div v-if="compareMode" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
+      <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary text-[24px]" style="font-variation-settings: 'FILL' 1;">compare</span>
+          <div>
+            <h3 class="text-[20px] font-semibold">快照对比</h3>
+            <p class="text-[12px] text-on-surface-variant">对比两个快照之间的差异</p>
+          </div>
+        </div>
+        <button @click="compareMode = false; compareResult = null" class="p-2 hover:bg-surface-container-high rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1.5">
+            <label class="text-[12px] font-bold text-on-surface-variant">基准快照 (From)</label>
+            <select v-model="compareId" class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none appearance-none">
+              <option :value="0" disabled>选择基准快照</option>
+              <option v-for="s in snapshots" :key="s.id" :value="s.id">{{ s.name || s.title || '快照' }} ({{ s.createdAt ? new Date(s.createdAt).toLocaleDateString('zh-CN') : '' }})</option>
+            </select>
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-[12px] font-bold text-on-surface-variant">目标快照 (To)</label>
+            <div class="px-3 py-2 bg-surface-container/50 border border-outline-variant/20 rounded-lg text-[13px] text-on-surface-variant">
+              {{ selectedSnapshot?.name || selectedSnapshot?.title || '未选择' }}
+            </div>
+          </div>
+        </div>
+        <button @click="runComparison" :disabled="!compareId || comparing"
+          class="px-6 py-2 text-[12px] font-bold text-white bg-primary hover:bg-primary-container rounded-lg transition-all disabled:opacity-50 flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[16px]">{{ comparing ? 'hourglass_empty' : 'compare' }}</span>
+          {{ comparing ? '对比中...' : '开始对比' }}
+        </button>
+
+        <!-- Comparison Result -->
+        <div v-if="compareResult" class="space-y-4">
+          <div class="flex gap-4">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-600">+{{ compareResult.addedCount }} 新增</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">~{{ compareResult.modifiedCount }} 修改</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-error/10 text-error">-{{ compareResult.deletedCount }} 删除</span>
+          </div>
+          <div v-if="compareResult.diffs.length === 0" class="text-center py-6">
+            <span class="material-symbols-outlined text-[36px] text-green-500" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+            <p class="text-[13px] text-on-surface-variant mt-2">两个快照完全相同</p>
+          </div>
+          <div v-else class="space-y-1 max-h-[300px] overflow-y-auto">
+            <div v-for="(diff, i) in compareResult.diffs.slice(0, 50)" :key="i"
+              class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-[12px] font-[Geist]"
+              :class="diff.changeType === 'added' ? 'bg-green-50 text-green-700' : diff.changeType === 'deleted' ? 'bg-red-50 text-red-700' : 'bg-primary/5 text-primary'">
+              <span class="w-5 text-center shrink-0">
+                {{ diff.changeType === 'added' ? '+' : diff.changeType === 'deleted' ? '-' : '~' }}
+              </span>
+              <span class="truncate">{{ diff.path }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cherry-Pick Dialog (toggled) -->
+    <div v-if="showCherryPickDialog" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
+      <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary text-[24px]" style="font-variation-settings: 'FILL' 1;">content_paste</span>
+          <div>
+            <h3 class="text-[20px] font-semibold">应用文件到其他服务器 (Cherry-pick)</h3>
+            <p class="text-[12px] text-on-surface-variant">从快照中提取指定文件并应用到目标服务器</p>
+          </div>
+        </div>
+        <button @click="showCherryPickDialog = false" class="p-2 hover:bg-surface-container-high rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-5">
+        <div class="bg-primary/5 border border-primary/20 rounded-xl p-4">
+          <p class="text-[12px] font-bold text-primary mb-1">源快照</p>
+          <p class="text-[14px]">{{ selectedSnapshot?.name || selectedSnapshot?.title || '快照' }} ({{ selectedSnapshot?.hash ? selectedSnapshot.hash.substring(0, 8) + '...' : '' }})</p>
+        </div>
+
+        <div class="space-y-2">
+          <label class="block text-[12px] font-bold text-on-surface-variant">文件路径（每行一个）</label>
+          <textarea v-model="cherryPickFiles" rows="5"
+            class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px] font-[Geist]"
+            placeholder="/etc/nginx/nginx.conf&#10;/var/www/app/config.yml&#10;/etc/crontab"></textarea>
+        </div>
+
+        <div class="space-y-2">
+          <label class="block text-[12px] font-bold text-on-surface-variant">目标服务器</label>
+          <select v-model="cherryPickTargetId" class="w-full px-4 py-3 bg-white/50 border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-[14px] appearance-none">
+            <option :value="0" disabled>选择目标服务器</option>
+            <option v-for="s in servers" :key="s.id" :value="s.id">{{ s.name }} ({{ s.ip }})</option>
+          </select>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button @click="showCherryPickDialog = false" class="px-4 py-2 text-[12px] font-bold text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors">取消</button>
+          <button @click="executeCherryPick" :disabled="!cherryPickFiles.trim() || !cherryPickTargetId || cherryPicking"
+            class="px-6 py-2 text-[12px] font-bold text-white bg-primary hover:bg-primary-container rounded-lg transition-all disabled:opacity-50 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px]">{{ cherryPicking ? 'hourglass_empty' : 'content_paste' }}</span>
+            {{ cherryPicking ? '应用中...' : '应用文件' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- File Browser Panel (toggled) -->
+    <div v-if="showFileBrowser" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
+      <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary text-[24px]" style="font-variation-settings: 'FILL' 1;">folder_open</span>
+          <div>
+            <h3 class="text-[20px] font-semibold">浏览快照文件</h3>
+            <p class="text-[12px] text-on-surface-variant font-[Geist]">{{ fileBrowserPath }}</p>
+          </div>
+        </div>
+        <button @click="showFileBrowser = false; showFilePreview = false" class="p-2 hover:bg-surface-container-high rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+      <div class="flex">
+        <!-- File tree -->
+        <div class="flex-1 p-4 max-h-[400px] overflow-y-auto">
+          <div v-if="fileBrowserPath !== '/'" @click="navigateUp"
+            class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-surface-container-high transition-colors mb-1">
+            <span class="material-symbols-outlined text-[16px] text-outline">arrow_upward</span>
+            <span class="text-[12px] text-outline">返回上级</span>
+          </div>
+          <div v-if="fileBrowserLoading" class="space-y-2">
+            <div v-for="i in 5" :key="i" class="h-10 animate-pulse bg-surface-container-highest rounded-lg"></div>
+          </div>
+          <div v-else-if="fileEntries.length === 0" class="text-center py-8">
+            <span class="material-symbols-outlined text-[36px] text-outline/40">folder_off</span>
+            <p class="text-[13px] text-outline mt-2">此目录为空</p>
+          </div>
+          <div v-else>
+            <div v-for="entry in fileEntries" :key="entry.path" @click="navigateToEntry(entry)"
+              class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-surface-container-high transition-colors">
+              <span class="material-symbols-outlined text-[18px]"
+                :class="entry.type === 'DIRECTORY' ? 'text-primary' : 'text-outline'">
+                {{ entry.type === 'DIRECTORY' ? 'folder' : 'description' }}
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="text-[13px] truncate">{{ entry.name }}</p>
+              </div>
+              <span v-if="entry.type === 'FILE'" class="text-[10px] text-outline font-[Geist]">{{ formatFileSize(entry.size) }}</span>
+            </div>
+          </div>
+        </div>
+        <!-- File preview -->
+        <div v-if="showFilePreview" class="w-[350px] border-l border-outline-variant/30 bg-surface-container-low/50">
+          <div class="px-4 py-3 border-b border-outline-variant/20 flex justify-between items-center">
+            <p class="text-[11px] font-bold text-on-surface-variant truncate">{{ filePreviewPath }}</p>
+            <button @click="showFilePreview = false" class="p-1 hover:bg-surface-container-high rounded transition-colors">
+              <span class="material-symbols-outlined text-[14px]">close</span>
+            </button>
+          </div>
+          <pre class="p-4 text-[11px] font-[Geist] text-on-surface-variant overflow-auto max-h-[340px] whitespace-pre-wrap break-words">{{ filePreviewContent }}</pre>
+        </div>
+      </div>
+    </div>
+
     <!-- Hero Section -->
     <section class="grid grid-cols-1 lg:grid-cols-12 gap-[16px] items-start">
       <!-- Vertical Timeline Column -->
@@ -69,6 +400,31 @@
             <button @click="openRollbackConfirm" class="w-full md:w-auto bg-primary text-white font-bold px-8 py-4 rounded-2xl shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3">
               <span class="material-symbols-outlined">settings_backup_restore</span>
               立即执行回滚 (Rollback)
+            </button>
+            <button @click="openRevertConfirm" class="w-full md:w-auto bg-tertiary-container text-on-tertiary-container font-bold px-6 py-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3">
+              <span class="material-symbols-outlined">undo</span>
+              撤销此快照
+            </button>
+            <button @click="showBisect = !showBisect" class="w-full md:w-auto bg-secondary-container text-on-secondary-container font-bold px-6 py-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3">
+              <span class="material-symbols-outlined">binary</span>
+              二分查找
+            </button>
+            <button @click="openFileBrowser" class="w-full md:w-auto bg-surface-container-high text-on-surface font-bold px-6 py-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3">
+              <span class="material-symbols-outlined">folder_open</span>
+              浏览文件
+            </button>
+            <button @click="verifySnapshot" :disabled="verifying" class="w-full md:w-auto bg-surface-container-high text-on-surface font-bold px-6 py-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
+              <span class="material-symbols-outlined">{{ verifying ? 'hourglass_empty' : 'verified' }}</span>
+              {{ verifying ? '验证中...' : '验证快照' }}
+            </button>
+            <button @click="openCherryPickDialog" class="w-full md:w-auto bg-surface-container-high text-on-surface font-bold px-6 py-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3">
+              <span class="material-symbols-outlined">content_paste</span>
+              应用到...
+            </button>
+            <button @click="compareMode = !compareMode" class="w-full md:w-auto bg-surface-container-high text-on-surface font-bold px-6 py-4 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"
+              :class="compareMode ? 'ring-2 ring-primary' : ''">
+              <span class="material-symbols-outlined">compare</span>
+              对比
             </button>
           </div>
         </div>
@@ -206,12 +562,50 @@ import AddTagModal from '@/components/modals/AddTagModal.vue'
 const toast = useToastStore()
 const modal = useModalStore()
 
-import type { Snapshot, SnapshotDiff } from '@/types'
+import type { Snapshot, SnapshotDiff, BisectSession, CherryPickRequest, SnapshotFileEntry, SnapshotVerifyResult, ContainerState, DiffSummary } from '@/types'
+import { serversApi } from '@/api/servers'
 
 const snapshots = ref<Snapshot[]>([])
 const selectedSnapshot = ref<Snapshot | null>(null)
 const diffs = ref<SnapshotDiff[]>([])
 const stats = ref({ totalSize: 0, avgSize: '-', latestDate: '' })
+
+// Bisect state
+const showBisect = ref(false)
+const bisectSession = ref<BisectSession | null>(null)
+const bisectGoodId = ref(0)
+const bisectBadId = ref(0)
+const bisectStarting = ref(false)
+
+// Cherry-pick state
+const showCherryPickDialog = ref(false)
+const cherryPickFiles = ref('')
+const cherryPickTargetId = ref(0)
+const cherryPicking = ref(false)
+const servers = ref<any[]>([])
+
+// File browser state
+const showFileBrowser = ref(false)
+const fileEntries = ref<SnapshotFileEntry[]>([])
+const fileBrowserPath = ref('/')
+const fileBrowserLoading = ref(false)
+const filePreviewContent = ref('')
+const filePreviewPath = ref('')
+const showFilePreview = ref(false)
+
+// Comparison state
+const compareMode = ref(false)
+const compareId = ref(0)
+const compareResult = ref<DiffSummary | null>(null)
+const comparing = ref(false)
+
+// Verify state
+const verifying = ref(false)
+const verifyResult = ref<SnapshotVerifyResult | null>(null)
+
+// Container state
+const containerStates = ref<ContainerState[]>([])
+const showContainers = ref(false)
 
 function openRollbackConfirm() {
   if (!selectedSnapshot.value) {
@@ -229,6 +623,29 @@ function openRollbackConfirm() {
       onConfirm: async () => {
         if (selectedSnapshot.value) {
           await snapshotsApi.rollback(selectedSnapshot.value.id)
+        }
+      },
+    },
+  })
+}
+
+function openRevertConfirm() {
+  if (!selectedSnapshot.value) {
+    toast.error('请先选择一个快照')
+    return
+  }
+  modal.open({
+    component: ConfirmModal,
+    title: '确认撤销快照',
+    props: {
+      message: `即将撤销快照 "${selectedSnapshot.value?.name || '选定快照'}" 的变更。系统将自动创建安全快照，然后恢复此快照之前的状态。是否继续？`,
+      confirmText: '执行撤销',
+      confirmClass: 'bg-tertiary hover:bg-tertiary/90',
+      successMessage: '撤销任务已提交，正在后台执行',
+      onConfirm: async () => {
+        if (selectedSnapshot.value) {
+          const result = await snapshotsApi.revert(selectedSnapshot.value.id)
+          toast.success(result || '撤销完成')
         }
       },
     },
@@ -322,9 +739,213 @@ async function refreshSnapshotTags(snapshotId: number) {
   }
 }
 
+async function startBisect() {
+  if (!bisectGoodId.value || !bisectBadId.value) {
+    toast.error('请选择好快照和坏快照')
+    return
+  }
+  if (bisectGoodId.value === bisectBadId.value) {
+    toast.error('好快照和坏快照不能相同')
+    return
+  }
+  const serverId = snapshots.value.find(s => s.id === bisectGoodId.value)?.serverId
+  if (!serverId) {
+    toast.error('无法确定服务器信息')
+    return
+  }
+  bisectStarting.value = true
+  try {
+    const session = await snapshotsApi.bisectStart({
+      serverId,
+      goodSnapshotId: bisectGoodId.value,
+      badSnapshotId: bisectBadId.value,
+    })
+    bisectSession.value = session
+    toast.success('二分查找已启动，共需 ' + session.totalSteps + ' 步')
+  } catch (e: any) {
+    toast.error(e?.message || '启动二分查找失败')
+  } finally {
+    bisectStarting.value = false
+  }
+}
+
+async function markBisect(verdict: 'good' | 'bad') {
+  if (!bisectSession.value) return
+  try {
+    const result = await snapshotsApi.bisectMark(bisectSession.value.sessionId, {
+      snapshotId: bisectSession.value.currentSnapshotId,
+      verdict,
+    })
+    bisectSession.value = result
+    if (result.status === 'FOUND') {
+      toast.success('已定位到问题快照：' + result.culpritSnapshotName)
+    }
+  } catch (e: any) {
+    toast.error(e?.message || '标记失败')
+  }
+}
+
+async function openFileBrowser() {
+  if (!selectedSnapshot.value) {
+    toast.error('请先选择一个快照')
+    return
+  }
+  showFileBrowser.value = true
+  fileBrowserPath.value = '/'
+  await loadFiles('/')
+}
+
+async function loadFiles(path: string) {
+  if (!selectedSnapshot.value) return
+  fileBrowserLoading.value = true
+  fileBrowserPath.value = path
+  try {
+    const res = await snapshotsApi.listFiles(selectedSnapshot.value.id, path)
+    fileEntries.value = res || []
+  } catch (e: any) {
+    toast.error(e?.message || '加载文件列表失败')
+    fileEntries.value = []
+  } finally {
+    fileBrowserLoading.value = false
+  }
+}
+
+function navigateToEntry(entry: SnapshotFileEntry) {
+  if (entry.type === 'DIRECTORY') {
+    loadFiles(entry.path)
+  } else {
+    previewFile(entry.path)
+  }
+}
+
+function navigateUp() {
+  const parts = fileBrowserPath.value.split('/').filter(Boolean)
+  parts.pop()
+  loadFiles('/' + parts.join('/') || '/')
+}
+
+async function previewFile(path: string) {
+  if (!selectedSnapshot.value) return
+  filePreviewPath.value = path
+  showFilePreview.value = true
+  filePreviewContent.value = '加载中...'
+  try {
+    const res = await snapshotsApi.downloadFile(selectedSnapshot.value.id, path)
+    filePreviewContent.value = res || '(空文件)'
+  } catch (e: any) {
+    filePreviewContent.value = '加载失败: ' + (e?.message || '未知错误')
+  }
+}
+
+async function verifySnapshot() {
+  if (!selectedSnapshot.value) {
+    toast.error('请先选择一个快照')
+    return
+  }
+  verifying.value = true
+  verifyResult.value = null
+  try {
+    const result = await snapshotsApi.verify(selectedSnapshot.value.id)
+    verifyResult.value = result
+    if (result.verified) {
+      toast.success('快照完整性验证通过')
+    } else {
+      toast.error('快照验证发现问题: ' + (result.errors || '未知错误'))
+    }
+  } catch (e: any) {
+    toast.error(e?.message || '验证失败')
+  } finally {
+    verifying.value = false
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i]
+}
+
+async function openCherryPickDialog() {
+  if (!selectedSnapshot.value) {
+    toast.error('请先选择一个快照')
+    return
+  }
+  // Load servers if not loaded
+  if (servers.value.length === 0) {
+    try {
+      const res = await serversApi.getAll()
+      servers.value = res || []
+    } catch (e) {
+      console.error('Failed to load servers', e)
+    }
+  }
+  showCherryPickDialog.value = true
+}
+
+async function executeCherryPick() {
+  if (!selectedSnapshot.value) return
+  const files = cherryPickFiles.value.split('\n').map(f => f.trim()).filter(f => f.length > 0)
+  if (files.length === 0) {
+    toast.error('请输入至少一个文件路径')
+    return
+  }
+  if (!cherryPickTargetId.value) {
+    toast.error('请选择目标服务器')
+    return
+  }
+  cherryPicking.value = true
+  try {
+    const result = await snapshotsApi.cherryPick(selectedSnapshot.value.id, {
+      files,
+      targetServerId: cherryPickTargetId.value,
+    })
+    toast.success(result || 'Cherry-pick 完成')
+    showCherryPickDialog.value = false
+    cherryPickFiles.value = ''
+    cherryPickTargetId.value = 0
+  } catch (e: any) {
+    toast.error(e?.message || 'Cherry-pick 失败')
+  } finally {
+    cherryPicking.value = false
+  }
+}
+
 function selectSnapshot(snap: Snapshot) {
   selectedSnapshot.value = snap
   loadDiff(snap.id)
+  loadContainers(snap.id)
+}
+
+async function loadContainers(snapshotId: number) {
+  try {
+    const res = await snapshotsApi.getContainers(snapshotId)
+    containerStates.value = res || []
+  } catch (e) {
+    containerStates.value = []
+  }
+}
+
+async function runComparison() {
+  if (!selectedSnapshot.value || !compareId.value) {
+    toast.error('请选择要对比的快照')
+    return
+  }
+  if (selectedSnapshot.value.id === compareId.value) {
+    toast.error('不能与自身对比')
+    return
+  }
+  comparing.value = true
+  compareResult.value = null
+  try {
+    const result = await snapshotsApi.compare(selectedSnapshot.value.id, compareId.value)
+    compareResult.value = result
+  } catch (e: any) {
+    toast.error(e?.message || '对比失败')
+  } finally {
+    comparing.value = false
+  }
 }
 
 async function loadDiff(id: number) {

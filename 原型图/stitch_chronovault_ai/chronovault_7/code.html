@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ChronoVault - Server Details</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-fixed": "#311400",
+                        "secondary-container": "#57dffe",
+                        "on-primary-fixed-variant": "#004395",
+                        "surface-dim": "#d8d9e3",
+                        "tertiary-container": "#b75b00",
+                        "primary-fixed": "#d8e2ff",
+                        "on-primary-container": "#fefcff",
+                        "surface-container-highest": "#e1e2ec",
+                        "tertiary-fixed": "#ffdcc6",
+                        "on-error": "#ffffff",
+                        "outline": "#727785",
+                        "inverse-on-surface": "#eff0fa",
+                        "secondary": "#00687a",
+                        "on-secondary-fixed-variant": "#004e5c",
+                        "on-secondary-container": "#006172",
+                        "background": "#f9f9ff",
+                        "secondary-fixed": "#acedff",
+                        "on-primary-fixed": "#001a42",
+                        "error": "#ba1a1a",
+                        "surface-tint": "#005ac2",
+                        "on-surface": "#191b23",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#ecedf7",
+                        "primary-fixed-dim": "#adc6ff",
+                        "secondary-fixed-dim": "#4cd7f6",
+                        "on-secondary-fixed": "#001f26",
+                        "outline-variant": "#c2c6d6",
+                        "on-error-container": "#93000a",
+                        "surface": "#f9f9ff",
+                        "on-background": "#191b23",
+                        "primary": "#0058be",
+                        "surface-container-high": "#e6e7f2",
+                        "on-primary": "#ffffff",
+                        "tertiary": "#924700",
+                        "tertiary-fixed-dim": "#ffb786",
+                        "surface-container-low": "#f2f3fd",
+                        "surface-bright": "#f9f9ff",
+                        "primary-container": "#2170e4",
+                        "inverse-primary": "#adc6ff",
+                        "on-surface-variant": "#424754",
+                        "on-tertiary-container": "#fffbff",
+                        "inverse-surface": "#2e3038",
+                        "surface-variant": "#e1e2ec",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed-variant": "#723600"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "section-gap": "40px",
+                        "container-margin": "24px",
+                        "card-padding": "20px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-xl": ["Geist"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Geist"],
+                        "body-lg": ["Inter"],
+                        "display-lg": ["Geist"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Geist"],
+                        "mono-code": ["Geist"]
+                    },
+                    "fontSize": {
+                        "headline-xl": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "headline-lg": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                        "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "mono-code": ["14px", {"lineHeight": "1.6", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(229, 231, 235, 0.5);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        .topology-line {
+            stroke-dasharray: 4;
+            animation: dash 20s linear infinite;
+        }
+        @keyframes dash {
+            to { stroke-dashoffset: -1000; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-hidden">
+<div class="flex h-screen overflow-hidden">
+<!-- SideNavBar -->
+<aside class="hidden md:flex flex-col h-full py-6 space-y-2 bg-surface-container-low dark:bg-inverse-surface border-r border-outline-variant/20 dark:border-outline/10 w-60 z-30 shrink-0">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary text-xl">dns</span>
+</div>
+<div>
+<h1 class="font-headline-lg text-headline-lg font-black text-on-surface">ChronoVault</h1>
+<p class="font-label-md text-label-md opacity-70">AI Time Machine</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1 px-3">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform duration-300">dashboard</span>
+<span class="font-label-md text-label-md">Overview</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary-container/10 text-primary dark:bg-primary-fixed-variant/20 dark:text-primary-fixed-dim border-r-2 border-primary group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform duration-300">dns</span>
+<span class="font-label-md text-label-md font-bold">Servers</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform duration-300">history</span>
+<span class="font-label-md text-label-md">Snapshots</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform duration-300">restore</span>
+<span class="font-label-md text-label-md">Recovery</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform duration-300">storage</span>
+<span class="font-label-md text-label-md">Storage</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform duration-300">psychology</span>
+<span class="font-label-md text-label-md">AI Insights</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform duration-300">security</span>
+<span class="font-label-md text-label-md">Risk Center</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform duration-300">notifications_active</span>
+<span class="font-label-md text-label-md">Alerts</span>
+</a>
+<div class="pt-4 pb-2 px-3">
+<div class="h-px bg-outline-variant/30"></div>
+</div>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform duration-300">groups</span>
+<span class="font-label-md text-label-md">Team</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant dark:text-outline-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform duration-300">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-container-margin h-16 bg-surface-bright/80 dark:bg-surface-dim/80 backdrop-blur-xl border-b border-outline-variant/30 dark:border-outline/20 shadow-sm z-40 shrink-0">
+<div class="flex items-center gap-4">
+<button class="md:hidden text-on-surface">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<nav class="hidden md:flex gap-6 items-center">
+<a class="font-body-sm text-body-sm text-on-surface-variant dark:text-outline hover:text-primary transition-colors" href="#">Infrastructure</a>
+<span class="material-symbols-outlined text-sm text-outline-variant">chevron_right</span>
+<a class="font-body-sm text-body-sm text-primary dark:text-primary-fixed-dim font-bold" href="#">Prod-East-01</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">search</span>
+<input class="pl-10 pr-4 py-1.5 rounded-full bg-surface-container-high/50 border-none focus:ring-2 focus:ring-primary/20 w-64 text-body-sm" placeholder="Search servers..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high/50 transition-all duration-200">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high/50 transition-all duration-200">
+<span class="material-symbols-outlined text-on-surface-variant">search_check</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary-container overflow-hidden ml-2 border border-outline-variant/30">
+<img alt="User Profile Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC720G1NlkYbONVClYxnznAeBIytZmZ7kLExvWOmM2sll8ZIVGj0WuILT2WrcclrZDuqT3-pY274N2Oa8uDPRYY34vleeUDrBn0-OIuZ5jolw0fBXboys2jUveJXo2jG5J7cXd6X86TrrKax-Iao95TIfo1PEeRzGqTJzleXSTdipZtc6hhL0aozNRDDM-Ob9Bu8Ha48Bg3MlWw5BYnp_zV92tvBm8b7b1rQKPu47bils84YEskUtf9jC-TCv-k_DGOR7ZsOAPhIRb3"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Scrollable Canvas -->
+<div class="flex-1 overflow-y-auto p-container-margin space-y-section-gap pb-20">
+<!-- Server Header Section -->
+<section class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+<div class="space-y-1">
+<div class="flex items-center gap-3">
+<h2 class="font-headline-xl text-headline-xl text-on-surface">Prod-East-01</h2>
+<span class="px-2 py-0.5 rounded-full bg-success/10 text-emerald-600 text-[10px] font-bold border border-emerald-600/20 uppercase tracking-wider flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                运行中
+                            </span>
+</div>
+<div class="flex flex-wrap gap-x-6 gap-y-2 text-on-surface-variant font-body-sm opacity-80">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">lan</span>
+                                10.0.42.128
+                            </div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">laptop_windows</span>
+                                Ubuntu 22.04 LTS (HWE)
+                            </div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">schedule</span>
+                                已运行: 156 天 4 小时
+                            </div>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="px-4 py-2 rounded-lg bg-surface-container-lowest text-on-surface border border-outline-variant/50 font-label-md flex items-center gap-2 hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined text-lg">terminal</span>
+                            远程连接
+                        </button>
+<button class="px-4 py-2 rounded-lg bg-primary text-on-primary font-label-md flex items-center gap-2 hover:opacity-90 shadow-lg shadow-primary/20 transition-all">
+<span class="material-symbols-outlined text-lg">cached</span>
+                            立即快照
+                        </button>
+</div>
+</section>
+<!-- Bento Grid for Core Metrics & Topology -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Docker Containers Status -->
+<div class="col-span-12 lg:col-span-8 glass-card rounded-xl p-card-padding">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline-lg text-headline-lg flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">token</span>
+                                容器实例 (Docker)
+                            </h3>
+<span class="text-body-sm text-outline">3 个活动中 / 0 个故障</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<!-- Nginx Card -->
+<div class="p-4 rounded-lg bg-surface-container-low border border-outline-variant/30 hover:border-primary/30 transition-all group">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="font-label-md text-label-md text-outline">HTTP Server</p>
+<h4 class="font-headline-lg text-lg font-bold">Nginx-LB</h4>
+</div>
+<span class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]"></span>
+</div>
+<div class="space-y-3">
+<div class="space-y-1">
+<div class="flex justify-between text-[11px] font-bold uppercase tracking-tighter">
+<span>CPU 占用</span>
+<span class="text-primary">12.4%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 12.4%"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[11px] font-bold uppercase tracking-tighter">
+<span>内存 占用</span>
+<span class="text-secondary">256MB</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 45%"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- MySQL Card -->
+<div class="p-4 rounded-lg bg-surface-container-low border border-outline-variant/30 hover:border-primary/30 transition-all group">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="font-label-md text-label-md text-outline">Database</p>
+<h4 class="font-headline-lg text-lg font-bold">MySQL-Main</h4>
+</div>
+<span class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]"></span>
+</div>
+<div class="space-y-3">
+<div class="space-y-1">
+<div class="flex justify-between text-[11px] font-bold uppercase tracking-tighter">
+<span>CPU 占用</span>
+<span class="text-primary">45.2%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 45.2%"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[11px] font-bold uppercase tracking-tighter">
+<span>磁盘 I/O</span>
+<span class="text-tertiary">2.4MB/s</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-tertiary rounded-full" style="width: 32%"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Redis Card -->
+<div class="p-4 rounded-lg bg-surface-container-low border border-outline-variant/30 hover:border-primary/30 transition-all group">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="font-label-md text-label-md text-outline">Cache</p>
+<h4 class="font-headline-lg text-lg font-bold">Redis-Store</h4>
+</div>
+<span class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]"></span>
+</div>
+<div class="space-y-3">
+<div class="space-y-1">
+<div class="flex justify-between text-[11px] font-bold uppercase tracking-tighter">
+<span>CPU 占用</span>
+<span class="text-primary">2.1%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 2.1%"></div>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[11px] font-bold uppercase tracking-tighter">
+<span>内存 占用</span>
+<span class="text-secondary">1.2GB</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 82%"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- AI Insights Mini Card -->
+<div class="col-span-12 lg:col-span-4 rounded-xl p-card-padding bg-gradient-to-br from-primary to-primary-container text-on-primary shadow-xl shadow-primary/20 relative overflow-hidden group">
+<div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
+<div class="relative z-10 flex flex-col h-full">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<h3 class="font-headline-lg text-headline-lg">AI 智能观察</h3>
+</div>
+<p class="font-body-sm text-on-primary/90 flex-1 leading-relaxed">
+                                观察到 Redis 内存使用率在过去 1 小时内持续增长。建议检查是否存在大 Key 堆积，或者考虑调整 LRU 淘汰策略。
+                            </p>
+<button class="mt-4 px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-lg text-body-sm font-bold transition-all w-fit">
+                                优化建议中心
+                            </button>
+</div>
+</div>
+<!-- Topology Graph -->
+<div class="col-span-12 lg:col-span-8 glass-card rounded-xl p-card-padding h-[400px] flex flex-col">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-headline-lg text-headline-lg flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">hub</span>
+                                服务拓扑图
+                            </h3>
+<div class="flex gap-2">
+<span class="flex items-center gap-1 text-[10px] text-outline"><span class="w-2 h-2 rounded-full bg-primary"></span> 活跃连接</span>
+<span class="flex items-center gap-1 text-[10px] text-outline"><span class="w-2 h-2 rounded-full bg-outline-variant"></span> 配置中</span>
+</div>
+</div>
+<div class="flex-1 bg-surface-container-lowest/50 rounded-lg border border-outline-variant/20 relative overflow-hidden">
+<!-- SVG Topology Simulation -->
+<svg class="w-full h-full" viewbox="0 0 600 300">
+<!-- Connection Lines -->
+<path class="topology-line stroke-primary/30" d="M100 150 L250 80" fill="none" stroke-width="1.5"></path>
+<path class="topology-line stroke-primary/30" d="M100 150 L250 220" fill="none" stroke-width="1.5"></path>
+<path class="topology-line stroke-primary/30" d="M250 80 L400 150" fill="none" stroke-width="1.5"></path>
+<path class="topology-line stroke-primary/30" d="M250 220 L400 150" fill="none" stroke-width="1.5"></path>
+<!-- Nodes -->
+<!-- Internet Node -->
+<g transform="translate(70, 130)">
+<rect fill="white" height="40" rx="8" stroke="#0058be" stroke-width="1.5" width="60"></rect>
+<text fill="#191b23" font-family="Geist" font-size="10" font-weight="bold" text-anchor="middle" x="30" y="25">Internet</text>
+</g>
+<!-- Nginx Node -->
+<g transform="translate(220, 50)">
+<rect class="drop-shadow-sm" fill="white" height="50" rx="8" stroke="#0058be" stroke-width="2" width="80"></rect>
+<text fill="#191b23" font-family="Geist" font-size="10" font-weight="bold" text-anchor="middle" x="40" y="22">Nginx-LB</text>
+<text fill="#424754" font-size="8" text-anchor="middle" x="40" y="38">80/443 Port</text>
+<circle cx="0" cy="25" fill="#10b981" r="4"></circle>
+</g>
+<!-- MySQL Node -->
+<g transform="translate(220, 200)">
+<rect class="drop-shadow-sm" fill="white" height="50" rx="8" stroke="#0058be" stroke-width="2" width="80"></rect>
+<text fill="#191b23" font-family="Geist" font-size="10" font-weight="bold" text-anchor="middle" x="40" y="22">MySQL</text>
+<text fill="#424754" font-size="8" text-anchor="middle" x="40" y="38">3306 Port</text>
+<circle cx="0" cy="25" fill="#10b981" r="4"></circle>
+</g>
+<!-- App Node (Center) -->
+<g transform="translate(370, 125)">
+<rect fill="#0058be" height="50" rx="8" width="80"></rect>
+<text fill="white" font-family="Geist" font-size="10" font-weight="bold" text-anchor="middle" x="40" y="22">App-Srv</text>
+<text fill="white" font-size="8" opacity="0.8" text-anchor="middle" x="40" y="38">Active</text>
+</g>
+</svg>
+</div>
+</div>
+<!-- Volume & Config Area -->
+<div class="col-span-12 lg:col-span-4 glass-card rounded-xl p-card-padding overflow-hidden">
+<h3 class="font-headline-lg text-headline-lg flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary">folder_managed</span>
+                            挂载卷与配置
+                        </h3>
+<div class="space-y-4">
+<!-- Volume Item -->
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-high/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">database</span>
+</div>
+<div class="flex-1">
+<h5 class="text-body-sm font-bold">db_data</h5>
+<p class="text-[11px] text-outline">/var/lib/mysql</p>
+</div>
+<div class="text-right">
+<p class="text-body-sm font-bold">12.4 GB</p>
+<p class="text-[10px] text-emerald-600 font-bold">RW</p>
+</div>
+</div>
+<!-- Config Item -->
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-high/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">settings_ethernet</span>
+</div>
+<div class="flex-1">
+<h5 class="text-body-sm font-bold">.env.production</h5>
+<p class="text-[11px] text-outline">环境变量快照 #42</p>
+</div>
+<div class="text-right">
+<span class="px-2 py-0.5 rounded bg-secondary/10 text-secondary text-[10px] font-bold">安全</span>
+</div>
+</div>
+<!-- Logs Placeholder -->
+<div class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-high/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div class="flex-1">
+<h5 class="text-body-sm font-bold">nginx_logs</h5>
+<p class="text-[11px] text-outline">/var/log/nginx</p>
+</div>
+<div class="text-right">
+<p class="text-body-sm font-bold">4.2 GB</p>
+<p class="text-[10px] text-outline">7 天过期</p>
+</div>
+</div>
+</div>
+<button class="w-full mt-6 py-2.5 rounded-lg border border-dashed border-outline-variant hover:border-primary/50 text-body-sm text-outline hover:text-primary transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span>
+                            添加挂载路径
+                        </button>
+</div>
+<!-- Terminal Area -->
+<div class="col-span-12 glass-card rounded-xl overflow-hidden flex flex-col h-[300px]">
+<div class="bg-surface-dim px-4 py-2 flex justify-between items-center border-b border-outline-variant/30">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant text-lg">terminal</span>
+<span class="text-label-md font-bold text-on-surface-variant">日志终端 (Recent Logs)</span>
+</div>
+<div class="flex gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">download</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">open_in_full</span>
+</button>
+</div>
+</div>
+<div class="flex-1 bg-[#191b23] p-4 font-mono-code text-mono-code overflow-y-auto custom-scrollbar">
+<div class="space-y-1">
+<p class="text-emerald-400 opacity-80">[2023-11-24 14:02:15] INFO: Successfully connected to Docker Daemon at unix:///var/run/docker.sock</p>
+<p class="text-blue-300 opacity-80">[2023-11-24 14:02:16] DEBUG: Syncing container states for 'Prod-East-01'...</p>
+<p class="text-white/80">[2023-11-24 14:05:22] NGINX: 192.168.1.1 - - [24/Nov/2023:14:05:22 +0000] "GET /api/v1/health HTTP/1.1" 200 15 "-" "Uptime-Bot/1.0"</p>
+<p class="text-amber-400 opacity-80">[2023-11-24 14:10:01] WARN: Redis memory usage exceeded 80% threshold (Current: 82.4%)</p>
+<p class="text-white/80">[2023-11-24 14:12:45] MYSQL: [Note] Aborted connection 1234 to db: 'chronovault' user: 'admin' (Got an error reading communication packets)</p>
+<p class="text-emerald-400 opacity-80">[2023-11-24 14:15:00] INFO: Periodic snapshot job started successfully.</p>
+<p class="text-white/80 animate-pulse border-l-2 border-primary pl-2 ml-[-2px]">[2023-11-24 14:18:33] WAITING: Listening for new events...</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

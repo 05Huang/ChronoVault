@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-Hans"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ChronoVault - 设置与团队协作</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Geist:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "on-tertiary-fixed": "#311400",
+                    "secondary-container": "#57dffe",
+                    "on-primary-fixed-variant": "#004395",
+                    "surface-dim": "#d8d9e3",
+                    "tertiary-container": "#b75b00",
+                    "primary-fixed": "#d8e2ff",
+                    "on-primary-container": "#fefcff",
+                    "surface-container-highest": "#e1e2ec",
+                    "tertiary-fixed": "#ffdcc6",
+                    "on-error": "#ffffff",
+                    "outline": "#727785",
+                    "inverse-on-surface": "#eff0fa",
+                    "secondary": "#00687a",
+                    "on-secondary-fixed-variant": "#004e5c",
+                    "on-secondary-container": "#006172",
+                    "background": "#f9f9ff",
+                    "secondary-fixed": "#acedff",
+                    "on-primary-fixed": "#001a42",
+                    "error": "#ba1a1a",
+                    "surface-tint": "#005ac2",
+                    "on-surface": "#191b23",
+                    "on-tertiary": "#ffffff",
+                    "surface-container": "#ecedf7",
+                    "primary-fixed-dim": "#adc6ff",
+                    "secondary-fixed-dim": "#4cd7f6",
+                    "on-secondary-fixed": "#001f26",
+                    "outline-variant": "#c2c6d6",
+                    "on-error-container": "#93000a",
+                    "surface": "#f9f9ff",
+                    "on-background": "#191b23",
+                    "primary": "#0058be",
+                    "surface-container-high": "#e6e7f2",
+                    "on-primary": "#ffffff",
+                    "tertiary": "#924700",
+                    "tertiary-fixed-dim": "#ffb786",
+                    "surface-container-low": "#f2f3fd",
+                    "surface-bright": "#f9f9ff",
+                    "primary-container": "#2170e4",
+                    "inverse-primary": "#adc6ff",
+                    "on-surface-variant": "#424754",
+                    "on-tertiary-container": "#fffbff",
+                    "inverse-surface": "#2e3038",
+                    "surface-variant": "#e1e2ec",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed-variant": "#723600"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "unit": "4px",
+                    "section-gap": "40px",
+                    "container-margin": "24px",
+                    "card-padding": "20px",
+                    "gutter": "16px"
+            },
+            "fontFamily": {
+                    "headline-xl": ["Geist"],
+                    "body-md": ["Inter"],
+                    "headline-lg": ["Geist"],
+                    "body-lg": ["Inter"],
+                    "display-lg": ["Geist"],
+                    "body-sm": ["Inter"],
+                    "label-md": ["Geist"],
+                    "mono-code": ["Geist"]
+            },
+            "fontSize": {
+                    "headline-xl": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "headline-lg": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                    "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "mono-code": ["14px", {"lineHeight": "1.6", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { background-color: #f9f9ff; color: #191b23; -webkit-font-smoothing: antialiased; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .glass-card { backdrop-filter: blur(12px); border: 1px solid rgba(194, 198, 214, 0.3); }
+        .shimmer { background: linear-gradient(90deg, transparent, rgba(33, 112, 228, 0.05), transparent); background-size: 200% 100%; }
+    </style>
+</head>
+<body class="font-body-md text-body-md overflow-hidden">
+<div class="flex h-screen w-full">
+<!-- SideNavBar -->
+<aside class="hidden md:flex flex-col h-full py-6 space-y-2 bg-surface-container-low border-r border-outline-variant/20 w-60 shrink-0">
+<div class="px-6 mb-8">
+<h1 class="font-headline-lg text-headline-lg font-black text-on-surface">ChronoVault</h1>
+<p class="font-label-md text-label-md text-primary tracking-widest uppercase opacity-70">AI Time Machine</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3">dashboard</span>
+<span class="font-label-md text-label-md group-hover:translate-x-1 transition-transform duration-300">Overview</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3">dns</span>
+<span class="font-label-md text-label-md group-hover:translate-x-1 transition-transform duration-300">Servers</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3">history</span>
+<span class="font-label-md text-label-md group-hover:translate-x-1 transition-transform duration-300">Snapshots</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3">restore</span>
+<span class="font-label-md text-label-md group-hover:translate-x-1 transition-transform duration-300">Recovery</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3">storage</span>
+<span class="font-label-md text-label-md group-hover:translate-x-1 transition-transform duration-300">Storage</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3">psychology</span>
+<span class="font-label-md text-label-md group-hover:translate-x-1 transition-transform duration-300">AI Insights</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3">security</span>
+<span class="font-label-md text-label-md group-hover:translate-x-1 transition-transform duration-300">Risk Center</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3">notifications_active</span>
+<span class="font-label-md text-label-md group-hover:translate-x-1 transition-transform duration-300">Alerts</span>
+</a>
+<a class="flex items-center px-6 py-3 bg-primary-container/10 text-primary border-r-2 border-primary group" href="#">
+<span class="material-symbols-outlined mr-3">groups</span>
+<span class="font-label-md text-label-md group-hover:translate-x-1 transition-transform duration-300">Team</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3">settings</span>
+<span class="font-label-md text-label-md group-hover:translate-x-1 transition-transform duration-300">Settings</span>
+</a>
+</nav>
+<div class="px-6 mt-auto pt-6 border-t border-outline-variant/10 flex items-center">
+<img alt="User Profile Avatar" class="w-8 h-8 rounded-full border border-outline-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuChFeKsrnqWGiZsunmHQQz50SIkmwFgtHPfD-gx0XCzrFfN1llIxO-SboKaVuWeJLK3OuqVA6XHXvdQJUKP4V3lxu4Ntbo3SMcsRxuu8kinrecchwIiTmcyncXW12iBsQZNZa5-21cBCaRo3qTVVpX_9w8z6haCz2UURkFYUm15yq6SrH58F456f9yfLuwqMC_8qyWiJyVTypwbxr5bcu6bhweliRDDuS8QHayKPL7zBzYJk2xFggCdTNtS_KJCFv5ZSSIwA5IUrgld"/>
+<div class="ml-3 overflow-hidden">
+<p class="text-label-md font-bold text-on-surface truncate">管理员</p>
+<p class="text-[10px] text-on-surface-variant truncate">admin@chronovault.ai</p>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-container-margin h-16 bg-surface-bright/80 backdrop-blur-xl border-b border-outline-variant/30 z-50 shrink-0">
+<div class="flex items-center gap-4">
+<span class="md:hidden material-symbols-outlined text-on-surface">menu</span>
+<div class="hidden lg:flex items-center bg-surface-container px-3 py-1.5 rounded-lg border border-outline-variant/20">
+<span class="material-symbols-outlined text-on-surface-variant text-sm mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-sm w-64 placeholder:text-outline" placeholder="搜索团队成员或日志..." type="text"/>
+</div>
+</div>
+<div class="flex items-center space-x-2">
+<button class="p-2 rounded-full hover:bg-surface-container-high/50 transition-all active:scale-90">
+<span class="material-symbols-outlined text-primary">notifications</span>
+</button>
+<button class="p-2 rounded-full hover:bg-surface-container-high/50 transition-all active:scale-90">
+<span class="material-symbols-outlined text-primary">search_check</span>
+</button>
+<button class="p-2 rounded-full hover:bg-surface-container-high/50 transition-all active:scale-90">
+<span class="material-symbols-outlined text-primary">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Scrollable Content Section -->
+<div class="flex-1 overflow-y-auto p-container-margin space-y-section-gap">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<h2 class="font-headline-xl text-headline-xl text-on-surface">团队协作与系统设置</h2>
+<p class="text-on-surface-variant mt-1">管理您的组织成员、存储配置及安全访问权限。</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center px-4 py-2 bg-primary text-on-primary rounded-xl font-label-md text-label-md hover:shadow-lg transition-all active:scale-95">
+<span class="material-symbols-outlined mr-2 text-sm">person_add</span>
+                            添加团队成员
+                        </button>
+</div>
+</div>
+<!-- Bento Grid Sections -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Team Management (Left Column) -->
+<section class="lg:col-span-8 flex flex-col space-y-gutter">
+<div class="glass-card bg-surface-container-lowest rounded-xl p-card-padding shadow-sm relative overflow-hidden">
+<div class="shimmer absolute top-0 left-0 w-full h-1"></div>
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-headline-lg text-headline-lg flex items-center">
+<span class="material-symbols-outlined mr-2 text-primary">groups</span>
+                                    团队成员
+                                </h3>
+<span class="bg-primary-container/20 text-primary px-3 py-1 rounded-full text-label-md">共 4 名成员</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="border-b border-outline-variant/30">
+<tr>
+<th class="py-3 font-bold text-on-surface-variant text-label-md">成员信息</th>
+<th class="py-3 font-bold text-on-surface-variant text-label-md">角色</th>
+<th class="py-3 font-bold text-on-surface-variant text-label-md">最后活跃时间</th>
+<th class="py-3 text-right"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-4">
+<div class="flex items-center">
+<img alt="User Profile Avatar" class="w-10 h-10 rounded-xl mr-3 border border-outline-variant/30" data-alt="A professional headshot of a team member for an enterprise application. The individual has a friendly expression, set against a soft-focus office background with cool blue and white lighting. The image style is sharp, clean, and modern, fitting a high-end tech corporate environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1kfhCub1HGKbmTBrSzgYtQIzaNFS7njlm___y_qezDE-TBWF4Ea0kdKv8QJ51cMcF8uGCsFgNRIe0G7-89t1jkF2HfIUzAhjI2chh4SWDi_su-6LBlQEs9TfW4aqLuNRQlp62Gx8RrJFnmARJsdKCGNMrWACT0jAb9QGPp4ZEvbBQcrwDNh9rOOevjRVa3ofJnCn-5XplQX48hn3lBMgw4mFEfL3zrlxgfcq_syO-KZVyz_6Gcs2oOta3ncY9UkU9WvnE7NLV-9U8"/>
+<div>
+<p class="font-bold text-on-surface">张伟</p>
+<p class="text-label-md text-outline">wei.zhang@chronovault.ai</p>
+</div>
+</div>
+</td>
+<td class="py-4">
+<span class="bg-tertiary-container/10 text-tertiary px-2 py-1 rounded text-label-md border border-tertiary/20">Owner</span>
+</td>
+<td class="py-4 text-on-surface-variant text-body-sm">刚刚</td>
+<td class="py-4 text-right">
+<button class="material-symbols-outlined text-outline hover:text-primary transition-colors">more_horiz</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-4">
+<div class="flex items-center">
+<img alt="User Profile Avatar" class="w-10 h-10 rounded-xl mr-3 border border-outline-variant/30" data-alt="A portrait of a tech professional woman with a confident smile, wearing minimalist attire. The background is a clean, bright space with subtle geometric patterns and soft ambient lighting. The aesthetic is polished, utilizing a palette of light grays and brand-aligned blues to evoke trustworthiness and precision." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDDxFnIf0yzGmb73VhXRS99rjesgH7KcjuaC5AE7SHXfxfPE5LphW-9yVYPv1eUusjd7_4XBYvQACjn9f17KzUni62iuoAwf15aiUVGaVfKGeXpcf3gaZM79ncHsYs2nK6Fwz83EGXxBBH5lZa5GHGcepW06keQc7yLYJ8yQOFXSs8lToGJS2hATFMFxsoWbijGPKmYxJHtRQcl287tfO2azWBP5SEntSrbvZ74bvwRzojU7R2WI5zPOvgHmXWLk0i_YhCd6il_dNv0"/>
+<div>
+<p class="font-bold text-on-surface">李娜</p>
+<p class="text-label-md text-outline">na.li@chronovault.ai</p>
+</div>
+</div>
+</td>
+<td class="py-4">
+<span class="bg-secondary-container/10 text-secondary px-2 py-1 rounded text-label-md border border-secondary/20">Admin</span>
+</td>
+<td class="py-4 text-on-surface-variant text-body-sm">2小时前</td>
+<td class="py-4 text-right">
+<button class="material-symbols-outlined text-outline hover:text-primary transition-colors">more_horiz</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-4">
+<div class="flex items-center">
+<img alt="User Profile Avatar" class="w-10 h-10 rounded-xl mr-3 border border-outline-variant/30" data-alt="A professional portrait of a software engineer, looking directly at the camera with a calm demeanor. The lighting is crisp and clear, emphasizing details. The environment is a minimalist studio with subtle hints of high-tech hardware in the background, maintaining a high-key, modern enterprise SaaS aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAAWjyoULRYO1FolxdDuarEnWEf2dyQRNZOj7pxkRF5DmhWMy586iaGCbgb3jcg78T9_AybIT5_VfXbF4akVLvZhMCwV9ksYK0m66fSmn79MoBVKsB4DWWAbHCGJwJrvmAXLKkKS1JKhHeovz0f8AFu6m6jduW1dmtEUyl2uY2XYxLnoqZgAm3uHEdyMFNrgAZPk0ndoQ7WI1AVtgcwdpZaPD98AxQPF93ejJTsXXEvM1Ib1cPwEsxDe0RlfkNkIZwEb2P2EO-w6XIC"/>
+<div>
+<p class="font-bold text-on-surface">陈坤</p>
+<p class="text-label-md text-outline">kun.chen@chronovault.ai</p>
+</div>
+</div>
+</td>
+<td class="py-4">
+<span class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded text-label-md border border-outline-variant/20">Viewer</span>
+</td>
+<td class="py-4 text-on-surface-variant text-body-sm">昨天</td>
+<td class="py-4 text-right">
+<button class="material-symbols-outlined text-outline hover:text-primary transition-colors">more_horiz</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Audit Logs -->
+<div class="glass-card bg-surface-container-lowest rounded-xl p-card-padding shadow-sm">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-headline-lg text-headline-lg flex items-center">
+<span class="material-symbols-outlined mr-2 text-primary">history_edu</span>
+                                    审计日志
+                                </h3>
+<button class="text-primary text-label-md hover:underline">查看全部日志</button>
+</div>
+<div class="space-y-4">
+<div class="flex items-start p-3 hover:bg-surface-container rounded-lg transition-colors border border-transparent hover:border-outline-variant/20">
+<div class="p-2 bg-primary/10 rounded-full text-primary mr-4 shrink-0">
+<span class="material-symbols-outlined text-xl">backup</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-medium text-body-sm">发起服务器 [SRV-0892] 全量备份</p>
+<p class="text-label-md text-outline">操作人: 张伟 • 15分钟前</p>
+</div>
+<span class="text-label-md text-outline font-mono-code bg-surface-container-high px-2 py-0.5 rounded">SUCCESS</span>
+</div>
+<div class="flex items-start p-3 hover:bg-surface-container rounded-lg transition-colors border border-transparent hover:border-outline-variant/20">
+<div class="p-2 bg-error/10 rounded-full text-error mr-4 shrink-0">
+<span class="material-symbols-outlined text-xl">key</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-medium text-body-sm">API 密钥刷新失败</p>
+<p class="text-label-md text-outline">操作人: 李娜 • 1小时前</p>
+</div>
+<span class="text-label-md text-error-container text-error font-mono-code bg-error-container/20 px-2 py-0.5 rounded">FAILED</span>
+</div>
+<div class="flex items-start p-3 hover:bg-surface-container rounded-lg transition-colors border border-transparent hover:border-outline-variant/20">
+<div class="p-2 bg-secondary/10 rounded-full text-secondary mr-4 shrink-0">
+<span class="material-symbols-outlined text-xl">settings_backup_restore</span>
+</div>
+<div class="flex-1">
+<p class="text-on-surface font-medium text-body-sm">执行灾难恢复快照 [SNAP-44]</p>
+<p class="text-label-md text-outline">操作人: 系统自动 (AI) • 3小时前</p>
+</div>
+<span class="text-label-md text-outline font-mono-code bg-surface-container-high px-2 py-0.5 rounded">SUCCESS</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Sidebar Config (Right Column) -->
+<section class="lg:col-span-4 space-y-gutter">
+<!-- Storage Configuration -->
+<div class="bg-inverse-surface text-surface-bright rounded-xl p-card-padding shadow-xl relative overflow-hidden">
+<div class="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+<span class="material-symbols-outlined text-[120px]" style="font-variation-settings: 'FILL' 1;">cloud_queue</span>
+</div>
+<h3 class="font-headline-lg text-headline-lg mb-4 flex items-center">
+<span class="material-symbols-outlined mr-2">storage</span>
+                                存储配置
+                            </h3>
+<div class="space-y-4 relative z-10">
+<div>
+<label class="block text-label-md text-outline-variant mb-1">存储提供商</label>
+<select class="w-full bg-surface-container-highest/10 border border-outline/30 rounded-lg py-2 px-3 text-body-sm focus:ring-1 focus:ring-primary-fixed-dim outline-none">
+<option>Amazon S3</option>
+<option>Aliyun OSS</option>
+<option>Google Cloud Storage</option>
+</select>
+</div>
+<div>
+<label class="block text-label-md text-outline-variant mb-1">Bucket 名称</label>
+<input class="w-full bg-surface-container-highest/10 border border-outline/30 rounded-lg py-2 px-3 text-body-sm focus:ring-1 focus:ring-primary-fixed-dim outline-none" placeholder="vault-prod-backups" type="text"/>
+</div>
+<div class="pt-2">
+<button class="w-full py-2 bg-primary-container text-on-primary-container rounded-lg font-bold text-label-md hover:brightness-110 transition-all active:scale-95">
+                                        保存配置
+                                    </button>
+</div>
+</div>
+</div>
+<!-- API Keys -->
+<div class="glass-card bg-surface-container-lowest rounded-xl p-card-padding shadow-sm border-l-4 border-l-primary">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-headline-lg text-headline-lg flex items-center">
+<span class="material-symbols-outlined mr-2 text-primary">key</span>
+                                    API 密钥
+                                </h3>
+<button class="material-symbols-outlined text-primary hover:bg-primary/5 p-1 rounded transition-colors">add_circle</button>
+</div>
+<div class="space-y-3">
+<div class="p-3 bg-surface-container rounded-lg border border-outline-variant/30 flex items-center justify-between group">
+<div class="overflow-hidden">
+<p class="text-label-md text-outline uppercase font-bold">Production Key</p>
+<p class="font-mono-code text-body-sm text-on-surface mt-1 truncate">sk_live_•••••••••••••••••9821</p>
+</div>
+<button class="material-symbols-outlined text-outline hover:text-primary transition-colors opacity-0 group-hover:opacity-100">content_copy</button>
+</div>
+<div class="p-3 bg-surface-container rounded-lg border border-outline-variant/30 flex items-center justify-between group">
+<div class="overflow-hidden">
+<p class="text-label-md text-outline uppercase font-bold">Testing Key</p>
+<p class="font-mono-code text-body-sm text-on-surface mt-1 truncate">sk_test_•••••••••••••••••0112</p>
+</div>
+<button class="material-symbols-outlined text-outline hover:text-primary transition-colors opacity-0 group-hover:opacity-100">content_copy</button>
+</div>
+</div>
+<p class="text-[11px] text-outline mt-4 leading-relaxed italic">
+                                * 妥善保管您的密钥。不要将其暴露在客户端代码或公共存储库中。
+                            </p>
+</div>
+<!-- AI Security Insight -->
+<div class="bg-primary-container/5 rounded-xl p-card-padding border border-primary/20 relative overflow-hidden">
+<div class="shimmer absolute inset-0 opacity-40"></div>
+<div class="flex items-center gap-3 mb-2 relative z-10">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<h4 class="font-bold text-on-surface-variant text-label-md uppercase tracking-wide">AI 安全审计</h4>
+</div>
+<p class="text-body-sm text-on-surface-variant relative z-10 leading-relaxed">
+                                我们检测到 <span class="font-bold text-primary">Viewer</span> 角色在过去 24 小时内有频繁的日志读取尝试。建议审查权限分配或启用双重身份验证 (MFA)。
+                            </p>
+<button class="mt-4 text-primary font-bold text-label-md flex items-center relative z-10 hover:translate-x-1 transition-transform">
+                                立即审查 <span class="material-symbols-outlined text-sm ml-1">arrow_forward</span>
+</button>
+</div>
+</section>
+</div>
+</div>
+<!-- Footer Meta -->
+<footer class="h-12 border-t border-outline-variant/10 flex items-center justify-between px-container-margin bg-surface-container-low shrink-0">
+<div class="flex items-center gap-4">
+<span class="flex items-center text-label-md text-outline">
+<span class="w-2 h-2 rounded-full bg-primary mr-2"></span>
+                        系统状态: 正常运行
+                    </span>
+<span class="text-label-md text-outline">版本 v4.2.0-stable</span>
+</div>
+<div class="flex gap-4">
+<a class="text-label-md text-outline hover:text-primary transition-colors" href="#">隐私政策</a>
+<a class="text-label-md text-outline hover:text-primary transition-colors" href="#">服务条款</a>
+</div>
+</footer>
+</main>
+</div>
+</body></html>

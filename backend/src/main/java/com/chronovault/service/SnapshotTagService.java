@@ -77,4 +77,31 @@ public class SnapshotTagService {
                 .map(SnapshotTagDTO::from)
                 .toList();
     }
+
+    /**
+     * Add a tag to multiple snapshots at once.
+     */
+    @Transactional
+    public int bulkTag(List<Long> snapshotIds, String tagName, String color, Long userId) {
+        User user = userRepository.findById(userId).orElse(null);
+        int count = 0;
+
+        for (Long snapshotId : snapshotIds) {
+            Snapshot snapshot = snapshotRepository.findById(snapshotId).orElse(null);
+            if (snapshot == null) continue;
+            if (tagRepository.findBySnapshotIdAndName(snapshotId, tagName).isPresent()) continue;
+
+            SnapshotTag tag = SnapshotTag.builder()
+                    .snapshot(snapshot)
+                    .name(tagName)
+                    .color(color)
+                    .createdBy(user)
+                    .build();
+            tagRepository.save(tag);
+            count++;
+        }
+
+        log.info("Bulk tagged {} snapshots with tag '{}'", count, tagName);
+        return count;
+    }
 }

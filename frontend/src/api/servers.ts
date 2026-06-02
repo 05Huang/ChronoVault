@@ -1,5 +1,5 @@
 import client from './client'
-import type { Server, Container, Volume, LogEntry, ServerHealth, TopologyEdge, CreateServerRequest, UpdateSshConfigRequest, AddVolumeRequest, ConnectionTestResult, EnvironmentScanResult, AiAnalyzeResult } from '@/types'
+import type { Server, Container, Volume, LogEntry, ServerHealth, TopologyEdge, CreateServerRequest, CloneServerRequest, UpdateSshConfigRequest, AddVolumeRequest, ConnectionTestResult, EnvironmentScanResult, AiAnalyzeResult } from '@/types'
 
 export interface AgentInstallResult {
   success: boolean
@@ -14,6 +14,8 @@ export const serversApi = {
   get: (id: number) => client.get<Server>(`/servers/${id}`) as unknown as Promise<Server>,
   create: (data: CreateServerRequest) =>
     client.post<Server>('/servers', data) as unknown as Promise<Server>,
+  clone: (data: CloneServerRequest) =>
+    client.post<string>('/servers/clone', data) as unknown as Promise<string>,
   getContainers: (id: number) => client.get<Container[]>(`/servers/${id}/containers`) as unknown as Promise<Container[]>,
   getVolumes: (id: number) => client.get<Volume[]>(`/servers/${id}/volumes`) as unknown as Promise<Volume[]>,
   addVolume: (id: number, data: AddVolumeRequest) =>
@@ -33,4 +35,6 @@ export const serversApi = {
   scanEnvironment: (id: number) => client.post<EnvironmentScanResult>(`/servers/${id}/scan-environment`) as unknown as Promise<EnvironmentScanResult>,
   aiAnalyze: (id: number) => client.post<AiAnalyzeResult>(`/servers/${id}/ai-analyze`) as unknown as Promise<AiAnalyzeResult>,
   installAgent: (id: number) => client.post<AgentInstallResult>(`/servers/${id}/install-agent`) as unknown as Promise<AgentInstallResult>,
+  toggleAutoSnapshot: (id: number, enabled: boolean) =>
+    client.put(`/servers/${id}/auto-snapshot`, { enabled }) as unknown as Promise<void>,
 }

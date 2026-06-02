@@ -122,7 +122,8 @@ public class ScheduledBackupService {
         try {
             String title = "定时备份: " + sb.getName();
             snapshotEngine.createSnapshot(sb.getServer(), sb.getStorageTarget(), title,
-                    "由定时任务 #" + sb.getId() + " 自动创建", Snapshot.SnapshotType.FULL, sb.getUser().getId());
+                    "由定时任务 #" + sb.getId() + " 自动创建", Snapshot.SnapshotType.FULL, sb.getUser().getId(),
+                    null, null);
             sb.setLastStatus(ScheduledBackup.RunStatus.SUCCESS);
             sb.setLastError(null);
             log.info("Scheduled backup completed: id={}", sb.getId());

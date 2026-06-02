@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Geist:wght@400;500;600;700;800;900&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "on-tertiary-fixed": "#311400",
+                    "secondary-container": "#57dffe",
+                    "on-primary-fixed-variant": "#004395",
+                    "surface-dim": "#d8d9e3",
+                    "tertiary-container": "#b75b00",
+                    "primary-fixed": "#d8e2ff",
+                    "on-primary-container": "#fefcff",
+                    "surface-container-highest": "#e1e2ec",
+                    "tertiary-fixed": "#ffdcc6",
+                    "on-error": "#ffffff",
+                    "outline": "#727785",
+                    "inverse-on-surface": "#eff0fa",
+                    "secondary": "#00687a",
+                    "on-secondary-fixed-variant": "#004e5c",
+                    "on-secondary-container": "#006172",
+                    "background": "#f9f9ff",
+                    "secondary-fixed": "#acedff",
+                    "on-primary-fixed": "#001a42",
+                    "error": "#ba1a1a",
+                    "surface-tint": "#005ac2",
+                    "on-surface": "#191b23",
+                    "on-tertiary": "#ffffff",
+                    "surface-container": "#ecedf7",
+                    "primary-fixed-dim": "#adc6ff",
+                    "secondary-fixed-dim": "#4cd7f6",
+                    "on-secondary-fixed": "#001f26",
+                    "outline-variant": "#c2c6d6",
+                    "on-error-container": "#93000a",
+                    "surface": "#f9f9ff",
+                    "on-background": "#191b23",
+                    "primary": "#0058be",
+                    "surface-container-high": "#e6e7f2",
+                    "on-primary": "#ffffff",
+                    "tertiary": "#924700",
+                    "tertiary-fixed-dim": "#ffb786",
+                    "surface-container-low": "#f2f3fd",
+                    "surface-bright": "#f9f9ff",
+                    "primary-container": "#2170e4",
+                    "inverse-primary": "#adc6ff",
+                    "on-surface-variant": "#424754",
+                    "on-tertiary-container": "#fffbff",
+                    "inverse-surface": "#2e3038",
+                    "surface-variant": "#e1e2ec",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed-variant": "#723600"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "unit": "4px",
+                    "section-gap": "40px",
+                    "container-margin": "24px",
+                    "card-padding": "20px",
+                    "gutter": "16px"
+            },
+            "fontFamily": {
+                    "headline-xl": ["Geist"],
+                    "body-md": ["Inter"],
+                    "headline-lg": ["Geist"],
+                    "body-lg": ["Inter"],
+                    "display-lg": ["Geist"],
+                    "body-sm": ["Inter"],
+                    "label-md": ["Geist"],
+                    "mono-code": ["Geist"]
+            },
+            "fontSize": {
+                    "headline-xl": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "headline-lg": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                    "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "mono-code": ["14px", {"lineHeight": "1.6", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(229, 231, 235, 0.5);
+        }
+        .ai-glow {
+            box-shadow: 0 0 20px rgba(0, 88, 190, 0.15);
+        }
+        .shimmer {
+            background: linear-gradient(90deg, transparent, rgba(33, 112, 228, 0.1), transparent);
+            background-size: 200% 100%;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .nav-active {
+            background-color: rgba(33, 112, 228, 0.1);
+            color: #0058be;
+            border-right: 2px solid #0058be;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen flex">
+<!-- SideNavBar (Shared Component) -->
+<aside class="fixed left-0 top-0 h-screen w-60 bg-surface-container-low border-r border-outline-variant/20 flex flex-col py-6 space-y-2 z-50">
+<div class="px-6 mb-8">
+<h1 class="font-headline-lg text-headline-lg font-black text-on-surface">ChronoVault</h1>
+<p class="font-label-md text-label-md text-primary tracking-widest uppercase mt-1 opacity-80">AI Time Machine</p>
+</div>
+<nav class="flex-1 flex flex-col space-y-1">
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:translate-x-1 transition-transform">dashboard</span>
+<span class="font-label-md text-label-md">Overview</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:translate-x-1 transition-transform">dns</span>
+<span class="font-label-md text-label-md">Servers</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:translate-x-1 transition-transform">history</span>
+<span class="font-label-md text-label-md">Snapshots</span>
+</a>
+<a class="flex items-center px-6 py-3 bg-primary-container/10 text-primary border-r-2 border-primary group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:translate-x-1 transition-transform" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<span class="font-label-md text-label-md">AI Insights</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:translate-x-1 transition-transform">restore</span>
+<span class="font-label-md text-label-md">Recovery</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:translate-x-1 transition-transform">storage</span>
+<span class="font-label-md text-label-md">Storage</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:translate-x-1 transition-transform">security</span>
+<span class="font-label-md text-label-md">Risk Center</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:translate-x-1 transition-transform">notifications_active</span>
+<span class="font-label-md text-label-md">Alerts</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:translate-x-1 transition-transform">groups</span>
+<span class="font-label-md text-label-md">Team</span>
+</a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors group mt-auto" href="#">
+<span class="material-symbols-outlined mr-3 group-hover:translate-x-1 transition-transform">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 ml-60 flex flex-col min-w-0">
+<!-- TopNavBar (Shared Component) -->
+<header class="sticky top-0 z-40 bg-surface-bright/80 backdrop-blur-xl border-b border-outline-variant/30 flex justify-between items-center w-full px-container-margin h-16">
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="bg-surface-container-high border-none rounded-full py-2 pl-10 pr-4 text-body-sm w-80 focus:ring-2 focus:ring-primary/20 transition-all" placeholder="搜索资源、快照或 AI 建议..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-surface-container-high/50 transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+<button class="p-2 rounded-full hover:bg-surface-container-high/50 transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined text-on-surface-variant">search_check</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-outline-variant">
+<img alt="User Profile Avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a software architect in a high-tech studio setting. The lighting is crisp and modern with cool blue and neutral white tones. The background is a blurred data center with server rack lights creating a sophisticated technological bokeh effect." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9-8Rq5unZsQm6ftfSX52BjvcY0sc6Cv2-ZnQQODDZbvDykJjFsWlXnVyG-x4THwRI6Yn4uOkxGgnpP8oKaihU2-iyR_F63SIuIMTvujMruz-szXOl8t5W4RLNBOMqTAJQGlZeb5b8QerVGEnine7AAz3Yuin4VS1fLlAqHedgC6yFfIs3P1E4Nsd-rfsqIg8D0yELkFG3LqmneIhc1VcKdyutEo8ITd0I4XUMHVj_ejsjryIh-NsXnhAYYus34M5IwhprHvj4pOu7"/>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="p-container-margin space-y-section-gap max-w-7xl mx-auto w-full pb-32">
+<!-- Hero Header Section -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<h2 class="font-headline-xl text-headline-xl text-on-surface">AI 运维大脑</h2>
+<p class="text-on-surface-variant font-body-md mt-2 max-w-2xl">ChronoVault 实时监控您的基础设施健康状况，通过深度神经网络分析数据增长趋势并识别潜在风险。</p>
+</div>
+<div class="flex gap-3">
+<button class="bg-primary text-on-primary px-5 py-2.5 rounded-xl font-label-md flex items-center gap-2 ai-glow hover:bg-primary-container transition-all">
+<span class="material-symbols-outlined text-[18px]">bolt</span>
+                        立即扫描
+                    </button>
+<button class="bg-surface-container-high text-on-surface-variant px-5 py-2.5 rounded-xl font-label-md border border-outline-variant/30 hover:bg-surface-container-highest transition-all">
+                        导出报告
+                    </button>
+</div>
+</section>
+<!-- Risk Score Bento Grid -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+<!-- Central Risk Visualization -->
+<div class="lg:col-span-2 glass-card rounded-3xl p-card-padding flex flex-col relative overflow-hidden">
+<div class="flex justify-between items-start mb-6 z-10">
+<div>
+<span class="text-label-md font-label-md bg-primary/10 text-primary px-3 py-1 rounded-full">系统健康状态</span>
+<h3 class="font-headline-lg text-headline-lg mt-3">全局风险评分</h3>
+</div>
+<div class="text-right">
+<div class="text-display-lg font-display-lg text-primary">84</div>
+<div class="text-label-md text-on-surface-variant">极佳 (过去24小时 +2)</div>
+</div>
+</div>
+<div class="flex-1 flex items-center justify-center py-8 relative">
+<!-- Simulated Radar/Circular Visualization -->
+<div class="w-64 h-64 rounded-full border-4 border-dashed border-primary/20 flex items-center justify-center relative animate-pulse">
+<div class="w-48 h-48 rounded-full border-2 border-primary/40 flex items-center justify-center">
+<div class="w-32 h-32 rounded-full bg-gradient-to-tr from-primary to-secondary-container shadow-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary text-5xl" style="font-variation-settings: 'FILL' 1;">shield_with_heart</span>
+</div>
+</div>
+<!-- Orbiting Nodes -->
+<div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-white p-2 rounded-lg shadow-sm border border-outline-variant/20 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+<span class="text-label-md">MySQL 延迟</span>
+</div>
+<div class="absolute top-1/4 -right-10 bg-white p-2 rounded-lg shadow-sm border border-outline-variant/20 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+<span class="text-label-md">节点 A 健康</span>
+</div>
+</div>
+<!-- Ambient Glow Background -->
+<div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent"></div>
+</div>
+<div class="grid grid-cols-3 gap-4 mt-6 z-10">
+<div class="bg-surface-container-low/50 p-4 rounded-2xl border border-outline-variant/10">
+<div class="text-label-md text-on-surface-variant">备份完整度</div>
+<div class="text-headline-lg font-headline-lg">99.8%</div>
+</div>
+<div class="bg-surface-container-low/50 p-4 rounded-2xl border border-outline-variant/10">
+<div class="text-label-md text-on-surface-variant">平均恢复耗时</div>
+<div class="text-headline-lg font-headline-lg">12min</div>
+</div>
+<div class="bg-surface-container-low/50 p-4 rounded-2xl border border-outline-variant/10">
+<div class="text-label-md text-on-surface-variant">冗余系数</div>
+<div class="text-headline-lg font-headline-lg">3.0x</div>
+</div>
+</div>
+</div>
+<!-- AI Quick Insights Cards -->
+<div class="flex flex-col gap-gutter">
+<!-- Suggestion 1 -->
+<div class="glass-card rounded-2xl p-card-padding relative overflow-hidden group hover:ai-glow transition-all">
+<div class="absolute top-0 left-0 w-full h-1 shimmer"></div>
+<div class="flex items-start gap-3">
+<div class="p-2 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined">schedule</span>
+</div>
+<div>
+<h4 class="font-label-md text-label-md text-on-surface-variant">性能优化建议</h4>
+<p class="text-body-sm font-medium mt-1">建议提高备份频率: MySQL 写入量激增</p>
+<button class="mt-3 text-primary font-label-md flex items-center hover:underline">
+                                    应用建议 <span class="material-symbols-outlined text-[14px] ml-1">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Suggestion 2 -->
+<div class="glass-card rounded-2xl p-card-padding relative overflow-hidden group hover:ai-glow transition-all">
+<div class="flex items-start gap-3">
+<div class="p-2 bg-error-container/20 rounded-lg text-error">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<div>
+<h4 class="font-label-md text-label-md text-on-surface-variant">资源异常告警</h4>
+<p class="text-body-sm font-medium mt-1">发现异常磁盘增长: /var/lib/docker/logs</p>
+<button class="mt-3 text-error font-label-md flex items-center hover:underline">
+                                    清理建议 <span class="material-symbols-outlined text-[14px] ml-1">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Suggestion 3 -->
+<div class="glass-card rounded-2xl p-card-padding relative overflow-hidden group hover:ai-glow transition-all">
+<div class="flex items-start gap-3">
+<div class="p-2 bg-tertiary-container/10 rounded-lg text-tertiary">
+<span class="material-symbols-outlined">visibility_off</span>
+</div>
+<div>
+<h4 class="font-label-md text-label-md text-on-surface-variant">安全合规提醒</h4>
+<p class="text-body-sm font-medium mt-1">检测到未备份服务: MongoDB</p>
+<button class="mt-3 text-tertiary font-label-md flex items-center hover:underline">
+                                    创建备份 <span class="material-symbols-outlined text-[14px] ml-1">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Storage Prediction Chart -->
+<section class="glass-card rounded-3xl p-card-padding">
+<div class="flex justify-between items-center mb-8">
+<div>
+<h3 class="font-headline-lg text-headline-lg">存储容量预测</h3>
+<p class="text-on-surface-variant text-body-sm mt-1">基于过去 30 天的数据增长趋势，预测未来 6 个月的容量消耗。</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+<span class="text-label-md">历史容量</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-primary/20 border border-dashed border-primary"></span>
+<span class="text-label-md">AI 预测</span>
+</div>
+</div>
+</div>
+<div class="h-64 w-full flex items-end gap-2 px-4 border-b border-l border-outline-variant/30 relative">
+<!-- Fake Chart Visual -->
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[40%] transition-all hover:bg-primary/20"></div>
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[45%] transition-all hover:bg-primary/20"></div>
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[48%] transition-all hover:bg-primary/20"></div>
+<div class="flex-1 bg-primary/10 rounded-t-lg h-[55%] transition-all hover:bg-primary/20"></div>
+<div class="flex-1 bg-primary/40 rounded-t-lg h-[62%] relative">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-on-surface text-surface text-[10px] px-2 py-1 rounded">当前</div>
+</div>
+<!-- Prediction part -->
+<div class="flex-1 border-t-2 border-r-2 border-dashed border-primary/40 bg-primary/5 rounded-t-lg h-[70%]"></div>
+<div class="flex-1 border-t-2 border-r-2 border-dashed border-primary/40 bg-primary/5 rounded-t-lg h-[78%]"></div>
+<div class="flex-1 border-t-2 border-r-2 border-dashed border-primary/40 bg-primary/5 rounded-t-lg h-[88%] relative">
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-tertiary text-on-tertiary text-[10px] px-2 py-1 rounded whitespace-nowrap">预估临界点 (Nov)</div>
+</div>
+<div class="flex-1 border-t-2 border-r-2 border-dashed border-primary/40 bg-primary/5 rounded-t-lg h-[95%]"></div>
+</div>
+<div class="flex justify-between mt-4 px-4 text-label-md text-on-surface-variant">
+<span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct (Now)</span><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span>
+</div>
+</section>
+</div>
+<!-- AI Chat Assistant Widget (Floating) -->
+<div class="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-4 pointer-events-none">
+<!-- Chat Window -->
+<div class="w-80 h-[480px] glass-card rounded-3xl shadow-2xl flex flex-col overflow-hidden pointer-events-auto border-primary/20">
+<div class="bg-primary p-4 flex items-center justify-between">
+<div class="flex items-center gap-2 text-on-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<span class="font-label-md">ChronoVault AI 助手</span>
+</div>
+<div class="flex gap-2">
+<span class="w-2 h-2 rounded-full bg-green-400"></span>
+<span class="material-symbols-outlined text-on-primary/60 text-sm cursor-pointer">close</span>
+</div>
+</div>
+<div class="flex-1 p-4 space-y-4 overflow-y-auto">
+<div class="bg-surface-container-high p-3 rounded-2xl rounded-tl-none text-body-sm mr-8">
+                        你好！我是 ChronoVault AI。我可以帮你优化备份策略、预测成本或解决性能瓶颈。
+                    </div>
+<div class="flex justify-end">
+<div class="bg-primary text-on-primary p-3 rounded-2xl rounded-tr-none text-body-sm ml-8">
+                            我该如何优化备份成本？
+                        </div>
+</div>
+<div class="bg-surface-container-high p-3 rounded-2xl rounded-tl-none text-body-sm mr-8">
+                        根据您的使用习惯，我有以下三个建议：
+                        <ul class="mt-2 list-disc list-inside space-y-1 opacity-90">
+<li>将 30 天以上的冷数据迁移至归档存储</li>
+<li>对非生产环境开启按需快照</li>
+<li>启用全局去重功能（可节省约 24% 空间）</li>
+</ul>
+</div>
+<!-- Typing Indicator -->
+<div class="flex gap-1 items-center px-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce delay-75"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce delay-150"></span>
+</div>
+</div>
+<div class="p-4 border-t border-outline-variant/20">
+<div class="relative">
+<input class="w-full bg-surface-container border-none rounded-xl py-2.5 pl-4 pr-10 text-body-sm focus:ring-1 focus:ring-primary" placeholder="向 AI 提问..." type="text"/>
+<button class="absolute right-2 top-1/2 -translate-y-1/2 text-primary p-1 hover:bg-primary/10 rounded-lg transition-all">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</div>
+</div>
+<!-- FAB (Shared Component Style logic - Only for relevant screens) -->
+<button class="w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all pointer-events-auto ai-glow">
+<span class="material-symbols-outlined text-3xl">chat_bubble</span>
+</button>
+</div>
+</main>
+</body></html>

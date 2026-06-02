@@ -69,6 +69,38 @@
         </div>
       </div>
     </div>
+
+    <!-- Storage Replication -->
+    <div class="glass-panel p-[20px] rounded-xl">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="material-symbols-outlined text-primary text-[24px]" style="font-variation-settings: 'FILL' 1;">content_copy</span>
+        <div>
+          <h3 class="text-[24px] font-semibold">存储复制</h3>
+          <p class="text-[14px] text-on-surface-variant">将快照复制到另一个存储目标</p>
+        </div>
+      </div>
+      <div class="flex items-end gap-4">
+        <div class="flex-1 space-y-1">
+          <label class="text-[12px] font-bold text-on-surface-variant">快照 ID</label>
+          <input v-model.number="replicateSnapshotId" type="number"
+            class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+            placeholder="输入快照 ID" />
+        </div>
+        <div class="flex-1 space-y-1">
+          <label class="text-[12px] font-bold text-on-surface-variant">目标存储</label>
+          <select v-model.number="replicateTargetId"
+            class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none appearance-none">
+            <option :value="0" disabled>选择目标存储</option>
+            <option v-for="item in overview" :key="item.id" :value="item.id">{{ item.name }} ({{ item.type }})</option>
+          </select>
+        </div>
+        <button @click="handleReplicate" :disabled="!replicateSnapshotId || !replicateTargetId || replicating"
+          class="px-6 py-2 bg-primary text-white rounded-lg text-[12px] font-bold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[16px]">{{ replicating ? 'hourglass_empty' : 'content_copy' }}</span>
+          {{ replicating ? '复制中...' : '复制快照' }}
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -82,6 +114,29 @@ import AddStorageModal from '@/components/modals/AddStorageModal.vue'
 
 const toast = useToastStore()
 const modal = useModalStore()
+
+// Replication state
+const replicateSnapshotId = ref(0)
+const replicateTargetId = ref(0)
+const replicating = ref(false)
+
+async function handleReplicate() {
+  if (!replicateSnapshotId.value || !replicateTargetId.value) {
+    toast.error('请输入快照ID并选择目标存储')
+    return
+  }
+  replicating.value = true
+  try {
+    await storageApi.replicateSnapshot(replicateSnapshotId.value, replicateTargetId.value)
+    toast.success('复制任务已提交，正在后台执行')
+    replicateSnapshotId.value = 0
+    replicateTargetId.value = 0
+  } catch (e: any) {
+    toast.error(e?.message || '复制任务提交失败')
+  } finally {
+    replicating.value = false
+  }
+}
 
 function openAddStorage() {
   modal.open({ component: AddStorageModal, title: '添加存储' })

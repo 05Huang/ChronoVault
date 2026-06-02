@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ChronoVault - Risk Center</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Geist:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-fixed": "#ffdcc6",
+                    "primary-fixed-dim": "#adc6ff",
+                    "outline-variant": "#c2c6d6",
+                    "background": "#f9f9ff",
+                    "on-error-container": "#93000a",
+                    "surface-container-lowest": "#ffffff",
+                    "error": "#ba1a1a",
+                    "on-primary-container": "#fefcff",
+                    "surface-container-low": "#f2f3fd",
+                    "secondary-container": "#57dffe",
+                    "on-background": "#191b23",
+                    "on-surface": "#191b23",
+                    "on-secondary": "#ffffff",
+                    "surface-container": "#ecedf7",
+                    "primary-container": "#2170e4",
+                    "error-container": "#ffdad6",
+                    "tertiary-container": "#b75b00",
+                    "secondary-fixed-dim": "#4cd7f6",
+                    "outline": "#727785",
+                    "on-surface-variant": "#424754",
+                    "on-secondary-fixed-variant": "#004e5c",
+                    "surface-tint": "#005ac2",
+                    "primary-fixed": "#d8e2ff",
+                    "on-tertiary-container": "#fffbff",
+                    "tertiary-fixed-dim": "#ffb786",
+                    "surface-dim": "#d8d9e3",
+                    "tertiary": "#924700",
+                    "on-secondary-container": "#006172",
+                    "on-secondary-fixed": "#001f26",
+                    "on-tertiary": "#ffffff",
+                    "surface-container-high": "#e6e7f2",
+                    "on-primary-fixed-variant": "#004395",
+                    "surface-container-highest": "#e1e2ec",
+                    "secondary-fixed": "#acedff",
+                    "on-tertiary-fixed-variant": "#723600",
+                    "on-tertiary-fixed": "#311400",
+                    "inverse-surface": "#2e3038",
+                    "on-error": "#ffffff",
+                    "surface-variant": "#e1e2ec",
+                    "surface-bright": "#f9f9ff",
+                    "surface": "#f9f9ff",
+                    "secondary": "#00687a",
+                    "primary": "#0058be",
+                    "inverse-primary": "#adc6ff",
+                    "on-primary-fixed": "#001a42",
+                    "on-primary": "#ffffff",
+                    "inverse-on-surface": "#eff0fa"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.8rem",
+                    "xl": "1.2rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "16px",
+                    "container-margin": "24px",
+                    "card-padding": "20px",
+                    "unit": "4px",
+                    "section-gap": "40px"
+            },
+            "fontFamily": {
+                    "display-lg": ["Geist"],
+                    "headline-lg": ["Geist"],
+                    "body-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "mono-code": ["Geist"],
+                    "body-sm": ["Inter"],
+                    "label-md": ["Geist"],
+                    "headline-xl": ["Geist"]
+            },
+            "fontSize": {
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                    "headline-lg": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "mono-code": ["14px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "headline-xl": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+      .glass-card {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(20px);
+        border: 0.5px solid rgba(255, 255, 255, 0.4);
+        box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.04);
+      }
+      .ai-glow {
+        box-shadow: 0 0 15px rgba(0, 88, 190, 0.15);
+        border-left: 4px solid #0058be;
+      }
+      .shimmer-edge {
+        position: relative;
+        overflow: hidden;
+      }
+      .shimmer-edge::after {
+        content: "";
+        position: absolute;
+        top: 0; left: -100%;
+        width: 100%; height: 2px;
+        background: linear-gradient(90deg, transparent, #57dffe, transparent);
+        animation: shimmer 3s infinite;
+      }
+      @keyframes shimmer {
+        0% { left: -100%; }
+        100% { left: 100%; }
+      }
+      .gauge-track {
+        stroke-dasharray: 251.2;
+        stroke-dashoffset: 0;
+      }
+      .gauge-fill {
+        stroke-dasharray: 251.2;
+        stroke-dashoffset: 62.8; /* Represents 75% for Risk Score 25 (100-25) */
+        transition: stroke-dashoffset 1s ease-out;
+      }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopNavBar -->
+<header class="bg-surface-bright/80 backdrop-blur-xl border-b border-outline-variant/30 shadow-sm fixed top-0 z-50 flex justify-between items-center w-full px-container-margin h-16">
+<div class="flex items-center gap-8">
+<span class="font-headline-lg text-headline-lg font-bold tracking-tighter text-on-surface">ChronoVault</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-on-surface-variant hover:bg-surface-container-high/50 transition-all duration-200 px-3 py-2 rounded-lg font-label-md text-label-md" href="#">控制台</a>
+<a class="text-primary font-bold px-3 py-2 rounded-lg font-label-md text-label-md" href="#">风险中心</a>
+<a class="text-on-surface-variant hover:bg-surface-container-high/50 transition-all duration-200 px-3 py-2 rounded-lg font-label-md text-label-md" href="#">资源管理</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden md:flex items-center bg-surface-container-low border border-outline-variant/50 rounded-full px-4 py-1.5 focus-within:ring-2 ring-primary/20 transition-all">
+<span class="material-symbols-outlined text-outline text-[18px]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-sm w-48 ml-2 placeholder:text-outline" placeholder="搜索风险或服务器..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-container-high/50 p-2 rounded-full transition-all active:scale-90">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-container-high/50 p-2 rounded-full transition-all active:scale-90">search_check</button>
+<div class="w-8 h-8 rounded-full bg-primary-container/20 border border-primary/20 overflow-hidden">
+<img alt="User Profile Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkQiIfTx1YjEUlavYGCdEQvpRiSMwKDnN7wpEl-LRQhqKvcGea8xiIRjTmvu8tS4I1K3MtqDF8zE99CXg3qB0ua9W3wlHzUdmRBaQuPvSWSzxflnPPdyG4y1_nZuKsvVkbbqBfH6o3KESz6_VTWci3_vNtcbGRZ1d0DXReV-A7K7Xram0xcJdNoMlYCbuknvWgYSLUtXgYiDgEbjo2EnC4lRecT_Gk4omFSHNPypAlw3JjNJ7YMvze-Rw7JF6ziWiKRehhck15glFr"/>
+</div>
+</div>
+</header>
+<div class="flex min-h-screen pt-16">
+<!-- SideNavBar -->
+<aside class="bg-surface-container-low border-r border-outline-variant/20 fixed h-screen w-60 left-0 hidden lg:flex flex-col py-6">
+<div class="px-6 mb-8 flex flex-col">
+<span class="font-headline-lg text-headline-lg font-black text-on-surface">ChronoVault</span>
+<span class="font-label-md text-label-md text-primary tracking-widest uppercase mt-1">AI Time Machine</span>
+</div>
+<nav class="flex-1 space-y-1 px-3">
+<a class="group flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+<span class="font-label-md text-label-md">总览</span>
+</a>
+<a class="group flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]">dns</span>
+<span class="font-label-md text-label-md">服务器</span>
+</a>
+<a class="group flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]">history</span>
+<span class="font-label-md text-label-md">快照</span>
+</a>
+<a class="group flex items-center gap-3 px-4 py-3 bg-primary-container/10 text-primary border-r-2 border-primary rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]">security</span>
+<span class="font-label-md text-label-md">风险中心</span>
+</a>
+<a class="group flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]">psychology</span>
+<span class="font-label-md text-label-md">AI 洞察</span>
+</a>
+<a class="group flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]">storage</span>
+<span class="font-label-md text-label-md">存储状态</span>
+</a>
+<div class="pt-4 pb-2 px-4">
+<div class="h-px bg-outline-variant/20 w-full"></div>
+</div>
+<a class="group flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]">notifications_active</span>
+<span class="font-label-md text-label-md">警报</span>
+</a>
+<a class="group flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-xl" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="font-label-md text-label-md">设置</span>
+</a>
+</nav>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 lg:ml-60 p-container-margin space-y-8">
+<!-- Header Section -->
+<div class="flex justify-between items-end">
+<div>
+<h1 class="font-headline-xl text-headline-xl text-on-surface">风险中心</h1>
+<p class="font-body-md text-on-surface-variant mt-1">实时监控基础设施的安全稳定性与数据一致性</p>
+</div>
+<div class="flex gap-3">
+<button class="bg-surface-container-high text-on-surface px-4 py-2 rounded-lg font-label-md text-label-md border border-outline-variant/30 hover:bg-surface-container-highest transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">download</span> 导出报告
+                    </button>
+<button class="bg-primary text-on-primary px-4 py-2 rounded-lg font-label-md text-label-md hover:bg-primary-container transition-all flex items-center gap-2 shadow-sm active:scale-95">
+<span class="material-symbols-outlined text-[18px]">shutter_speed</span> 深度扫描
+                    </button>
+</div>
+</div>
+<!-- Dashboard Grid -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<!-- Global Risk Score Gauge -->
+<div class="md:col-span-4 glass-card p-card-padding rounded-xl flex flex-col items-center justify-center relative shimmer-edge">
+<h3 class="font-label-md text-label-md text-outline uppercase tracking-widest self-start mb-4">全局风险评分</h3>
+<div class="relative w-48 h-48 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-surface-container-highest" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-width="12"></circle>
+<circle class="text-primary gauge-fill" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" stroke-linecap="round" stroke-width="12"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-display-lg text-display-lg text-on-surface">24</span>
+<span class="font-label-md text-label-md text-on-surface-variant">极低风险</span>
+</div>
+</div>
+<div class="mt-6 text-center">
+<p class="font-body-sm text-body-sm text-on-surface-variant">较上周下降了 <span class="text-secondary font-bold">12%</span></p>
+<div class="flex gap-1 mt-4">
+<div class="h-1.5 w-8 rounded-full bg-secondary"></div>
+<div class="h-1.5 w-8 rounded-full bg-secondary"></div>
+<div class="h-1.5 w-8 rounded-full bg-secondary/30"></div>
+<div class="h-1.5 w-8 rounded-full bg-secondary/30"></div>
+<div class="h-1.5 w-8 rounded-full bg-secondary/30"></div>
+</div>
+</div>
+</div>
+<!-- Historical Risk Trend Chart -->
+<div class="md:col-span-8 glass-card p-card-padding rounded-xl">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-label-md text-label-md text-outline uppercase tracking-widest">历史风险趋势 (30天)</h3>
+<div class="flex gap-2">
+<span class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-primary"></span> 稳定性
+                            </span>
+<span class="flex items-center gap-1 text-[12px] text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span> 安全性
+                            </span>
+</div>
+</div>
+<div class="h-48 w-full flex items-end justify-between gap-2">
+<!-- Mock Chart Bars -->
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-24 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-32 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-28 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-20 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-16 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/40 rounded-t-sm relative group h-40 hover:bg-primary/60 transition-all">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-on-surface text-surface text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">78%</div>
+</div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-34 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-26 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-20 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-12 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-18 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-22 hover:bg-primary/40 transition-all"></div>
+<div class="flex-1 bg-primary/30 rounded-t-sm relative group h-28 hover:bg-primary/50 transition-all"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm relative group h-20 hover:bg-primary/40 transition-all"></div>
+</div>
+<div class="flex justify-between mt-4 text-[10px] text-outline px-1">
+<span>01 Oct</span>
+<span>10 Oct</span>
+<span>20 Oct</span>
+<span>Today</span>
+</div>
+</div>
+<!-- Infrastructure Health Map -->
+<div class="md:col-span-12 glass-card p-card-padding rounded-xl overflow-hidden">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-label-md text-label-md text-outline uppercase tracking-widest">基础设施健康分布图</h3>
+<div class="flex gap-4">
+<div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-secondary"></div> <span class="text-[12px] text-on-surface-variant">运行正常</span></div>
+<div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-tertiary"></div> <span class="text-[12px] text-on-surface-variant">中等风险</span></div>
+<div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-error"></div> <span class="text-[12px] text-on-surface-variant">关键故障</span></div>
+</div>
+</div>
+<div class="grid grid-cols-4 md:grid-cols-10 gap-4">
+<!-- Server Nodes -->
+<div class="aspect-square bg-secondary/10 border border-secondary/30 rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer group" title="Node-01: Healthy">
+<span class="material-symbols-outlined text-secondary">dns</span>
+</div>
+<div class="aspect-square bg-secondary/10 border border-secondary/30 rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer" title="Node-02: Healthy">
+<span class="material-symbols-outlined text-secondary">dns</span>
+</div>
+<div class="aspect-square bg-tertiary/10 border border-tertiary/30 rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer relative" title="Node-03: Warning">
+<span class="material-symbols-outlined text-tertiary">dns</span>
+<div class="absolute -top-1 -right-1 w-3 h-3 bg-tertiary rounded-full animate-pulse"></div>
+</div>
+<div class="aspect-square bg-secondary/10 border border-secondary/30 rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-secondary">dns</span>
+</div>
+<div class="aspect-square bg-error/10 border border-error/30 rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer relative" title="Node-05: Critical Issue">
+<span class="material-symbols-outlined text-error">dns</span>
+<div class="absolute -top-1 -right-1 w-3 h-3 bg-error rounded-full animate-ping"></div>
+</div>
+<div class="aspect-square bg-secondary/10 border border-secondary/30 rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-secondary">dns</span>
+</div>
+<div class="aspect-square bg-secondary/10 border border-secondary/30 rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-secondary">dns</span>
+</div>
+<div class="aspect-square bg-secondary/10 border border-secondary/30 rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-secondary">dns</span>
+</div>
+<div class="aspect-square bg-secondary/10 border border-secondary/30 rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-secondary">dns</span>
+</div>
+<div class="aspect-square bg-tertiary/10 border border-tertiary/30 rounded-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-tertiary">dns</span>
+</div>
+</div>
+</div>
+<!-- Identified Risks & AI Mitigation -->
+<div class="md:col-span-12 space-y-4">
+<h3 class="font-headline-lg text-headline-lg text-on-surface">待处理风险及 AI 缓解方案</h3>
+<!-- Risk Item 1 -->
+<div class="glass-card rounded-xl p-card-padding flex flex-col md:flex-row gap-6 border-l-4 border-error/60">
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-2">
+<span class="bg-error-container text-on-error-container px-2 py-0.5 rounded text-[10px] font-bold uppercase">Critical</span>
+<h4 class="font-body-lg font-bold text-on-surface">MySQL 实例未备份 (Node-05)</h4>
+</div>
+<p class="font-body-sm text-on-surface-variant">检测到 `prod-db-cluster-01` 在过去 48 小时内未生成任何有效的快照。这可能导致在发生硬件故障时出现数据丢失风险。</p>
+<div class="mt-4 flex gap-4 text-[12px] text-outline">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> 首次发现: 2小时前</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">tag</span> 类别: 数据一致性</span>
+</div>
+</div>
+<div class="md:w-1/3 ai-glow bg-primary/5 rounded-lg p-4 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-[20px]">psychology</span>
+<span class="font-label-md text-label-md text-primary">AI 缓解建议</span>
+</div>
+<p class="text-body-sm italic text-on-surface-variant">“由于检测到备份 API 连接超时，建议立即手动触发离线快照，并检查 VPC 内网穿透策略。”</p>
+</div>
+<button class="mt-4 w-full bg-primary text-on-primary py-2 rounded-lg font-label-md text-label-md hover:bg-primary-container transition-all active:scale-95">执行自动修复</button>
+</div>
+</div>
+<!-- Risk Item 2 -->
+<div class="glass-card rounded-xl p-card-padding flex flex-col md:flex-row gap-6 border-l-4 border-tertiary/60">
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-2">
+<span class="bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded text-[10px] font-bold uppercase">Warning</span>
+<h4 class="font-body-lg font-bold text-on-surface">磁盘使用率激增趋势 (Node-03)</h4>
+</div>
+<p class="font-body-sm text-on-surface-variant">节点 `app-gateway-03` 的磁盘占用率在过去 1 小时内从 40% 增长至 82%，预计将在 15 分钟内达到上限。</p>
+<div class="mt-4 flex gap-4 text-[12px] text-outline">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> 首次发现: 15分钟前</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">tag</span> 类别: 基础设施</span>
+</div>
+</div>
+<div class="md:w-1/3 ai-glow bg-primary/5 rounded-lg p-4 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-[20px]">psychology</span>
+<span class="font-label-md text-label-md text-primary">AI 缓解建议</span>
+</div>
+<p class="text-body-sm italic text-on-surface-variant">“日志文件 `/var/log/syslog` 异常膨胀。建议启用日志轮转压缩或扩容云硬盘。”</p>
+</div>
+<button class="mt-4 w-full bg-primary-container text-on-primary-container py-2 rounded-lg font-label-md text-label-md hover:bg-primary-container/80 transition-all active:scale-95">清理冗余日志</button>
+</div>
+</div>
+<!-- Risk Item 3 -->
+<div class="glass-card rounded-xl p-card-padding flex flex-col md:flex-row gap-6 border-l-4 border-tertiary/60">
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-2">
+<span class="bg-tertiary-container text-on-tertiary-container px-2 py-0.5 rounded text-[10px] font-bold uppercase">Anomalous</span>
+<h4 class="font-body-lg font-bold text-on-surface">异常 SSH 登录尝试 (Global)</h4>
+</div>
+<p class="font-body-sm text-on-surface-variant">检测到 522 次来自 IP `192.168.1.105` 的失败登录尝试。系统自动锁定了涉及的 Root 账号端口访问权限。</p>
+<div class="mt-4 flex gap-4 text-[12px] text-outline">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">schedule</span> 首次发现: 45分钟前</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">tag</span> 类别: 网络安全</span>
+</div>
+</div>
+<div class="md:w-1/3 ai-glow bg-primary/5 rounded-lg p-4 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-[20px]">psychology</span>
+<span class="font-label-md text-label-md text-primary">AI 缓解建议</span>
+</div>
+<p class="text-body-sm italic text-on-surface-variant">“疑似暴力破解。建议立即将该 IP 加入黑名单，并强制启用全域 MFA 二步验证。”</p>
+</div>
+<button class="mt-4 w-full border border-primary text-primary py-2 rounded-lg font-label-md text-label-md hover:bg-primary/5 transition-all active:scale-95">拉黑该 IP</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Background Decoration -->
+<div class="fixed top-0 right-0 -z-10 opacity-20 pointer-events-none">
+<svg fill="none" height="600" viewbox="0 0 600 600" width="600" xmlns="http://www.w3.org/2000/svg">
+<circle cx="400" cy="200" fill="url(#paint0_radial_risk)" r="200"></circle>
+<defs>
+<radialgradient cx="0" cy="0" gradienttransform="translate(400 200) rotate(90) scale(200)" gradientunits="userSpaceOnUse" id="paint0_radial_risk" r="1">
+<stop stop-color="#2170e4"></stop>
+<stop offset="1" stop-color="#f9f9ff" stop-opacity="0"></stop>
+</radialgradient>
+</defs>
+</svg>
+</div>
+</body></html>

@@ -7,5 +7,6 @@ public enum TaskType {
     SCAN,
     RESTORE,
     EXPORT,
-    HEALTH_CHECK
+    HEALTH_CHECK,
+    CLONE
 }

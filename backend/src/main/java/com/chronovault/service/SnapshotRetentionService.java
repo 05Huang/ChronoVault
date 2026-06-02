@@ -47,10 +47,23 @@ public class SnapshotRetentionService {
         log.info("Snapshot retention cleanup completed: {} total snapshots deleted", totalDeleted);
     }
 
-    private int applyRetentionPolicy(SnapshotRetentionPolicy policy) {
+    /**
+     * Dry-run: simulate retention cleanup without actually deleting.
+     * Returns list of snapshot IDs that would be deleted.
+     */
+    @Transactional(readOnly = true)
+    public List<Long> dryRunRetention(Long policyId) {
+        SnapshotRetentionPolicy policy = retentionPolicyRepository.findById(policyId)
+                .orElseThrow(() -> new com.chronovault.exception.ResourceNotFoundException("保留策略不存在: " + policyId));
+        return getSnapshotsToDelete(policy).stream()
+                .map(Snapshot::getId)
+                .toList();
+    }
+
+    private List<Snapshot> getSnapshotsToDelete(SnapshotRetentionPolicy policy) {
         Long serverId = policy.getServer().getId();
         List<Snapshot> allSnapshots = snapshotRepository.findByServerIdOrderByCreatedAtDesc(serverId);
-        if (allSnapshots.isEmpty()) return 0;
+        if (allSnapshots.isEmpty()) return List.of();
 
         List<Snapshot> toDelete = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
@@ -71,7 +84,6 @@ public class SnapshotRetentionService {
             int needFromEligible = Math.max(0, totalKeep - protectedCount);
 
             if (eligibleSnapshots.size() > needFromEligible) {
-                // eligibleSnapshots 按时间降序排列，后面的要删
                 toDelete.addAll(eligibleSnapshots.subList(needFromEligible, eligibleSnapshots.size()));
             }
         }
@@ -89,12 +101,16 @@ public class SnapshotRetentionService {
             }
         }
 
+        return toDelete;
+    }
+
+    private int applyRetentionPolicy(SnapshotRetentionPolicy policy) {
+        List<Snapshot> toDelete = getSnapshotsToDelete(policy);
         if (!toDelete.isEmpty()) {
             log.info("Retention policy '{}': deleting {} snapshots for server {}",
-                    policy.getName(), toDelete.size(), serverId);
+                    policy.getName(), toDelete.size(), policy.getServer().getId());
             snapshotRepository.deleteAll(toDelete);
         }
-
         return toDelete.size();
     }
 

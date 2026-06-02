@@ -118,6 +118,68 @@
             <p class="text-on-surface-variant text-sm">仅恢复特定的文件系统、数据库表或微服务镜像。保留当前环境的非冲突数据。</p>
           </div>
         </div>
+
+        <!-- Selective Restore File Selection (shown when partial mode is selected) -->
+        <div v-if="recoveryMode === 'partial'" class="glass-panel rounded-2xl overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50">
+            <h3 class="text-[24px] font-semibold flex items-center">
+              <span class="material-symbols-outlined mr-2">folder_open</span>
+              选择恢复文件
+            </h3>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-secondary/10 text-secondary font-bold">
+              {{ selectedRestorePaths.length }} 项已选
+            </span>
+          </div>
+          <div class="p-6 space-y-4">
+            <p class="text-[12px] text-on-surface-variant">选择需要恢复的文件或目录，未选择的文件将保持当前状态不变。</p>
+
+            <!-- Preset paths -->
+            <div class="space-y-2">
+              <label class="text-[12px] font-bold text-on-surface-variant">快速选择</label>
+              <div class="flex flex-wrap gap-2">
+                <button v-for="preset in restorePresetPaths" :key="preset.value" @click="toggleRestorePath(preset.value)"
+                  class="px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all"
+                  :class="selectedRestorePaths.includes(preset.value)
+                    ? 'bg-primary/10 border-primary text-primary'
+                    : 'bg-white/50 border-outline-variant/30 text-on-surface-variant hover:border-primary/30'">
+                  {{ preset.label }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Custom path input -->
+            <div class="space-y-2">
+              <label class="text-[12px] font-bold text-on-surface-variant">自定义路径</label>
+              <div class="flex gap-2">
+                <input v-model="customRestorePath" @keydown.enter.prevent="addCustomRestorePath"
+                  class="flex-1 px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                  placeholder="/etc/nginx/nginx.conf" />
+                <button @click="addCustomRestorePath"
+                  class="px-3 py-2 bg-surface-container-high border border-outline-variant/30 rounded-lg text-[11px] font-bold text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+                  添加
+                </button>
+              </div>
+            </div>
+
+            <!-- Selected paths chips -->
+            <div v-if="selectedRestorePaths.length > 0" class="flex flex-wrap gap-1.5">
+              <span v-for="(p, i) in selectedRestorePaths" :key="i"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                {{ p }}
+                <button @click="selectedRestorePaths.splice(i, 1)" class="hover:text-error transition-colors">&times;</button>
+              </span>
+            </div>
+
+            <!-- Target path -->
+            <div class="space-y-2">
+              <label class="text-[12px] font-bold text-on-surface-variant">恢复目标路径（可选）</label>
+              <input v-model="restoreTargetPath"
+                class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                placeholder="/var/chronovault/restore/1/" />
+              <p class="text-[11px] text-outline">留空将使用默认路径 /var/chronovault/restore/{snapshotId}/</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Right Column: AI Advisor & Risk Assessment -->
@@ -192,6 +254,115 @@
       </div>
     </div>
 
+    <!-- Disaster Recovery Plans -->
+    <section class="space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-[24px] font-semibold flex items-center gap-2">
+            <span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">emergency</span>
+            灾难恢复计划
+          </h3>
+          <p class="text-[14px] text-on-surface-variant">管理和执行灾难恢复预案</p>
+        </div>
+        <button @click="showDrForm = !showDrForm"
+          class="px-4 py-2 bg-primary text-white rounded-lg text-[12px] font-bold hover:bg-primary-container transition-all flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[16px]">{{ showDrForm ? 'close' : 'add' }}</span>
+          {{ showDrForm ? '取消' : '新建计划' }}
+        </button>
+      </div>
+
+      <!-- DR Form -->
+      <div v-if="showDrForm" class="glass-panel p-6 rounded-2xl space-y-4">
+        <h4 class="text-[18px] font-bold">{{ editingDr ? '编辑恢复计划' : '新建恢复计划' }}</h4>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1.5">
+            <label class="text-[12px] font-bold text-on-surface-variant">计划名称</label>
+            <input v-model="drForm.name" class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="例如 生产环境主站恢复" />
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-[12px] font-bold text-on-surface-variant">状态</label>
+            <select v-model="drForm.status" class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none appearance-none">
+              <option value="DRAFT">草稿</option>
+              <option value="ACTIVE">启用</option>
+              <option value="ARCHIVED">归档</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1.5">
+            <label class="text-[12px] font-bold text-on-surface-variant">RTO 目标（分钟）</label>
+            <input v-model.number="drForm.estimatedRto" type="number" class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="30" />
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-[12px] font-bold text-on-surface-variant">RPO 目标（分钟）</label>
+            <input v-model.number="drForm.estimatedRpo" type="number" class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="15" />
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-[12px] font-bold text-on-surface-variant">描述</label>
+          <textarea v-model="drForm.description" rows="2" class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[14px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="恢复计划描述"></textarea>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-[12px] font-bold text-on-surface-variant">恢复步骤（JSON 格式）</label>
+          <textarea v-model="drForm.steps" rows="4" class="w-full px-3 py-2 bg-white/50 border border-outline-variant rounded-lg text-[13px] font-[Geist] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+            placeholder='[{"type":"RESTORE","description":"恢复数据库快照"},{"type":"START_SERVICES","description":"启动 Docker 服务"},{"type":"VERIFY_HEALTH","description":"健康检查"}]'></textarea>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button @click="showDrForm = false; editingDr = null" class="px-4 py-2 text-[12px] font-bold text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors">取消</button>
+          <button @click="saveDrPlan" :disabled="!drForm.name"
+            class="px-6 py-2 text-[12px] font-bold text-white bg-primary hover:bg-primary-container rounded-lg transition-all disabled:opacity-50">
+            {{ editingDr ? '更新' : '创建' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- DR Plans List -->
+      <div v-if="drPlans.length === 0" class="glass-panel p-12 rounded-2xl text-center">
+        <span class="material-symbols-outlined text-outline text-[48px] mb-3 block">emergency</span>
+        <p class="text-[16px] text-on-surface-variant mb-4">暂无灾难恢复计划</p>
+        <button @click="showDrForm = true" class="px-6 py-2.5 rounded-lg bg-primary text-white text-[13px] font-bold hover:opacity-90 transition-all">
+          创建第一个恢复计划
+        </button>
+      </div>
+
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-for="plan in drPlans" :key="plan.id"
+          class="glass-panel p-5 rounded-2xl border-l-4 transition-all hover:shadow-lg"
+          :class="plan.status === 'ACTIVE' ? 'border-l-green-500' : plan.status === 'DRAFT' ? 'border-l-outline' : 'border-l-outline-variant'">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <h4 class="text-[18px] font-bold">{{ plan.name }}</h4>
+              <p class="text-[12px] text-on-surface-variant mt-0.5">{{ plan.description || '无描述' }}</p>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+              :class="plan.status === 'ACTIVE' ? 'bg-green-500/10 text-green-600' : plan.status === 'DRAFT' ? 'bg-outline/10 text-outline' : 'bg-outline-variant/10 text-outline-variant'">
+              {{ plan.status === 'ACTIVE' ? '启用' : plan.status === 'DRAFT' ? '草稿' : '归档' }}
+            </span>
+          </div>
+          <div class="flex gap-4 text-[12px] text-outline mb-4">
+            <span v-if="plan.estimatedRto">RTO: {{ plan.estimatedRto }}分钟</span>
+            <span v-if="plan.estimatedRpo">RPO: {{ plan.estimatedRpo }}分钟</span>
+            <span v-if="plan.lastExecutedAt">上次执行: {{ new Date(plan.lastExecutedAt).toLocaleDateString('zh-CN') }}</span>
+          </div>
+          <div class="flex gap-2">
+            <button @click="executeDrPlan(plan.id)"
+              class="px-3 py-1.5 bg-error text-white rounded-lg text-[11px] font-bold hover:bg-error/90 transition-all flex items-center gap-1">
+              <span class="material-symbols-outlined text-[14px]">play_arrow</span>
+              执行
+            </button>
+            <button @click="editDrPlan(plan)"
+              class="px-3 py-1.5 bg-surface-container-high text-on-surface rounded-lg text-[11px] font-bold hover:bg-surface-container-highest transition-all">
+              编辑
+            </button>
+            <button @click="deleteDrPlan(plan.id)"
+              class="px-3 py-1.5 bg-surface-container-high text-error rounded-lg text-[11px] font-bold hover:bg-error/10 transition-all">
+              删除
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Server Migration Toolbar -->
     <section class="glass-panel p-6 rounded-2xl border-dashed border-2 border-outline-variant/50">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -226,7 +397,9 @@ import { useModalStore } from '@/stores/modal'
 import { recoveryApi } from '@/api/recovery'
 import { snapshotsApi } from '@/api/snapshots'
 import { serversApi } from '@/api/servers'
+import { drApi } from '@/api/disasterRecovery'
 import ConfirmModal from '@/components/modals/ConfirmModal.vue'
+import type { DisasterRecoveryPlan } from '@/types'
 
 const toast = useToastStore()
 const modal = useModalStore()
@@ -247,6 +420,93 @@ const servers = ref<Server[]>([])
 const targetServerId = ref(0)
 const simulating = ref(false)
 const executing = ref(false)
+
+// DR Plan state
+const drPlans = ref<DisasterRecoveryPlan[]>([])
+const showDrForm = ref(false)
+const editingDr = ref<DisasterRecoveryPlan | null>(null)
+const drForm = ref({ name: '', description: '', steps: '', estimatedRto: 30, estimatedRpo: 15, status: 'DRAFT' as DisasterRecoveryPlan['status'] })
+
+async function loadDrPlans() {
+  try {
+    const res = await drApi.getAll()
+    drPlans.value = res || []
+  } catch (e) {
+    console.error('Failed to load DR plans', e)
+  }
+}
+
+async function saveDrPlan() {
+  try {
+    if (editingDr.value) {
+      await drApi.update(editingDr.value.id, drForm.value)
+      toast.success('恢复计划已更新')
+    } else {
+      await drApi.create(drForm.value)
+      toast.success('恢复计划已创建')
+    }
+    editingDr.value = null
+    showDrForm.value = false
+    drForm.value = { name: '', description: '', steps: '', estimatedRto: 30, estimatedRpo: 15, status: 'DRAFT' }
+    await loadDrPlans()
+  } catch (e: any) {
+    toast.error(e?.message || '保存失败')
+  }
+}
+
+function editDrPlan(plan: DisasterRecoveryPlan) {
+  editingDr.value = plan
+  drForm.value = { name: plan.name, description: plan.description || '', steps: plan.steps || '', estimatedRto: plan.estimatedRto || 30, estimatedRpo: plan.estimatedRpo || 15, status: plan.status }
+  showDrForm.value = true
+}
+
+async function executeDrPlan(id: number) {
+  try {
+    await drApi.execute(id)
+    toast.success('恢复计划已执行')
+    await loadDrPlans()
+  } catch (e: any) {
+    toast.error(e?.message || '执行失败')
+  }
+}
+
+async function deleteDrPlan(id: number) {
+  try {
+    await drApi.delete(id)
+    drPlans.value = drPlans.value.filter(p => p.id !== id)
+    toast.success('恢复计划已删除')
+  } catch (e: any) {
+    toast.error(e?.message || '删除失败')
+  }
+}
+
+// Selective restore state
+const selectedRestorePaths = ref<string[]>([])
+const customRestorePath = ref('')
+const restoreTargetPath = ref('')
+
+const restorePresetPaths = [
+  { label: '/etc/nginx', value: '/etc/nginx' },
+  { label: '/etc/ssh', value: '/etc/ssh' },
+  { label: '/var/www', value: '/var/www' },
+  { label: '/home', value: '/home' },
+  { label: '/opt', value: '/opt' },
+  { label: '/etc/crontab', value: '/etc/crontab' },
+]
+
+function toggleRestorePath(val: string) {
+  const idx = selectedRestorePaths.value.indexOf(val)
+  if (idx >= 0) selectedRestorePaths.value.splice(idx, 1)
+  else selectedRestorePaths.value.push(val)
+}
+
+function addCustomRestorePath() {
+  const v = customRestorePath.value.trim()
+  if (v && !selectedRestorePaths.value.includes(v)) {
+    selectedRestorePaths.value.push(v)
+    customRestorePath.value = ''
+  }
+}
 
 function openDeployConfirm() {
   modal.open({
@@ -289,6 +549,39 @@ async function executeRecovery() {
     toast.error('请先选择一个快照')
     return
   }
+
+  // Selective restore: when partial mode and files are selected
+  if (recoveryMode.value === 'partial' && selectedRestorePaths.value.length > 0) {
+    modal.open({
+      component: ConfirmModal,
+      title: '确认选择性恢复',
+      props: {
+        message: `即将从快照 "${selectedSnapshot.value.name || '选定快照'}" 中恢复 ${selectedRestorePaths.value.length} 个文件/目录。此操作将覆盖目标路径中的对应文件。是否继续？`,
+        confirmText: '执行恢复',
+        confirmClass: 'bg-error hover:bg-error/90',
+        successMessage: '文件恢复任务已提交',
+        onConfirm: async () => {
+          executing.value = true
+          try {
+            if (!selectedSnapshot.value) return
+            const result = await snapshotsApi.restoreFiles(selectedSnapshot.value.id, {
+              paths: selectedRestorePaths.value,
+              targetPath: restoreTargetPath.value || undefined,
+            })
+            toast.success(result || '文件恢复完成')
+          } catch (e: any) {
+            const msg = e?.message || '文件恢复失败'
+            toast.error(msg)
+          } finally {
+            executing.value = false
+          }
+        },
+      },
+    })
+    return
+  }
+
+  // Full restore or partial without files selected
   modal.open({
     component: ConfirmModal,
     title: '确认执行恢复',
@@ -334,5 +627,6 @@ onMounted(async () => {
   } catch (e) {
     console.error('Failed to load recovery data', e)
   }
+  loadDrPlans()
 })
 </script>

@@ -49,6 +49,17 @@ public class Server {
     @Column(name = "agent_id", length = 100)
     private String agentId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id")
+    private ServerGroup group;
+
+    @Column(name = "auto_snapshot_enabled")
+    @Builder.Default
+    private boolean autoSnapshotEnabled = false;
+
+    @Column(name = "last_auto_snapshot_at")
+    private LocalDateTime lastAutoSnapshotAt;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
