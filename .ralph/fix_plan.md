@@ -208,13 +208,13 @@
 
 ## Phase 5: Agent Improvements
 
-- [ ] Agent — Health check: /health endpoint with restic version, disk space, last scan time
-- [ ] Agent — Config validation: fail fast on startup with clear error messages
-- [ ] Agent — Graceful shutdown: SIGTERM handling, finish in-progress tasks
-- [ ] Agent — Error handling: improve messages for disk full, permission denied, network timeout
+- [x] Agent — Health check: /health endpoint with restic version, disk space, OS/arch, uptime
+- [x] Agent — Config validation: fail fast on startup with clear error messages
+- [x] Agent — Graceful shutdown: SIGTERM handling, finish in-progress tasks with 30s timeout
+- [x] Agent — Error handling: improve messages for disk full, permission denied, network timeout
 - [ ] Agent — Unit tests: add tests for scanner/docker.go, scanner/webserver.go, scanner/system.go
 - [ ] Agent — TLS support: verify end-to-end with backend
-- [ ] Agent — Retry logic: exponential backoff in transport/client.go
+- [x] Agent — Retry logic: exponential backoff in transport/client.go
 
 ## Phase 6: WebSocket & Real-time
 

@@ -189,8 +189,9 @@ func (c *Client) Backup(repoURL, password string, paths, excludes []string, pare
 
 	// Exit code 0 = success, 3 = partial success (some files unreadable)
 	if exitCode != 0 && exitCode != 3 {
-		return nil, fmt.Errorf("restic backup failed (exit=%d): stdout=[%s] stderr=[%s]",
-			exitCode, truncate(stdout.String(), 1000), truncate(stderr.String(), 1000))
+		errOutput := stdout.String() + stderr.String()
+		classified := classifyError(errOutput, exitCode)
+		return nil, fmt.Errorf("%s (exit=%d): %s", classified, exitCode, truncate(errOutput, 500))
 	}
 
 	if exitCode == 3 {
@@ -280,6 +281,43 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// classifyError analyzes command output and returns a user-friendly error message.
+func classifyError(output string, exitCode int) string {
+	lower := strings.ToLower(output)
+
+	if strings.Contains(lower, "no space left on device") || strings.Contains(lower, "disk full") {
+		return "磁盘空间不足，请清理磁盘空间后重试"
+	}
+	if strings.Contains(lower, "permission denied") || strings.Contains(lower, "access denied") {
+		return "权限不足，请检查文件/目录权限或使用 sudo 运行"
+	}
+	if strings.Contains(lower, "connection refused") || strings.Contains(lower, "dial tcp") {
+		return "无法连接到存储服务，请检查网络连接和存储端点配置"
+	}
+	if strings.Contains(lower, "timeout") || strings.Contains(lower, "deadline exceeded") {
+		return "连接超时，请检查网络状况或增加超时时间"
+	}
+	if strings.Contains(lower, "authentication failed") || strings.Contains(lower, "access denied") {
+		return "存储认证失败，请检查 API 密钥和凭证"
+	}
+	if strings.Contains(lower, "repository does not exist") {
+		return "备份仓库不存在，请先初始化仓库"
+	}
+	if strings.Contains(lower, "wrong password") || strings.Contains(lower, "decryption") {
+		return "备份密码错误，请检查 restic-password 配置"
+	}
+	if exitCode == 1 {
+		return fmt.Sprintf("备份命令执行失败 (exit=%d)，请查看日志获取详细信息", exitCode)
+	}
+	if exitCode == 10 {
+		return "仓库锁冲突，可能有其他备份进程正在运行，请稍后重试"
+	}
+	if exitCode == 12 {
+		return "部分文件读取失败（权限不足或文件已被删除）"
+	}
+	return fmt.Sprintf("备份操作失败 (exit=%d)，请检查服务器日志获取详细信息", exitCode)
 }
 
 // BuildRepoUrl constructs a restic repo URL from storage type and endpoint.

@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -13,6 +15,13 @@ import (
 	"github.com/chronovault/agent/scanner"
 	"github.com/chronovault/agent/server"
 	"github.com/chronovault/agent/transport"
+)
+
+var (
+	cfg          *config.Config
+	taskWg       sync.WaitGroup
+	shutdownCtx  context.Context
+	shutdownFunc context.CancelFunc
 )
 
 var cfg *config.Config
@@ -28,6 +37,14 @@ func init() {
 
 func Run() {
 	log.Println("Starting ChronoVault Agent...")
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("Configuration error: %v\nPlease check your config file at /etc/chronovault/agent.yml", err)
+	}
+
+	// Initialize shutdown context
+	shutdownCtx, shutdownFunc = context.WithCancel(context.Background())
 
 	client := transport.NewClient(cfg.ServerURL, cfg.APIKey, cfg.AgentID)
 
@@ -68,7 +85,24 @@ func Run() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigCh
-	log.Printf("Received signal %v, shutting down...", sig)
+	log.Printf("Received signal %v, shutting down gracefully...", sig)
+
+	// Cancel context to stop new tasks
+	shutdownFunc()
+
+	// Wait for in-progress tasks with timeout
+	done := make(chan struct{})
+	go func() {
+		taskWg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Println("All in-progress tasks completed. Agent stopped.")
+	case <-time.After(30 * time.Second):
+		log.Println("Shutdown timeout reached. Forcing exit with tasks still running.")
+	}
 }
 
 func Register(args []string) {
@@ -146,14 +180,31 @@ func taskPollingLoop(client *transport.Client) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		tasks, err := client.GetPendingTasks()
-		if err != nil {
-			continue
-		}
-		for _, task := range tasks {
-			log.Printf("Executing task %d: %s", task.ID, task.Type)
-			go executeTask(client, task)
+	for {
+		select {
+		case <-shutdownCtx.Done():
+			log.Println("Task polling stopped (shutdown)")
+			return
+		case <-ticker.C:
+			tasks, err := client.GetPendingTasks()
+			if err != nil {
+				continue
+			}
+			for _, task := range tasks {
+				// Check shutdown before starting new tasks
+				select {
+				case <-shutdownCtx.Done():
+					log.Println("Skipping new tasks during shutdown")
+					return
+				default:
+				}
+				log.Printf("Executing task %d: %s", task.ID, task.Type)
+				taskWg.Add(1)
+				go func(t transport.TaskInfo) {
+					defer taskWg.Done()
+					executeTask(client, t)
+				}(task)
+			}
 		}
 	}
 }

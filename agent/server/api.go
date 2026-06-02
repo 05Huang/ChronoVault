@@ -5,12 +5,18 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os/exec"
+	"runtime"
+	"strings"
+	"time"
 
 	"github.com/chronovault/agent/config"
 	"github.com/chronovault/agent/restic"
 	"github.com/chronovault/agent/scanner"
 	"github.com/chronovault/agent/transport"
 )
+
+var startTime = time.Now()
 
 type APIServer struct {
 	cfg    *config.Config
@@ -63,10 +69,41 @@ func (s *APIServer) authMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *APIServer) handleHealth(w http.ResponseWriter, r *http.Request) {
+	// Get restic version
+	resticVersion := "unknown"
+	if out, err := exec.Command("restic", "version").Output(); err == nil {
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		if len(lines) > 0 {
+			resticVersion = lines[0]
+		}
+	}
+
+	// Get disk space
+	diskSpace := map[string]interface{}{}
+	if out, err := exec.Command("df", "-h", "/").Output(); err == nil {
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		if len(lines) > 1 {
+			parts := strings.Fields(lines[1])
+			if len(parts) >= 4 {
+				diskSpace = map[string]interface{}{
+					"total": parts[1],
+					"used":  parts[2],
+					"avail": parts[3],
+				}
+			}
+		}
+	}
+
 	writeJSON(w, map[string]interface{}{
-		"status":    "healthy",
-		"agentId":   s.cfg.AgentID,
-		"serverId":  s.cfg.ServerID,
+		"status":       "healthy",
+		"agentId":      s.cfg.AgentID,
+		"serverId":     s.cfg.ServerID,
+		"version":      "0.1.0",
+		"resticVersion": resticVersion,
+		"diskSpace":    diskSpace,
+		"os":           runtime.GOOS,
+		"arch":         runtime.GOARCH,
+		"uptime":       time.Since(startTime).String(),
 	})
 }
 
