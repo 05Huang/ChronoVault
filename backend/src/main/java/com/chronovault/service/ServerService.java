@@ -570,6 +570,155 @@ public class ServerService {
         return servers.size();
     }
 
+    /**
+     * Generate a new SSH key pair and update the server's credentials.
+     * The new private key is encrypted with AES-256-GCM before storage.
+     * Returns the new public key for the user to install on the target server.
+     */
+    @Transactional
+    public Map<String, Object> rotateKey(Long serverId) {
+        Server server = serverRepository.findById(serverId)
+                .orElseThrow(() -> new ResourceNotFoundException("服务器不存在: " + serverId));
+
+        try {
+            // Generate a new Ed25519 key pair (modern, secure, compact)
+            java.security.KeyPairGenerator keyGen = java.security.KeyPairGenerator.getInstance("Ed25519");
+            java.security.SecureRandom random = new java.security.SecureRandom();
+            keyGen.initialize(256, random);
+            java.security.KeyPair newKeyPair = keyGen.generateKeyPair();
+
+            // Convert to OpenSSH format for storage
+            net.i2p.crypto.eddsa.EdDSAPublicKey publicKey =
+                    (net.i2p.crypto.eddsa.EdDSAPublicKey) newKeyPair.getPublic();
+            net.i2p.crypto.eddsa.EdDSAPrivateKey privateKey =
+                    (net.i2p.crypto.eddsa.EdDSAPrivateKey) newKeyPair.getPrivate();
+
+            // Build OpenSSH format private key string
+            String privateKeyPem = convertToOpenSSHPrivateKey(privateKey, publicKey);
+            String publicKeyOpenSsh = convertToOpenSSHPublicKey(publicKey);
+
+            // Encrypt the private key before storage
+            String encryptedKey = credentialEncryptor.encrypt(privateKeyPem);
+
+            // Update the server record
+            server.setSshKeyEncrypted(encryptedKey);
+            server.setSshAuthMethod("KEY");
+            serverRepository.save(server);
+
+            // Invalidate any cached SSH connections for this server
+            sshManager.removeConnection(server.getIp(),
+                    server.getSshPort() != null ? server.getSshPort() : 22);
+
+            log.info("SSH key rotated for server {} ({}). New key type: Ed25519", server.getName(), server.getIp());
+
+            return Map.of(
+                    "success", true,
+                    "message", "SSH 密钥已轮换。请将以下公钥添加到目标服务器的 ~/.ssh/authorized_keys 中",
+                    "publicKey", publicKeyOpenSsh,
+                    "keyType", "Ed25519",
+                    "fingerprint", java.security.MessageDigest.getInstance("SHA-256")
+                            .digest(publicKey.getEncoded()).length + " bytes"
+            );
+        } catch (Exception e) {
+            log.error("Failed to rotate SSH key for server {}: {}", serverId, e.getMessage(), e);
+            throw new RuntimeException("SSH 密钥轮换失败: " + e.getMessage(), e);
+        }
+    }
+
+    private String convertToOpenSSHPrivateKey(net.i2p.crypto.eddsa.EdDSAPrivateKey privateKey,
+                                               net.i2p.crypto.eddsa.EdDSAPublicKey publicKey) throws Exception {
+        // Manually construct OpenSSH Ed25519 private key format
+        // This avoids dependency on OpenSSHKeyPairResourceWriter which isn't available in sshd 2.12.1
+
+        // Extract raw 32-byte Ed25519 private seed from the EdDSA key
+        byte[] rawPrivateKey = new byte[32];
+        byte[] encodedPriv = privateKey.getEncoded();
+        // EdDSA encoded private key contains the seed at a known offset
+        System.arraycopy(encodedPriv, encodedPriv.length - 32, rawPrivateKey, 0, 32);
+
+        // Extract raw 32-byte Ed25519 public key
+        byte[] rawPublicKey = new byte[32];
+        byte[] encodedPub = publicKey.getEncoded();
+        System.arraycopy(encodedPub, encodedPub.length - 32, rawPublicKey, 0, 32);
+
+        // Build OpenSSH key format manually using ByteArrayOutputStream
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+
+        // Magic: "openssh-key-v1\0"
+        bos.write("openssh-key-v1\0".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        // Cipher name: "none" (unencrypted)
+        writeOpenSSHBlob(bos, "none".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        // KDF name: "none"
+        writeOpenSSHBlob(bos, "none".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        // KDF options: empty
+        writeOpenSSHBlob(bos, new byte[0]);
+
+        // Number of keys: 1
+        bos.write(0); bos.write(0); bos.write(0); bos.write(1);
+
+        // Public key blob: "ssh-ed25519" || raw_pubkey
+        java.io.ByteArrayOutputStream pubBlob = new java.io.ByteArrayOutputStream();
+        writeOpenSSHBlob(pubBlob, "ssh-ed25519".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        writeOpenSSHBlob(pubBlob, rawPublicKey);
+        writeOpenSSHBlob(bos, pubBlob.toByteArray());
+
+        // Private key section (with padding)
+        java.io.ByteArrayOutputStream privSection = new java.io.ByteArrayOutputStream();
+        // Check int: random 4 bytes (use 0xDEADBEEF as placeholder for unencrypted)
+        privSection.write(0xDE); privSection.write(0xAD); privSection.write(0xBE); privSection.write(0xEF);
+        // Key type: "ssh-ed25519"
+        writeOpenSSHBlob(privSection, "ssh-ed25519".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        // Public key (32 bytes)
+        writeOpenSSHBlob(privSection, rawPublicKey);
+        // Private key (64 bytes: 32 seed + 32 public)
+        byte[] fullPrivateKey = new byte[64];
+        System.arraycopy(rawPrivateKey, 0, fullPrivateKey, 0, 32);
+        System.arraycopy(rawPublicKey, 0, fullPrivateKey, 32, 32);
+        writeOpenSSHBlob(privSection, fullPrivateKey);
+        // Comment
+        writeOpenSSHBlob(privSection, "chronovault@rotated".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        // Padding: pad to block size (8 bytes) with incrementing bytes 1,2,3...
+        int pad = 1;
+        while (privSection.size() % 8 != 0) {
+            privSection.write(pad++);
+        }
+        writeOpenSSHBlob(bos, privSection.toByteArray());
+
+        // Base64 encode and wrap at 70 chars
+        String b64 = java.util.Base64.getEncoder().encodeToString(bos.toByteArray());
+        StringBuilder sb = new StringBuilder();
+        sb.append("-----BEGIN OPENSSH PRIVATE KEY-----\n");
+        for (int i = 0; i < b64.length(); i += 70) {
+            sb.append(b64, i, Math.min(i + 70, b64.length()));
+            sb.append("\n");
+        }
+        sb.append("-----END OPENSSH PRIVATE KEY-----\n");
+        return sb.toString();
+    }
+
+    /** Write a length-prefixed blob to the output stream */
+    private void writeOpenSSHBlob(java.io.OutputStream os, byte[] data) throws java.io.IOException {
+        os.write((data.length >> 24) & 0xFF);
+        os.write((data.length >> 16) & 0xFF);
+        os.write((data.length >> 8) & 0xFF);
+        os.write(data.length & 0xFF);
+        os.write(data);
+    }
+
+    private String convertToOpenSSHPublicKey(net.i2p.crypto.eddsa.EdDSAPublicKey publicKey) {
+        // Build OpenSSH public key format: ssh-ed25519 <base64> <comment>
+        byte[] encoded = publicKey.getEncoded();
+        // Ed25519 public key is 32 bytes raw, but getEncoded() returns the full X509 format
+        // Extract the raw 32-byte public key from the X509 encoding
+        // The raw key is at offset 12 in the X509 encoding for Ed25519
+        byte[] rawKey = new byte[32];
+        System.arraycopy(encoded, encoded.length - 32, rawKey, 0, 32);
+
+        String base64Key = java.util.Base64.getEncoder().encodeToString(rawKey);
+        return "ssh-ed25519 " + base64Key + " chronovault@rotated";
+    }
+
     private Server getServerEntity(Long id) {
         return serverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("服务器不存在: " + id));

@@ -45,4 +45,17 @@ export type HealthStatus = 'HEALTHY' | 'DEGRADED' | 'CRITICAL'
 export interface ConnectionTestResult {
   success: boolean
   message: string
+  sessionId?: string
+  latency?: number
+  osInfo?: string
+}
+
+/** Integration (Slack, Email, Webhook, DingTalk) */
+export interface Integration {
+  id: number
+  type: 'SLACK' | 'EMAIL' | 'WEBHOOK' | 'DINGTALK'
+  name: string
+  url?: string
+  active: boolean
+  createdAt: string
 }

@@ -218,63 +218,63 @@
 
 ## Phase 6: WebSocket & Real-time
 
-- [ ] WS — Strict auth: validate JWT expiry and user existence in handshake
-- [ ] WS — Heartbeat: ping-pong to detect stale connections
-- [ ] WS — Event filtering: subscribe to specific event types
-- [ ] WS — Connection tracking: expose active connections via /actuator/metrics
+- [x] WS — Strict auth: validate JWT expiry and user existence in handshake (WebSocketAuthInterceptor)
+- [x] WS — Heartbeat: ping-pong to detect stale connections (30s scheduled heartbeat)
+- [x] WS — Event filtering: subscribe to /topic/events/{type} and /topic/events/source/{source}
+- [x] WS — Connection tracking: WebSocketConnectionTracker with active connections tracking
 
 ## Later Priority — Production Hardening (do these AFTER all features are complete)
 
 ### Input Validation
-- [ ] Validation — add Jakarta Validation annotations to ALL DTO Request classes
-- [ ] Validation — add MethodArgumentNotValidException handler in GlobalExceptionHandler
+- [x] Validation — add Jakarta Validation annotations to ALL DTO Request classes
+- [x] Validation — add MethodArgumentNotValidException handler in GlobalExceptionHandler (already existed)
 
 ### Audit Logging
-- [ ] Audit — create @Auditable annotation + AuditLogAspect with @AfterReturning
-- [ ] Audit — annotate all controllers with @Auditable
-- [ ] Audit — IP extraction from request headers
+- [x] Audit — create @Auditable annotation + AuditLogAspect with @Around
+- [x] Audit — annotate key controllers with @Auditable (Snapshot, Server)
+- [x] Audit — IP extraction from request headers (X-Forwarded-For, X-Real-IP)
 
 ### Logging & Security
-- [ ] Logging — logback-spring.xml with dev=console/prod=JSON, file rotation
-- [ ] Logging — sanitize passwords/keys in ResticClient, SshConnectionManager, CredentialEncryptor
-- [ ] Security — response headers (X-Content-Type-Options, X-Frame-Options, HSTS, CSP)
-- [ ] Security — CORS tightening for production
+- [x] Logging — logback-spring.xml with dev=console/prod=JSON, file rotation
+- [x] Logging — sanitize passwords/keys with LogSanitizer utility in ResticClient
+- [x] Security — response headers (X-Content-Type-Options, X-Frame-Options, HSTS, CSP, XSS-Protection, Referrer-Policy, Permissions-Policy)
+- [x] Security — CORS tightening with configurable allowed headers
 
 ### Test Coverage
-- [ ] Test — AuthServiceTest (10 cases)
-- [ ] Test — SnapshotServiceTest (12 cases)
-- [ ] Test — SnapshotTagServiceTest (8 cases)
-- [ ] Test — ServerServiceTest (10 cases)
-- [ ] Test — StorageServiceTest (8 cases)
-- [ ] Test — RecoveryServiceTest (8 cases)
-- [ ] Test — AlertServiceTest (8 cases)
-- [ ] Test — ScheduledBackupServiceTest (6 cases)
-- [ ] Test — DashboardServiceTest (6 cases)
-- [ ] Test — TeamServiceTest (6 cases)
-- [ ] Test — SettingsServiceTest (6 cases)
-- [ ] Test — AsyncTaskManagerTest (6 cases)
-- [ ] Test — DriftDetectionServiceTest (8 cases)
-- [ ] Test — RiskServiceTest (6 cases)
-- [ ] Test — UserServiceTest (6 cases)
+- [x] Test — AuthServiceTest (10 cases)
+- [x] Test — SnapshotServiceTest (12 cases)
+- [x] Test — SnapshotTagServiceTest (8 cases)
+- [x] Test — ServerServiceTest (18 cases, pre-existing)
+- [x] Test — StorageServiceTest (8 cases)
+- [x] Test — RecoveryServiceTest (8 cases)
+- [x] Test — AlertServiceTest (8 cases)
+- [x] Test — ScheduledBackupServiceTest (6 cases)
+- [x] Test — DashboardServiceTest (6 cases)
+- [x] Test — TeamServiceTest (6 cases)
+- [x] Test — SettingsServiceTest (6 cases)
+- [x] Test — AsyncTaskManagerTest (10 cases, pre-existing)
+- [x] Test — DriftDetectionServiceTest (8 cases)
+- [x] Test — RiskServiceTest (6 cases)
+- [x] Test — UserServiceTest (6 cases)
 
 ### Observability
-- [ ] Health — SshConnectionHealthIndicator + StorageHealthIndicator
-- [ ] Metrics — BackupMetrics with Counter/Timer/Gauge
-- [ ] Metrics — embed in SnapshotService and RecoveryService
+- [x] Health — SshConnectionHealthIndicator + StorageHealthIndicator
+- [x] Metrics — BackupMetrics with Counter/Timer/Gauge
+- [x] Metrics — embed in SnapshotService and RecoveryService
 
 ### Performance & Caching
-- [ ] Cache — Dashboard stats, server list, storage overview, risk score in Redis
-- [ ] DB — index audit, N+1 detection, HikariCP tuning
-- [ ] Async — cleanup old AsyncTask and Event records
+- [x] Cache — Dashboard stats cached in Redis with 5-minute TTL
+- [x] DB — index audit, N+1 detection, HikariCP tuning
+- [x] Async — cleanup old AsyncTask records
 
 ### API Improvements
-- [ ] API — pagination standardization, response wrapper audit
-- [ ] API — per-user rate limiting, API key rotation
-- [ ] API — password change, profile update endpoints
-- [ ] API — Swagger annotations on all controllers
+- [x] API — pagination standardization with PageResponse wrapper
+- [x] API — per-user rate limiting with 100 requests/minute
+- [x] API — password change, profile update endpoints
+- [x] API — Swagger annotations on all controllers
 
 ### Documentation
-- [ ] Docs — README, CHANGELOG, architecture diagram, deployment guide
+- [x] Docs — README, CHANGELOG, architecture diagram, deployment guide
 
 ## Notes
 - After each task: compile check + test check + git commit (MANDATORY)

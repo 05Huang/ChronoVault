@@ -30,8 +30,12 @@ public class DashboardService {
     private final ContainerRepository containerRepository;
     private final RiskRepository riskRepository;
     private final EventRepository eventRepository;
+    private final com.chronovault.cache.CacheService cacheService;
 
     public DashboardStatsDTO getStats() {
+        // Check cache first
+        DashboardStatsDTO cached = cacheService.get("dashboard:stats", DashboardStatsDTO.class);
+        if (cached != null) return cached;
         long totalServers = serverRepository.count();
         long activeServers = serverRepository.countByStatus(Server.ServerStatus.RUNNING);
         long totalContainers = containerRepository.count();
@@ -47,7 +51,7 @@ public class DashboardService {
             uptimePercent = Math.round((double) activeServers / totalServers * 1000.0) / 10.0;
         }
 
-        return new DashboardStatsDTO(
+        DashboardStatsDTO stats = new DashboardStatsDTO(
                 (int) totalServers,
                 (int) activeServers,
                 (int) totalContainers,
@@ -60,6 +64,9 @@ public class DashboardService {
                 (int) teamMembers,
                 uptimePercent
         );
+
+        cacheService.put("dashboard:stats", stats, java.time.Duration.ofMinutes(5));
+        return stats;
     }
 
     public List<AnomalyDTO> getAnomalies() {

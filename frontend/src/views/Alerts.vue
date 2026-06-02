@@ -384,9 +384,9 @@ onMounted(async () => {
     alertStats.value = statsRes || {}
     alerts.value = alertsRes || []
     const intData = integrationsRes || []
-    integrations.value = intData.map((i: Record<string, any>) => {
+    integrations.value = intData.map((i: Record<string, any>): IntegrationDisplay => {
       const iconCfg = integrationIcons[i.type] || integrationIcons.WEBHOOK
-      return { ...i, ...iconCfg, active: i.active !== false }
+      return { name: i.name || i.type, ...i, ...iconCfg, active: i.active !== false }
     })
     // Populate initial events from alerts data
     const alertsData = alertsRes || []

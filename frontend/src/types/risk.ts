@@ -1,12 +1,3 @@
-export interface RiskScore {
-  overallScore: number
-  level: string
-  summary?: string
-  criticalCount?: number
-  warningCount?: number
-  anomalyCount?: number
-}
-
 export interface RiskTrendPoint {
   date: string
   stability: number

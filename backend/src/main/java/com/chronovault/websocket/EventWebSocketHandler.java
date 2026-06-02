@@ -32,7 +32,18 @@ public class EventWebSocketHandler {
             payload.put("taskId", event.getTask().getId());
         }
         payload.put("createdAt", event.getCreatedAt().toString());
+
+        // Broadcast to general topic
         messagingTemplate.convertAndSend("/topic/events", payload);
+
+        // Broadcast to event-type-specific topic for filtering
+        String eventType = event.getLevel().name().toLowerCase();
+        messagingTemplate.convertAndSend("/topic/events/" + eventType, payload);
+
+        // Broadcast to source-specific topic if available
+        if (event.getSource() != null && !event.getSource().isBlank()) {
+            messagingTemplate.convertAndSend("/topic/events/source/" + event.getSource(), payload);
+        }
     }
 
     public void sendToTopic(String destination, Object payload) {

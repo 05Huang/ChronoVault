@@ -24,6 +24,7 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
 
     private final JwtTokenProvider tokenProvider;
     private final UserDetailsServiceImpl userDetailsService;
+    private final WebSocketConnectionTracker connectionTracker;
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
@@ -42,6 +43,10 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
             SecurityContextHolder.getContext().setAuthentication(authentication);
             attributes.put("user", userDetails);
             attributes.put("email", email);
+            String sessionId = request.getURI().getQuery();
+            if (sessionId != null) {
+                connectionTracker.trackConnection(sessionId, email);
+            }
             log.debug("WebSocket handshake authenticated for {}", email);
             return true;
         } catch (Exception e) {

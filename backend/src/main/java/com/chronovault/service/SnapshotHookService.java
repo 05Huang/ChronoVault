@@ -68,7 +68,7 @@ public class SnapshotHookService {
      */
     public void executeHooks(SshConnection conn, Long serverId, SnapshotHook.HookType hookType) {
         List<SnapshotHook> hooks = hookRepository.findByServerIdAndHookTypeAndEnabledOrderByOrderIndexAsc(
-                serverId, hookType);
+                serverId, hookType, true);
 
         for (SnapshotHook hook : hooks) {
             log.info("Executing hook '{}' (type={}) on server {}", hook.getName(), hookType, serverId);

@@ -3,6 +3,7 @@ package com.chronovault.controller;
 import com.chronovault.dto.recovery.*;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.RecoveryService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/recovery")
 @RequiredArgsConstructor
+@Tag(name = "Recovery", description = "恢复管理 — 模拟、执行、迁移")
 public class RecoveryController {
 
     private final RecoveryService recoveryService;

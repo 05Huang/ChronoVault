@@ -23,6 +23,20 @@ spring:
         jdbc:
           lob:
             non_contextual_creation: true
+        generate_statistics: false
+        order_inserts: true
+        order_updates: true
+        batch_size: 25
+
+  datasource:
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-timeout: 30000
+      leak-detection-threshold: 60000
+      pool-name: ChronoVaultHikariPool
 
   flyway:
     enabled: true

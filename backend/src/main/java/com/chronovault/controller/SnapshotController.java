@@ -1,5 +1,8 @@
 package com.chronovault.controller;
 
+import com.chronovault.audit.Auditable;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.chronovault.dto.snapshot.BisectMarkRequest;
 import com.chronovault.dto.snapshot.BisectSessionDTO;
 import com.chronovault.dto.snapshot.BisectStartRequest;
@@ -35,6 +38,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/snapshots")
 @RequiredArgsConstructor
+@Tag(name = "Snapshots", description = "快照管理 — 创建、回滚、恢复、差异对比、二分查找")
 public class SnapshotController {
 
     private final SnapshotService snapshotService;
@@ -65,6 +69,7 @@ public class SnapshotController {
         return ResponseEntity.ok(ApiResponse.success(snapshotService.getSnapshot(id)));
     }
 
+    @Auditable(action = "创建快照", changeType = "SNAPSHOT_CREATED")
     @PostMapping
     public ResponseEntity<ApiResponse<SnapshotDTO>> createSnapshot(Authentication auth, @Valid @RequestBody CreateSnapshotRequest request) {
         Long userId = userService.getByEmail(auth.getName()).getId();
@@ -83,6 +88,7 @@ public class SnapshotController {
         return ResponseEntity.ok(ApiResponse.success(snapshotService.compareSnapshots(from, to)));
     }
 
+    @Auditable(action = "回滚快照", changeType = "SNAPSHOT_RESTORED")
     @PostMapping("/{id}/rollback")
     public ResponseEntity<ApiResponse<Void>> rollback(Authentication auth, @PathVariable Long id) {
         Long userId = userService.getByEmail(auth.getName()).getId();
@@ -90,6 +96,7 @@ public class SnapshotController {
         return ResponseEntity.ok(ApiResponse.successMsg("回滚成功"));
     }
 
+    @Auditable(action = "撤销快照", changeType = "SNAPSHOT_REVERTED")
     @PostMapping("/{id}/revert")
     public ResponseEntity<ApiResponse<String>> revert(Authentication auth, @PathVariable Long id) {
         Long userId = userService.getByEmail(auth.getName()).getId();
@@ -163,6 +170,7 @@ public class SnapshotController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
+    @Auditable(action = "删除快照", changeType = "SNAPSHOT_DELETED")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteSnapshot(@PathVariable Long id) {
         snapshotService.deleteSnapshot(id);

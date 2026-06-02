@@ -1,193 +1,236 @@
 # ChronoVault
 
-> 服务器的"时间机器" — 智能备份恢复平台
+**Git for Server State** — The world's first tool that manages server state like git manages code.
 
-[![CI](https://github.com/chronovault/chronovault/actions/workflows/ci.yml/badge.svg)](https://github.com/chronovault/chronovault/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Java](https://img.shields.io/badge/Java-17-ED8B00.svg)](https://openjdk.org/projects/jdk/17/)
-[![Go](https://img.shields.io/badge/Go-1.22-00ADD8.svg)](https://go.dev/)
-[![Vue](https://img.shields.io/badge/Vue-3-4FC08D.svg)](https://vuejs.org/)
+## Overview
 
-ChronoVault 是一个企业级服务器备份与恢复平台，提供快照管理、时间旅行回滚、AI 驱动的风险分析和存储健康监控。
+ChronoVault is a server backup and recovery platform that provides Git-like operations for server state management. It enables administrators to:
 
-## 特性
+- **Snapshot** server state with full/incremental backups
+- **Branch** server environments (production, staging, development)
+- **Diff** changes between snapshots
+- **Revert** specific snapshot changes
+- **Bisect** to find which snapshot introduced a problem
+- **Clone** servers with full state replication
 
-- **快照管理** — 通过 Restic 创建加密增量备份，支持多存储后端（本地/S3/OSS/WebDAV）
-- **时间旅行** — 一键回滚到任意历史快照，自动处理网络路由与持久化卷映射
-- **AI 洞察** — 基于 MiMo 模型的智能分析，提供风险评分、异常检测和优化建议
-- **存储健康** — 实时监控存储容量、延迟和吞吐量，预测增长趋势
-- **告警中心** — 多渠道通知（Slack/DingTalk/Webhook/Email），AI 根因分析
-- **跨服务器迁移** — 将快照作为镜像部署到新计算节点
-- **定时备份** — Cron 表达式驱动的自动备份调度
-- **团队协作** — 基于角色的访问控制（OWNER/ADMIN/MEMBER/VIEWER）
-
-## 架构
+## Architecture
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   Frontend   │────▶│   Backend    │────▶│   Agent     │
-│  Vue 3 + TS  │     │ Spring Boot  │     │  Go CLI     │
-│  Vite 8      │     │ Java 17      │     │  Daemon     │
-└─────────────┘     └──────┬───────┘     └──────┬──────┘
-                           │                     │
-                    ┌──────┴───────┐              │
-                    │              │              │
-              ┌─────▼─────┐ ┌─────▼─────┐  ┌────▼────┐
-              │ PostgreSQL │ │   Redis   │  │  Restic │
-              │    15      │ │    7      │  │  CLI    │
-              └───────────┘ └───────────┘  └─────────┘
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Frontend  │────▶│   Backend   │────▶│   Agent     │
+│   (Vue 3)   │     │  (Spring    │     │   (Go)      │
+│             │     │    Boot)    │     │             │
+└─────────────┘     └─────────────┘     └─────────────┘
+       │                  │                    │
+       │                  ▼                    ▼
+       │            ┌───────────┐        ┌───────────┐
+       │            │ PostgreSQL │        │  Restic   │
+       │            │   Redis    │        │   CLI     │
+       │            └───────────┘        └───────────┘
+       │
+       ▼
+  ┌─────────┐
+  │  Vite   │
+  └─────────┘
 ```
 
-| 组件 | 技术栈 | 职责 |
-|------|--------|------|
-| **Backend** | Spring Boot 3.2.5 / Java 17 | REST API、SSH 连接池、快照引擎、AI 分析 |
-| **Frontend** | Vue 3.5 / TypeScript / Vite 8 / Tailwind CSS 4 | SPA 界面、WebSocket 实时更新 |
-| **Agent** | Go 1.22 | 目标服务器守护进程、Restic CLI 调用、环境扫描 |
+## Tech Stack
 
-## 快速开始
+| Component | Technology |
+|-----------|------------|
+| Frontend | Vue 3.5, TypeScript 6, Vite 8, Tailwind CSS 4, Pinia |
+| Backend | Java 17, Spring Boot 3.2.5, PostgreSQL 15, Redis 7 |
+| Agent | Go 1.22, Restic CLI |
+| Database Migrations | Flyway |
+| Backup Engine | Restic |
 
-### 前置要求
+## Quick Start
 
+### Prerequisites
 - Docker & Docker Compose
-- 或分别安装：Java 17、Node.js 20、Go 1.22、PostgreSQL 15、Redis 7
+- Java 17+
+- Node.js 18+
+- Go 1.22+ (for agent)
 
-### Docker Compose 一键启动
-
-```bash
-# 克隆项目
-git clone https://github.com/chronovault/chronovault.git
-cd chronovault
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env，设置 JWT_SECRET、CHRONOVAULT_MASTER_KEY、CHRONOVAULT_RESTIC_PASSWORD
-
-# 启动所有服务
-docker-compose up -d
-
-# 访问
-# 前端: http://localhost
-# 后端 API: http://localhost:8080
-# Swagger UI: http://localhost:8080/swagger-ui.html
-```
-
-### 本地开发
+### Development Setup
 
 ```bash
-# 启动基础设施
+# 1. Start infrastructure
 docker-compose up -d postgres redis
 
-# 后端
+# 2. Start backend
 cd backend
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
-# 前端
+# 3. Start frontend
 cd frontend
 npm install
-npm run dev    # http://localhost:5173
-
-# Agent（在目标服务器上）
-cd agent
-go build -o chronovault-agent .
-./chronovault-agent scan   # 扫描环境
-./chronovault-agent run    # 启动守护进程
+npm run dev
 ```
 
-### 默认账户
+### Default Credentials
+- Email: `admin@chronovault.com`
+- Password: `admin123`
 
-| 邮箱 | 密码 | 角色 |
-|------|------|------|
-| xuan@chronovault.io | password123 | OWNER |
-| liwei@chronovault.io | password123 | ADMIN |
-| zhangmin@chronovault.io | password123 | MEMBER |
+## Features
 
-> 生产环境请立即修改默认密码并设置 `.env` 中的密钥。
+### Core Features (Git for Server State)
+- **Snapshot (git commit)**: Create full/incremental backups with selective paths
+- **Rollback (git checkout)**: Restore server to any previous snapshot
+- **Revert (git revert)**: Undo specific snapshot changes
+- **Branch (git branch)**: Parallel state tracks per server
+- **Bisect (git bisect)**: Find which snapshot introduced a problem
+- **Clone (git clone)**: Replicate server configuration
+- **Cherry-pick (git cherry-pick)**: Apply specific changes to target server
+- **Stash (git stash)**: Quick temporary saves
+- **Blame (git blame)**: Who changed what and when
 
-## 环境变量
+### Infrastructure Features
+- **Drift Detection**: Monitor container, file, and port changes
+- **Auto-snapshot**: Automatic snapshots on drift detection
+- **Scheduled Backups**: Cron-based automated backups
+- **Webhooks**: Event-driven integrations (Slack, DingTalk, custom)
+- **Verification Jobs**: Periodic backup integrity checks
+- **Disaster Recovery**: Runbook-based recovery plans
 
-| 变量 | 必填 | 说明 | 生成方式 |
-|------|------|------|---------|
-| `JWT_SECRET` | 是 | JWT 签名密钥（≥32 字符） | `openssl rand -hex 32` |
-| `CHRONOVAULT_MASTER_KEY` | 是 | AES-256-GCM 凭据加密密钥 | `openssl rand -hex 32` |
-| `CHRONOVAULT_RESTIC_PASSWORD` | 是 | Restic 备份加密密码 | `openssl rand -hex 32` |
-| `POSTGRES_*` | 否 | 数据库连接（默认 localhost:5432） | — |
-| `REDIS_*` | 否 | Redis 连接（默认 localhost:6379） | — |
-| `MIMO_API_KEY` | 否 | MiMo AI API 密钥（空则禁用 AI） | — |
-| `CORS_ALLOWED_ORIGINS` | 生产 | 允许的前端来源 | — |
+### Operations Features
+- **Server Groups**: Organize servers by environment (prod/staging/dev)
+- **Multi-server Snapshots**: Batch snapshot across multiple servers
+- **Storage Replication**: Cross-target backup replication
+- **Pre/Post Hooks**: User-configurable automation hooks
+- **Container State Capture**: Docker container state in snapshots
 
-## API 文档
+## API Reference
 
-启动后端后访问 Swagger UI：
-
+### Snapshot APIs
 ```
-http://localhost:8080/swagger-ui.html
+POST   /api/snapshots              Create snapshot
+GET    /api/snapshots              List snapshots
+GET    /api/snapshots/{id}         Get snapshot details
+DELETE /api/snapshots/{id}         Delete snapshot
+POST   /api/snapshots/{id}/rollback   Rollback to snapshot
+POST   /api/snapshots/{id}/revert     Revert snapshot changes
+POST   /api/snapshots/{id}/verify     Verify snapshot integrity
+POST   /api/snapshots/{id}/cherry-pick  Apply changes to target
+POST   /api/snapshots/{id}/restore-files  Selective file restore
+GET    /api/snapshots/{id}/files       Browse snapshot files
+GET    /api/snapshots/{id}/diff        Get snapshot diff
+POST   /api/snapshots/bisect/start     Start bisect session
+GET    /api/snapshots/compare          Compare two snapshots
 ```
 
-主要 API 端点：
+### Server APIs
+```
+GET    /api/servers              List servers
+POST   /api/servers              Add server
+GET    /api/servers/{id}         Get server details
+PUT    /api/servers/{id}/auto-snapshot  Toggle auto-snapshot
+POST   /api/servers/clone        Clone server
+GET    /api/servers/{id}/drift   Run drift detection
+```
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/auth/login` | 用户登录 |
-| POST | `/api/auth/register` | 用户注册 |
-| GET | `/api/servers` | 获取服务器列表 |
-| POST | `/api/snapshots` | 创建快照 |
-| POST | `/api/snapshots/{id}/rollback` | 回滚到快照 |
-| GET | `/api/storage/overview` | 存储概览 |
-| GET | `/api/ai/insights` | AI 洞察 |
-| GET | `/api/alerts` | 告警列表 |
-| POST | `/api/scheduled-backups` | 创建定时备份 |
-| GET | `/api/risk/score` | 风险评分 |
+### Branch APIs
+```
+GET    /api/servers/{id}/branches      List branches
+POST   /api/servers/{id}/branches      Create branch
+DELETE /api/servers/{id}/branches/{id} Delete branch
+POST   /api/servers/{id}/branches/{id}/switch  Switch branch
+POST   /api/servers/{id}/branches/merge  Merge branches
+```
 
-## 项目结构
+### Stash APIs
+```
+POST   /api/servers/{id}/stash         Create stash
+GET    /api/servers/{id}/stash         List stashes
+POST   /api/servers/{id}/stash/pop     Pop latest stash
+DELETE /api/servers/{id}/stash/{id}    Discard stash
+```
+
+### Settings APIs
+```
+GET    /api/scheduled-backups          List scheduled backups
+POST   /api/scheduled-backups          Create scheduled backup
+GET    /api/retention-policies         List retention policies
+POST   /api/webhooks                   Manage webhooks
+GET    /api/verification-jobs          List verification jobs
+GET    /api/disaster-recovery          List DR plans
+```
+
+## Configuration
+
+### Environment Variables
+```bash
+# Backend
+CHRONOVAULT_DB_URL=jdbc:postgresql://localhost:5432/chronovault
+CHRONOVAULT_DB_USERNAME=postgres
+CHRONOVAULT_DB_PASSWORD=password
+CHRONOVAULT_REDIS_HOST=localhost
+CHRONOVAULT_REDIS_PORT=6379
+CHRONOVAULT_JWT_SECRET=your-secret-key-min-32-chars
+CHRONOVAULT_RESTIC_PASSWORD=your-restic-password
+
+# Frontend
+VITE_API_URL=http://localhost:8080
+```
+
+### Docker Compose
+```yaml
+services:
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: chronovault
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+```
+
+## Project Structure
 
 ```
 chronovault/
-├── backend/                # Spring Boot 后端
+├── backend/                 # Spring Boot REST API
 │   ├── src/main/java/com/chronovault/
-│   │   ├── controller/     # REST 控制器（17 个）
-│   │   ├── service/        # 业务服务（15 个）
-│   │   ├── entity/         # JPA 实体
-│   │   ├── repository/     # Spring Data 仓库
-│   │   ├── dto/            # 数据传输对象
-│   │   ├── ssh/            # SSH 连接管理（MINA SSHD）
-│   │   ├── snapshot/       # 快照引擎（Restic CLI）
-│   │   ├── storage/        # 多存储后端（S3/OSS/WebDAV/LOCAL）
-│   │   ├── ai/             # AI 分析（MiMo 模型）
-│   │   └── security/       # JWT + AES-256-GCM 加密
+│   │   ├── audit/           # Audit logging (AOP)
+│   │   ├── config/          # Security, CORS, WebSocket configs
+│   │   ├── controller/      # REST controllers
+│   │   ├── dto/             # Data Transfer Objects
+│   │   ├── entity/          # JPA entities
+│   │   ├── health/          # Health indicators
+│   │   ├── metrics/         # Micrometer metrics
+│   │   ├── repository/      # JPA repositories
+│   │   ├── service/         # Business logic
+│   │   ├── snapshot/        # ResticClient, SnapshotEngine
+│   │   ├── ssh/             # SSH connection management
+│   │   ├── storage/         # Storage providers
+│   │   ├── task/            # Async task management
+│   │   └── websocket/       # WebSocket handlers
 │   └── src/main/resources/
-│       └── db/migration/   # Flyway 迁移（V1-V22）
-├── frontend/               # Vue 3 前端
+│       ├── db/migration/    # Flyway migrations (V1-V36)
+│       └── logback-spring.xml
+├── frontend/                # Vue 3 SPA
 │   └── src/
-│       ├── api/            # Axios API 模块（14 个）
-│       ├── views/          # 页面视图（14 个）
-│       ├── components/     # 组件（含 11 个模态框）
-│       ├── stores/         # Pinia 状态管理
-│       ├── types/          # TypeScript 类型定义（13 个）
-│       └── composables/    # WebSocket 等组合函数
-├── agent/                  # Go Agent
-│   ├── cmd/                # CLI 命令
-│   ├── server/             # HTTP API 服务器
-│   ├── scanner/            # 环境扫描（Docker/DB/Web/System）
-│   ├── restic/             # Restic CLI 封装
-│   ├── transport/          # 与后端通信的 HTTP 客户端
-│   └── config/             # 配置管理
-├── docker-compose.yml      # Docker Compose 编排
-└── ROADMAP.md              # 成熟化路线图
+│       ├── api/             # API client modules
+│       ├── components/      # Vue components
+│       ├── stores/          # Pinia state stores
+│       ├── types/           # TypeScript interfaces
+│       └── views/           # Page views
+├── agent/                   # Go CLI daemon
+│   ├── cmd/                 # CLI commands
+│   ├── config/              # Configuration
+│   ├── restic/              # Restic CLI wrapper
+│   ├── scanner/             # Environment scanner
+│   ├── server/              # Local API server
+│   └── transport/           # HTTP client
+└── docker-compose.yml
 ```
 
-## 安全模型
+## License
 
-- **凭据加密** — SSH 密钥/密码使用 AES-256-GCM 加密存储
-- **JWT 认证** — 无状态令牌认证，支持角色授权
-- **SSH TOFU** — 默认信任首次连接，生产环境可配置 known_hosts
-- **终端安全** — 危险命令拦截（rm -rf /、mkfs 等）
-- **限流** — 认证端点 IP+路径 滑动窗口限流（30次/分钟）
-- **Agent 认证** — Bearer token 中间件保护 Agent API
-
-## 贡献
-
-请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发环境搭建、代码规范和 PR 流程。
-
-## 许可证
-
-本项目采用 [Apache License 2.0](LICENSE) 许可。
+MIT License

@@ -166,6 +166,28 @@ public class AsyncTaskManager {
         return taskRepository.findById(taskId).orElse(null);
     }
 
+    /**
+     * Clean up old completed/failed/cancelled tasks older than the specified days.
+     * @param daysOld Number of days to keep records for
+     * @return Number of records deleted
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int cleanupOldTasks(int daysOld) {
+        java.time.LocalDateTime cutoff = java.time.LocalDateTime.now().minusDays(daysOld);
+        java.util.List<AsyncTask> oldTasks = taskRepository.findAll().stream()
+                .filter(t -> t.getCreatedAt() != null && t.getCreatedAt().isBefore(cutoff))
+                .filter(t -> t.getStatus() == TaskStatus.COMPLETED
+                        || t.getStatus() == TaskStatus.FAILED
+                        || t.getStatus() == TaskStatus.CANCELLED)
+                .toList();
+
+        if (!oldTasks.isEmpty()) {
+            taskRepository.deleteAll(oldTasks);
+            log.info("Cleaned up {} old async tasks (older than {} days)", oldTasks.size(), daysOld);
+        }
+        return oldTasks.size();
+    }
+
     private void broadcastTaskEvent(AsyncTask task, String message) {
         Event event = Event.builder()
                 .level(task.getStatus() == TaskStatus.FAILED ? Event.EventLevel.ERR : Event.EventLevel.INFO)

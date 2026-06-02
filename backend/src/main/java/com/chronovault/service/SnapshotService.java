@@ -8,6 +8,7 @@ import com.chronovault.dto.snapshot.SnapshotFileEntry;
 import com.chronovault.dto.snapshot.SnapshotDTO;
 import com.chronovault.dto.snapshot.SnapshotDiffDTO;
 import com.chronovault.dto.snapshot.SnapshotTagDTO;
+import com.chronovault.entity.Alert;
 import com.chronovault.entity.AuditLog;
 import com.chronovault.entity.Server;
 import com.chronovault.entity.Snapshot;
@@ -15,12 +16,14 @@ import com.chronovault.entity.StorageTarget;
 import com.chronovault.entity.User;
 import com.chronovault.exception.BadRequestException;
 import com.chronovault.exception.ResourceNotFoundException;
+import com.chronovault.repository.AlertRepository;
 import com.chronovault.repository.ServerRepository;
 import com.chronovault.repository.SnapshotDiffRepository;
 import com.chronovault.repository.SnapshotRepository;
 import com.chronovault.repository.SnapshotTagRepository;
 import com.chronovault.repository.StorageTargetRepository;
 import com.chronovault.repository.UserRepository;
+import com.chronovault.diff.StateDiffEngine;
 import com.chronovault.snapshot.ResticClient;
 import com.chronovault.snapshot.SnapshotEngine;
 import com.chronovault.ssh.SshConnection;
@@ -38,6 +41,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -46,6 +51,7 @@ public class SnapshotService {
 
     private final SnapshotRepository snapshotRepository;
     private final SnapshotDiffRepository snapshotDiffRepository;
+    private final com.chronovault.metrics.BackupMetrics backupMetrics;
     private final SnapshotTagRepository tagRepository;
     private final ServerRepository serverRepository;
     private final StorageTargetRepository storageTargetRepository;
@@ -54,6 +60,9 @@ public class SnapshotService {
     private final SshConnectionManager sshManager;
     private final ResticClient resticClient;
     private final ChangeAttributionService attributionService;
+    private final StateDiffEngine stateDiffEngine;
+    private final AlertRepository alertRepository;
+    private final NotificationService notificationService;
 
     @Value("${chronovault.restic-password}")
     private String resticPassword;
@@ -99,7 +108,7 @@ public class SnapshotService {
                 .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + id));
         List<SnapshotTagDTO> tags = tagRepository.findBySnapshotIdOrderByCreatedAtDesc(id)
                 .stream().map(SnapshotTagDTO::from).toList();
-        return SnapshotDTO.from(snapshot, tags);
+        return SnapshotDTO.fromDetail(snapshot, tags);
     }
 
     @Transactional
@@ -142,6 +151,7 @@ public class SnapshotService {
                     request.note(), type, userId,
                     request.paths(), request.excludes());
             log.info("Snapshot created: id={}", snapshot.getId());
+            backupMetrics.recordSnapshot();
 
             // Record blame
             User user = userRepository.findById(userId).orElse(null);
@@ -267,6 +277,149 @@ public class SnapshotService {
             snapshotRepository.save(snapshot);
             throw new RuntimeException("回滚失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * Preview what a rollback would do without actually executing it.
+     * Returns information about the target snapshot, server, and affected files.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> rollbackPreview(Long snapshotId) {
+        Snapshot snapshot = snapshotRepository.findById(snapshotId)
+                .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
+
+        Map<String, Object> preview = new java.util.LinkedHashMap<>();
+        preview.put("snapshotId", snapshotId);
+        preview.put("snapshotTitle", snapshot.getTitle());
+        preview.put("serverName", snapshot.getServer() != null ? snapshot.getServer().getName() : "未知");
+        preview.put("serverIp", snapshot.getServer() != null ? snapshot.getServer().getIp() : "未知");
+        preview.put("hash", snapshot.getHash());
+        preview.put("sizeBytes", snapshot.getSizeBytes());
+        preview.put("createdAt", snapshot.getCreatedAt() != null ? snapshot.getCreatedAt().toString() : "未知");
+
+        // Check if backup data is available
+        boolean hasValidBackup = snapshot.getHash() != null && !snapshot.getHash().isBlank();
+        preview.put("hasValidBackup", hasValidBackup);
+
+        // Get the state.json summary if available
+        if (snapshot.getChangeSummaryJson() != null) {
+            preview.put("changeSummary", snapshot.getChangeSummaryJson());
+        }
+
+        // Find the server's storage target
+        List<StorageTarget> targets = storageTargetRepository.findAll();
+        preview.put("storageAvailable", !targets.isEmpty());
+        if (!targets.isEmpty()) {
+            preview.put("storageType", targets.get(0).getType().name());
+        }
+
+        // Estimate restore time (rough: 1GB per minute)
+        long sizeMB = (snapshot.getSizeBytes() != null ? snapshot.getSizeBytes() : 0) / (1024 * 1024);
+        preview.put("estimatedRestoreTimeSeconds", Math.max(30, sizeMB / 17)); // ~17MB/sec
+
+        return preview;
+    }
+
+    /**
+     * Selectively rollback specific items (config files or package versions).
+     * Items are a list of maps with "type" (config/package) and type-specific fields.
+     */
+    @Transactional
+    public String selectiveRollback(Long snapshotId, List<Map<String, String>> items, Long userId) {
+        Snapshot snapshot = snapshotRepository.findById(snapshotId)
+                .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
+
+        if (snapshot.getHash() == null || snapshot.getHash().isBlank()) {
+            throw new BadRequestException("快照没有有效的备份数据，无法执行选择性回滚");
+        }
+
+        if (items == null || items.isEmpty()) {
+            throw new BadRequestException("请选择要回滚的项目");
+        }
+
+        List<StorageTarget> targets = storageTargetRepository.findAll();
+        if (targets.isEmpty()) {
+            throw new BadRequestException("没有可用的存储目标");
+        }
+
+        try {
+            SshConnection conn = sshManager.getConnection(snapshot.getServer());
+            if (!resticClient.ensureResticInstalled(conn)) {
+                throw new BadRequestException("无法在目标服务器上安装 restic 备份工具");
+            }
+
+            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            int restoredCount = 0;
+            StringBuilder resultLog = new StringBuilder();
+
+            for (Map<String, String> item : items) {
+                String type = item.get("type");
+                if ("config".equals(type)) {
+                    // Restore a specific config file from the snapshot
+                    String path = item.get("path");
+                    if (path == null || path.isBlank()) continue;
+
+                    String content = resticClient.dumpFile(conn, repoUrl, resticPassword,
+                            snapshot.getHash(), path);
+                    if (content != null && !content.isBlank()) {
+                        // Write the file back to its original location
+                        String writeCmd = String.format("echo %s | sudo tee %s > /dev/null",
+                                shellEscapeForSsh(content), path);
+                        SshConnection.CommandResult writeResult = conn.executeCommand(writeCmd,
+                                java.time.Duration.ofSeconds(30));
+                        if (writeResult.isSuccess()) {
+                            restoredCount++;
+                            resultLog.append("✓ 已恢复配置: ").append(path).append("\n");
+                        } else {
+                            resultLog.append("✗ 恢复失败: ").append(path).append(" - ").append(writeResult.stderr()).append("\n");
+                        }
+                    }
+                } else if ("package".equals(type)) {
+                    // Rollback a package to a specific version
+                    String name = item.get("name");
+                    String targetVersion = item.get("target_version");
+                    if (name == null || name.isBlank()) continue;
+
+                    String installCmd;
+                    if (targetVersion != null && !targetVersion.isBlank()) {
+                        installCmd = String.format("sudo apt-get install -y %s=%s 2>/dev/null || sudo yum install -y %s-%s 2>/dev/null",
+                                name, targetVersion, name, targetVersion);
+                    } else {
+                        installCmd = String.format("sudo apt-get install -y --reinstall %s 2>/dev/null || sudo yum reinstall -y %s 2>/dev/null",
+                                name, name);
+                    }
+
+                    SshConnection.CommandResult installResult = conn.executeCommand(installCmd,
+                            java.time.Duration.ofMinutes(5));
+                    if (installResult.isSuccess()) {
+                        restoredCount++;
+                        resultLog.append("✓ 已回滚包: ").append(name)
+                                .append(targetVersion != null ? " → " + targetVersion : " (重装)").append("\n");
+                    } else {
+                        resultLog.append("✗ 回滚包失败: ").append(name).append(" - ").append(installResult.stderr()).append("\n");
+                    }
+                }
+            }
+
+            // Record the selective rollback
+            User user = userRepository.findById(userId).orElse(null);
+            attributionService.record(AuditLog.ChangeType.SNAPSHOT_RESTORED,
+                    "选择性回滚 " + restoredCount + " 个项目", user, snapshot.getServer(),
+                    snapshot, snapshot.getId(), resultLog.toString());
+
+            return "选择性回滚完成，成功恢复 " + restoredCount + "/" + items.size() + " 个项目\n" + resultLog;
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Selective rollback failed for snapshot {}: {}", snapshotId, e.getMessage(), e);
+            throw new RuntimeException("选择性回滚失败: " + e.getMessage(), e);
+        }
+    }
+
+    /** Escape content for safe use in SSH shell commands */
+    private String shellEscapeForSsh(String content) {
+        if (content == null) return "";
+        return "'" + content.replace("'", "'\\''").replace("\\", "\\\\") + "'";
     }
 
     @Transactional
@@ -753,5 +906,261 @@ public class SnapshotService {
         }
 
         return result;
+    }
+
+    // ===== State.json methods (P0-4) =====
+
+    /**
+     * Get paginated snapshots for timeline view with change summaries included.
+     * Unlike getSnapshotsPaged(), this includes changeSummaryJson for the timeline display.
+     */
+    @Transactional(readOnly = true)
+    public List<SnapshotDTO> getSnapshotsForTimeline(Long serverId, int page, int size) {
+        var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
+                Sort.by(Sort.Direction.DESC, "createdAt"));
+        return snapshotRepository.findByServerIdOrderByCreatedAtDesc(serverId).stream()
+                .skip((long) page * size)
+                .limit(size)
+                .map(s -> {
+                    List<SnapshotTagDTO> tags = tagRepository.findBySnapshotIdOrderByCreatedAtDesc(s.getId())
+                            .stream().map(SnapshotTagDTO::from).toList();
+                    // Include changeSummaryJson for timeline view
+                    return SnapshotDTO.fromDetail(s, tags);
+                })
+                .toList();
+    }
+
+    /**
+     * Get the state.json content for a snapshot.
+     * Returns the raw JSON string captured by the agent during snapshot creation.
+     */
+    @Transactional(readOnly = true)
+    public String getStateSnapshot(Long snapshotId) {
+        Snapshot snapshot = snapshotRepository.findById(snapshotId)
+                .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
+        return snapshot.getStateJson();
+    }
+
+    /**
+     * Get the pre-computed change summary for a snapshot (relative to the previous snapshot).
+     * This avoids real-time diff computation for the timeline view.
+     */
+    @Transactional(readOnly = true)
+    public String getChangeSummary(Long snapshotId) {
+        Snapshot snapshot = snapshotRepository.findById(snapshotId)
+                .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
+        return snapshot.getChangeSummaryJson();
+    }
+
+    /**
+     * Compute a full state diff between two snapshots using the StateDiffEngine.
+     * Returns the diff result as a JSON string.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> computeStateDiff(Long fromId, Long toId) {
+        Snapshot from = snapshotRepository.findById(fromId)
+                .orElseThrow(() -> new ResourceNotFoundException("源快照不存在: " + fromId));
+        Snapshot to = snapshotRepository.findById(toId)
+                .orElseThrow(() -> new ResourceNotFoundException("目标快照不存在: " + toId));
+
+        String stateA = from.getStateJson();
+        String stateB = to.getStateJson();
+
+        StateDiffEngine.StateDiffResult diffResult = stateDiffEngine.diff(stateA, stateB);
+        if (diffResult == null) {
+            diffResult = StateDiffEngine.StateDiffResult.empty();
+        }
+
+        // Convert to a Map for JSON serialization
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("snapshot_a", fromId);
+        result.put("snapshot_b", toId);
+
+        if (diffResult.summary() != null) {
+            Map<String, Object> summary = new java.util.LinkedHashMap<>();
+            summary.put("packages_added", diffResult.summary().packagesAdded);
+            summary.put("packages_removed", diffResult.summary().packagesRemoved);
+            summary.put("packages_upgraded", diffResult.summary().packagesUpgraded);
+            summary.put("services_changed", diffResult.summary().servicesChanged);
+            summary.put("ports_changed", diffResult.summary().portsChanged);
+            summary.put("docker_changed", diffResult.summary().dockerChanged);
+            summary.put("configs_changed", diffResult.summary().configsChanged);
+            summary.put("crontab_changed", diffResult.summary().crontabChanged);
+            result.put("summary", summary);
+        }
+
+        if (diffResult.packages() != null) {
+            Map<String, Object> packages = new java.util.LinkedHashMap<>();
+            packages.put("added", diffResult.packages().added);
+            packages.put("removed", diffResult.packages().removed);
+            packages.put("upgraded", diffResult.packages().upgraded);
+            result.put("packages", packages);
+        }
+
+        if (diffResult.services() != null) {
+            Map<String, Object> services = new java.util.LinkedHashMap<>();
+            services.put("added", diffResult.services().added);
+            services.put("removed", diffResult.services().removed);
+            services.put("changed", diffResult.services().changed);
+            result.put("services", services);
+        }
+
+        if (diffResult.ports() != null) {
+            Map<String, Object> ports = new java.util.LinkedHashMap<>();
+            ports.put("added", diffResult.ports().added);
+            ports.put("removed", diffResult.ports().removed);
+            result.put("ports", ports);
+        }
+
+        if (diffResult.docker() != null) {
+            Map<String, Object> docker = new java.util.LinkedHashMap<>();
+            docker.put("containers_added", diffResult.docker().containersAdded);
+            docker.put("containers_removed", diffResult.docker().containersRemoved);
+            docker.put("containers_changed", diffResult.docker().containersChanged);
+            result.put("docker", docker);
+        }
+
+        if (diffResult.configs() != null) {
+            Map<String, Object> configs = new java.util.LinkedHashMap<>();
+            configs.put("added", diffResult.configs().added);
+            configs.put("removed", diffResult.configs().removed);
+            configs.put("changed", diffResult.configs().changed);
+            result.put("configs", configs);
+        }
+
+        if (diffResult.crontab() != null) {
+            Map<String, Object> crontab = new java.util.LinkedHashMap<>();
+            crontab.put("added", diffResult.crontab().added);
+            crontab.put("removed", diffResult.crontab().removed);
+            result.put("crontab", crontab);
+        }
+
+        return result;
+    }
+
+    /**
+     * Compute and cache the change summary for a snapshot relative to its previous snapshot.
+     * Called after snapshot creation to pre-compute the summary for the timeline view.
+     */
+    @Transactional
+    public void computeAndCacheChangeSummary(Snapshot snapshot) {
+        if (snapshot.getStateJson() == null) return;
+
+        // Find the previous snapshot for this server
+        List<Snapshot> previousSnapshots = snapshotRepository
+                .findByServerIdAndCreatedAtBeforeOrderByCreatedAtAsc(
+                        snapshot.getServer().getId(), snapshot.getCreatedAt());
+
+        if (previousSnapshots.isEmpty()) return;
+
+        Snapshot previous = previousSnapshots.get(previousSnapshots.size() - 1);
+        if (previous.getStateJson() == null) return;
+
+        StateDiffEngine.StateDiffResult diffResult = stateDiffEngine.diff(
+                previous.getStateJson(), snapshot.getStateJson());
+
+        // Serialize the summary as JSON
+        try {
+            Map<String, Object> summary = new java.util.LinkedHashMap<>();
+            summary.put("packages_added", diffResult.summary().packagesAdded);
+            summary.put("packages_removed", diffResult.summary().packagesRemoved);
+            summary.put("packages_upgraded", diffResult.summary().packagesUpgraded);
+            summary.put("services_changed", diffResult.summary().servicesChanged);
+            summary.put("ports_changed", diffResult.summary().portsChanged);
+            summary.put("configs_changed", diffResult.summary().configsChanged);
+
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            snapshot.setChangeSummaryJson(mapper.writeValueAsString(summary));
+            snapshot.setPreviousSnapshot(previous);
+            snapshotRepository.save(snapshot);
+        } catch (Exception e) {
+            log.warn("Failed to cache change summary for snapshot {}: {}", snapshot.getId(), e.getMessage());
+        }
+    }
+
+    /**
+     * Detect high-risk changes between two snapshots and create alerts if found.
+     * Called after snapshot creation to auto-generate security alerts.
+     *
+     * High-risk changes:
+     * - New ports opened (especially 22/3306/5432/6379)
+     * - Service disabled (enabled → disabled)
+     * - /etc/hosts or /etc/sudoers changed
+     * - Docker image version downgrade
+     */
+    @Transactional
+    public void detectAndAlertHighRiskChanges(Snapshot previousSnapshot, Snapshot currentSnapshot) {
+        if (previousSnapshot.getStateJson() == null || currentSnapshot.getStateJson() == null) return;
+
+        try {
+            StateDiffEngine.StateDiffResult diff = stateDiffEngine.diff(
+                    previousSnapshot.getStateJson(), currentSnapshot.getStateJson());
+
+            List<String> riskReasons = new java.util.ArrayList<>();
+
+            // Check for new high-risk ports
+            if (diff.ports() != null) {
+                Set<Integer> highRiskPorts = Set.of(22, 23, 3306, 5432, 6379, 27017, 9200);
+                for (String portEntry : diff.ports().added) {
+                    // Parse "port/protocol" format
+                    String portStr = portEntry.split("/")[0];
+                    try {
+                        int port = Integer.parseInt(portStr);
+                        if (highRiskPorts.contains(port)) {
+                            riskReasons.add("新开放高风险端口: " + portEntry);
+                        }
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+
+            // Check for services that became disabled
+            if (diff.services() != null) {
+                for (StateDiffEngine.ServiceChange change : diff.services().changed) {
+                    if (change.fromEnabled && !change.toEnabled) {
+                        riskReasons.add("服务被禁用: " + change.name);
+                    }
+                }
+            }
+
+            // Check for critical config changes
+            if (diff.configs() != null) {
+                for (String changedPath : diff.configs().changed) {
+                    if (changedPath.contains("/etc/hosts") || changedPath.contains("/etc/sudoers")
+                            || changedPath.contains("/etc/passwd") || changedPath.contains("/etc/shadow")
+                            || changedPath.contains("/etc/ssh/sshd_config")) {
+                        riskReasons.add("关键配置文件变更: " + changedPath);
+                    }
+                }
+            }
+
+            // Create alert if high-risk changes detected
+            if (!riskReasons.isEmpty()) {
+                Alert alert = Alert.builder()
+                        .server(currentSnapshot.getServer())
+                        .severity(Alert.AlertSeverity.WARNING)
+                        .title("检测到 " + riskReasons.size() + " 项高风险变更")
+                        .description(String.join("\n", riskReasons))
+                        .source("snapshot-diff")
+                        .category("安全变更")
+                        .status(Alert.AlertStatus.OPEN)
+                        .build();
+                alertRepository.save(alert);
+                log.warn("Created high-risk alert for snapshot {}: {} reasons",
+                        currentSnapshot.getId(), riskReasons.size());
+
+                // Send notification to configured channels
+                try {
+                    User owner = currentSnapshot.getServer() != null ? currentSnapshot.getServer().getUser() : null;
+                    if (owner != null) {
+                        notificationService.sendAlertNotification(alert, owner.getId());
+                    }
+                } catch (Exception notifEx) {
+                    log.warn("Failed to send alert notification: {}", notifEx.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to detect high-risk changes for snapshot {}: {}",
+                    currentSnapshot.getId(), e.getMessage());
+        }
     }
 }

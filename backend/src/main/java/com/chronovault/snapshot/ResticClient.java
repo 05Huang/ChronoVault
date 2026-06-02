@@ -3,6 +3,7 @@ package com.chronovault.snapshot;
 import com.chronovault.entity.StorageTarget;
 import com.chronovault.ssh.SshConnection;
 import com.chronovault.ssh.SshConnectionManager;
+import com.chronovault.util.LogSanitizer;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -99,8 +100,9 @@ public class ResticClient {
 
     public boolean init(SshConnection conn, String repoUrl, String password) {
         String restic = getResticPath(conn);
-        SshConnection.CommandResult result = conn.executeCommand(
-                String.format("RESTIC_PASSWORD=%s %s init --repo %s 2>&1", shellEscape(password), restic, shellEscape(repoUrl)));
+        String cmd = String.format("RESTIC_PASSWORD=%s %s init --repo %s 2>&1", shellEscape(password), restic, shellEscape(repoUrl));
+        log.debug("Restic init command: {}", LogSanitizer.sanitize(cmd));
+        SshConnection.CommandResult result = conn.executeCommand(cmd);
         if (!result.isSuccess()) {
             log.warn("Restic init failed (exit={}): {}", result.exitCode(),
                     result.stdout() != null ? result.stdout().substring(0, Math.min(300, result.stdout().length())) : "");
@@ -127,7 +129,7 @@ public class ResticClient {
         cmd.append("--json 2>&1");
 
         String fullCmd = cmd.toString();
-        log.info("Restic backup command: {}", fullCmd);
+        log.info("Restic backup command: {}", LogSanitizer.sanitize(fullCmd));
         SshConnection.CommandResult result = conn.executeCommand(fullCmd, java.time.Duration.ofHours(2));
         log.info("Restic backup exitCode={}", result.exitCode());
 
@@ -192,7 +194,7 @@ public class ResticClient {
         String cmd = String.format("RESTIC_PASSWORD=%s %s dump %s %s --repo %s 2>&1",
                 shellEscape(password), restic, shellEscape(snapshotId),
                 shellEscape(filePath), shellEscape(repoUrl));
-        log.info("Restic dump command: {}", cmd);
+        log.info("Restic dump command: {}", LogSanitizer.sanitize(cmd));
         SshConnection.CommandResult result = conn.executeCommand(cmd, java.time.Duration.ofMinutes(5));
         return result.isSuccess() ? result.stdout() : "";
     }

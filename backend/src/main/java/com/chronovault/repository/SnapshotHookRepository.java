@@ -6,6 +6,6 @@ import java.util.List;
 
 public interface SnapshotHookRepository extends JpaRepository<SnapshotHook, Long> {
     List<SnapshotHook> findByServerIdAndHookTypeAndEnabledOrderByOrderIndexAsc(
-            Long serverId, SnapshotHook.HookType hookType);
+            Long serverId, SnapshotHook.HookType hookType, boolean enabled);
     List<SnapshotHook> findByServerIdOrderByOrderIndexAsc(Long serverId);
 }

@@ -63,4 +63,30 @@ public class AuthService {
                 .orElseThrow(() -> new BadRequestException("用户不存在"));
         return UserDTO.from(user);
     }
+
+    @Transactional
+    public void changePassword(String email, String oldPassword, String newPassword) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BadRequestException("用户不存在"));
+
+        if (!passwordEncoder.matches(oldPassword, user.getPasswordHash())) {
+            throw new BadRequestException("旧密码不正确");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public UserDTO updateProfile(String email, String name) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BadRequestException("用户不存在"));
+
+        if (name != null && !name.isBlank()) {
+            user.setName(name);
+            userRepository.save(user);
+        }
+
+        return UserDTO.from(user);
+    }
 }

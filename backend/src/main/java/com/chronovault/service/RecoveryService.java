@@ -32,6 +32,7 @@ public class RecoveryService {
     private final StorageTargetRepository storageTargetRepository;
     private final AsyncTaskManager taskManager;
     private final SshConnectionManager sshManager;
+    private final com.chronovault.metrics.BackupMetrics backupMetrics;
     private final ResticClient resticClient;
 
     @Value("${chronovault.restic-password}")
@@ -169,6 +170,8 @@ public class RecoveryService {
                     snapshot.getHash(), restorePath);
 
             if (!success) throw new RuntimeException("Restic 恢复失败");
+
+            backupMetrics.recordRestore();
 
             taskManager.updateProgress(taskId, 80, "重启服务...");
             conn.executeCommand("docker start $(docker ps -aq) 2>/dev/null || true");

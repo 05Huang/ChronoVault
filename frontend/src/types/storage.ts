@@ -1,4 +1,6 @@
 export interface StorageOverview {
+  id: number
+  name: string
   type: string
   usedBytes: number
   totalBytes: number

@@ -1,5 +1,5 @@
 import client from './client'
-import type { Snapshot, SnapshotDiff, CreateSnapshotRequest, SnapshotTag, CreateTagRequest, SelectiveRestoreRequest, BisectSession, BisectStartRequest, BisectMarkRequest, CherryPickRequest, SnapshotFileEntry, SnapshotVerifyResult, ContainerState, DiffSummary } from '@/types'
+import type { Snapshot, SnapshotDiff, CreateSnapshotRequest, SnapshotTag, CreateTagRequest, SelectiveRestoreRequest, BisectSession, BisectStartRequest, BisectMarkRequest, CherryPickRequest, SnapshotFileEntry, SnapshotVerifyResult, ContainerState, FileDiffSummary, StateDiffResult, BatchStatus, RollbackPreview } from '@/types'
 
 export const snapshotsApi = {
   getAll: (tagName?: string) => client.get<Snapshot[]>('/snapshots', { params: tagName ? { tagName } : {} }) as unknown as Promise<Snapshot[]>,
@@ -8,7 +8,7 @@ export const snapshotsApi = {
     client.post<Snapshot>('/snapshots', data) as unknown as Promise<Snapshot>,
   getDiff: (id: number) => client.get<SnapshotDiff[]>(`/snapshots/${id}/diff`) as unknown as Promise<SnapshotDiff[]>,
   compare: (fromId: number, toId: number) =>
-    client.get<DiffSummary>('/snapshots/compare', { params: { from: fromId, to: toId } }) as unknown as Promise<DiffSummary>,
+    client.get<FileDiffSummary>('/snapshots/compare', { params: { from: fromId, to: toId } }) as unknown as Promise<FileDiffSummary>,
   rollback: (id: number) => client.post(`/snapshots/${id}/rollback`) as unknown as Promise<void>,
   revert: (id: number) => client.post<string>(`/snapshots/${id}/revert`) as unknown as Promise<string>,
   restoreFiles: (id: number, data: SelectiveRestoreRequest) =>
@@ -52,5 +52,21 @@ export const snapshotsApi = {
   batch: (data: { serverIds: number[]; storageTargetId?: number; name?: string }) =>
     client.post<string>('/snapshots/batch', data) as unknown as Promise<string>,
   batchStatus: (batchId: string) =>
-    client.get<any>(`/snapshots/batch/${batchId}`) as unknown as Promise<any>,
+    client.get<BatchStatus>(`/snapshots/batch/${batchId}`) as unknown as Promise<BatchStatus>,
+
+  // ===== State.json endpoints (P0-4) =====
+  getState: (id: number) =>
+    client.get<string>(`/snapshots/${id}/state`) as unknown as Promise<string>,
+  getSummary: (id: number) =>
+    client.get<string>(`/snapshots/${id}/summary`) as unknown as Promise<string>,
+  getStateDiff: (fromId: number, toId: number) =>
+    client.get<StateDiffResult>('/snapshots/state-diff', { params: { from: fromId, to: toId } }) as unknown as Promise<StateDiffResult>,
+  getTimeline: (serverId: number, page = 0, size = 50) =>
+    client.get<Snapshot[]>(`/snapshots/timeline`, { params: { serverId, page, size } }) as unknown as Promise<Snapshot[]>,
+
+  // ===== Rollback endpoints (P1-3, P2-3) =====
+  rollbackPreview: (id: number) =>
+    client.get<RollbackPreview>(`/snapshots/${id}/rollback/preview`) as unknown as Promise<RollbackPreview>,
+  selectiveRollback: (id: number, items: { type: string; name?: string; path?: string; target_version?: string }[]) =>
+    client.post<string>(`/snapshots/${id}/rollback/selective`, { items }) as unknown as Promise<string>,
 }

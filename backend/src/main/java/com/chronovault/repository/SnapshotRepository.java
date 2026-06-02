@@ -9,6 +9,7 @@ import java.util.List;
 
 public interface SnapshotRepository extends JpaRepository<Snapshot, Long> {
     List<Snapshot> findByServerIdOrderByCreatedAtDesc(Long serverId);
+    List<Snapshot> findAllByOrderByCreatedAtDesc();
     long countByStatus(Snapshot.SnapshotStatus status);
 
     @Query("SELECT COUNT(s) FROM Snapshot s WHERE s.createdAt >= CURRENT_DATE")

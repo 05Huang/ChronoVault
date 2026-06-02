@@ -76,9 +76,6 @@ export interface ServerHealth {
   os: string
 }
 
-/** Topology edge: [source, target, label?] */
-export type TopologyEdge = [string, string, string?]
-
 export interface EnvironmentScanResult {
   success: boolean
   message?: string

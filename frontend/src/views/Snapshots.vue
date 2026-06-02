@@ -57,6 +57,151 @@
       </div>
     </div>
 
+    <!-- System State (state.json) -->
+    <div v-if="stateSnapshot" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
+      <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50 cursor-pointer"
+        @click="showState = !showState">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1; color: var(--color-primary);">database</span>
+          <div>
+            <h3 class="text-[20px] font-semibold">系统状态 (state.json)</h3>
+            <p class="text-[12px] text-on-surface-variant">
+              采集于 {{ stateSnapshot.collected_at ? new Date(stateSnapshot.collected_at).toLocaleString('zh-CN') : 'N/A' }}
+              — Agent {{ stateSnapshot.agent_version || '?' }}
+            </p>
+          </div>
+        </div>
+        <span class="material-symbols-outlined text-[20px] text-outline transition-transform" :class="showState ? 'rotate-180' : ''">expand_more</span>
+      </div>
+      <div v-show="showState" class="p-4 space-y-4">
+        <!-- OS Info -->
+        <div v-if="stateSnapshot.os" class="p-4 rounded-xl bg-surface-container/50 border border-outline-variant/20">
+          <h4 class="text-[14px] font-bold mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">computer</span>
+            操作系统
+          </h4>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-[12px]">
+            <div><span class="text-outline">名称:</span> {{ stateSnapshot.os.name }}</div>
+            <div><span class="text-outline">版本:</span> {{ stateSnapshot.os.version }}</div>
+            <div><span class="text-outline">内核:</span> {{ stateSnapshot.os.kernel }}</div>
+            <div><span class="text-outline">架构:</span> {{ stateSnapshot.os.arch }}</div>
+          </div>
+        </div>
+
+        <!-- Packages -->
+        <div v-if="stateSnapshot.packages && stateSnapshot.packages.length" class="p-4 rounded-xl bg-surface-container/50 border border-outline-variant/20">
+          <h4 class="text-[14px] font-bold mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">inventory_2</span>
+            已安装包 ({{ stateSnapshot.packages.length }})
+          </h4>
+          <div class="max-h-[200px] overflow-y-auto space-y-1">
+            <div v-for="pkg in stateSnapshot.packages.slice(0, 50)" :key="pkg.name"
+              class="flex items-center justify-between px-3 py-1.5 bg-surface/50 rounded text-[12px]">
+              <span class="font-mono">{{ pkg.name }}</span>
+              <span class="text-outline">{{ pkg.version }}</span>
+            </div>
+            <p v-if="stateSnapshot.packages.length > 50" class="text-[11px] text-outline text-center pt-2">
+              ... 还有 {{ stateSnapshot.packages.length - 50 }} 个包
+            </p>
+          </div>
+        </div>
+
+        <!-- Services -->
+        <div v-if="stateSnapshot.services && stateSnapshot.services.length" class="p-4 rounded-xl bg-surface-container/50 border border-outline-variant/20">
+          <h4 class="text-[14px] font-bold mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">settings</span>
+            服务状态 ({{ stateSnapshot.services.length }})
+          </h4>
+          <div class="max-h-[200px] overflow-y-auto space-y-1">
+            <div v-for="svc in stateSnapshot.services" :key="svc.name"
+              class="flex items-center justify-between px-3 py-1.5 bg-surface/50 rounded text-[12px]">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full" :class="svc.status === 'active' ? 'bg-green-500' : svc.status === 'failed' ? 'bg-red-500' : 'bg-gray-400'"></span>
+                <span class="font-mono">{{ svc.name }}</span>
+              </div>
+              <div class="flex items-center gap-3 text-outline">
+                <span>{{ svc.status }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded" :class="svc.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'">
+                  {{ svc.enabled ? 'enabled' : 'disabled' }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ports -->
+        <div v-if="stateSnapshot.ports && stateSnapshot.ports.length" class="p-4 rounded-xl bg-surface-container/50 border border-outline-variant/20">
+          <h4 class="text-[14px] font-bold mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">cable</span>
+            开放端口 ({{ stateSnapshot.ports.length }})
+          </h4>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <div v-for="(port, i) in stateSnapshot.ports" :key="i"
+              class="px-3 py-1.5 bg-surface/50 rounded text-[12px] flex items-center gap-2">
+              <span class="font-mono font-bold">{{ port.port }}</span>
+              <span class="text-outline text-[10px]">{{ port.protocol }}</span>
+              <span class="text-outline text-[10px] truncate">{{ port.process }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Docker -->
+        <div v-if="stateSnapshot.docker && stateSnapshot.docker.available" class="p-4 rounded-xl bg-surface-container/50 border border-outline-variant/20">
+          <h4 class="text-[14px] font-bold mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">deployed_code</span>
+            Docker 容器 ({{ stateSnapshot.docker.containers.length }})
+          </h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div v-for="c in stateSnapshot.docker.containers" :key="c.id"
+              class="px-3 py-2 bg-surface/50 rounded text-[12px]">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full" :class="c.status.includes('running') ? 'bg-green-500' : 'bg-gray-400'"></span>
+                <span class="font-bold">{{ c.name }}</span>
+              </div>
+              <p class="text-outline text-[10px] mt-0.5">{{ c.image }} — {{ c.status }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Configs -->
+        <div v-if="stateSnapshot.configs && stateSnapshot.configs.length" class="p-4 rounded-xl bg-surface-container/50 border border-outline-variant/20">
+          <h4 class="text-[14px] font-bold mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">description</span>
+            配置文件 ({{ stateSnapshot.configs.length }})
+          </h4>
+          <div class="max-h-[150px] overflow-y-auto space-y-1">
+            <div v-for="cfg in stateSnapshot.configs" :key="cfg.path"
+              class="flex items-center justify-between px-3 py-1.5 bg-surface/50 rounded text-[11px]">
+              <span class="font-mono truncate">{{ cfg.path }}</span>
+              <span class="text-outline text-[10px] shrink-0 ml-2">{{ cfg.sha256?.substring(0, 8) }}...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Crontab -->
+        <div v-if="stateSnapshot.crontab && stateSnapshot.crontab.length" class="p-4 rounded-xl bg-surface-container/50 border border-outline-variant/20">
+          <h4 class="text-[14px] font-bold mb-2 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">schedule</span>
+            定时任务 ({{ stateSnapshot.crontab.length }})
+          </h4>
+          <div class="space-y-1">
+            <div v-for="(entry, i) in stateSnapshot.crontab" :key="i"
+              class="px-3 py-1.5 bg-surface/50 rounded text-[12px] flex items-center gap-3">
+              <span class="text-outline text-[10px] shrink-0">{{ entry.user }}</span>
+              <span class="font-mono text-[11px]">{{ entry.schedule }}</span>
+              <span class="truncate text-on-surface-variant">{{ entry.command }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- State loading indicator -->
+    <div v-if="loadingState" class="glass-panel rounded-2xl border border-outline-variant/30 p-4 flex items-center gap-3">
+      <span class="material-symbols-outlined text-primary animate-spin">progress_activity</span>
+      <span class="text-[13px] text-on-surface-variant">加载系统状态数据...</span>
+    </div>
+
     <!-- Bisect Wizard (toggled) -->
     <div v-if="showBisect" class="glass-panel rounded-2xl overflow-hidden border border-outline-variant/30">
       <div class="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low/50">
@@ -562,7 +707,7 @@ import AddTagModal from '@/components/modals/AddTagModal.vue'
 const toast = useToastStore()
 const modal = useModalStore()
 
-import type { Snapshot, SnapshotDiff, BisectSession, CherryPickRequest, SnapshotFileEntry, SnapshotVerifyResult, ContainerState, DiffSummary } from '@/types'
+import type { Snapshot, SnapshotDiff, BisectSession, SnapshotFileEntry, SnapshotVerifyResult, ContainerState, FileDiffSummary, StateSnapshot } from '@/types'
 import { serversApi } from '@/api/servers'
 
 const snapshots = ref<Snapshot[]>([])
@@ -596,7 +741,7 @@ const showFilePreview = ref(false)
 // Comparison state
 const compareMode = ref(false)
 const compareId = ref(0)
-const compareResult = ref<DiffSummary | null>(null)
+const compareResult = ref<FileDiffSummary | null>(null)
 const comparing = ref(false)
 
 // Verify state
@@ -607,26 +752,62 @@ const verifyResult = ref<SnapshotVerifyResult | null>(null)
 const containerStates = ref<ContainerState[]>([])
 const showContainers = ref(false)
 
-function openRollbackConfirm() {
+// System state (state.json)
+const stateSnapshot = ref<StateSnapshot | null>(null)
+const showState = ref(false)
+const loadingState = ref(false)
+
+async function openRollbackConfirm() {
   if (!selectedSnapshot.value) {
     toast.error('请先选择一个快照')
     return
   }
-  modal.open({
-    component: ConfirmModal,
-    title: '确认回滚',
-    props: {
-      message: `即将回滚至 ${selectedSnapshot.value?.name || '选定快照'}。此操作将覆盖当前系统状态，期间 API 服务将短暂离线约 45-60 秒。是否继续？`,
-      confirmText: '执行回滚',
-      confirmClass: 'bg-error hover:bg-error/90',
-      successMessage: '回滚任务已提交，预计 60 秒完成',
-      onConfirm: async () => {
-        if (selectedSnapshot.value) {
-          await snapshotsApi.rollback(selectedSnapshot.value.id)
-        }
+
+  // Fetch rollback preview first
+  try {
+    const preview = await snapshotsApi.rollbackPreview(selectedSnapshot.value.id)
+    const previewInfo = [
+      `服务器: ${preview.serverName} (${preview.serverIp})`,
+      `目标快照: ${preview.snapshotTitle}`,
+      `备份大小: ${preview.sizeBytes ? (preview.sizeBytes / 1024 / 1024).toFixed(1) + ' MB' : '未知'}`,
+      `存储类型: ${preview.storageType || '未知'}`,
+      `预估恢复时间: ${preview.estimatedRestoreTimeSeconds} 秒`,
+      `备份数据: ${preview.hasValidBackup ? '✓ 有效' : '✗ 无效'}`,
+    ].join('\n')
+
+    modal.open({
+      component: ConfirmModal,
+      title: '确认回滚',
+      props: {
+        message: `即将回滚至 ${selectedSnapshot.value?.name || '选定快照'}。\n\n${previewInfo}\n\n此操作将覆盖当前系统状态，期间 API 服务将短暂离线。是否继续？`,
+        confirmText: '执行回滚',
+        confirmClass: 'bg-error hover:bg-error/90',
+        successMessage: '回滚任务已提交，预计 ' + preview.estimatedRestoreTimeSeconds + ' 秒完成',
+        onConfirm: async () => {
+          if (selectedSnapshot.value) {
+            await snapshotsApi.rollback(selectedSnapshot.value.id)
+          }
+        },
       },
-    },
-  })
+    })
+  } catch (e: any) {
+    // Fallback to simple dialog if preview fails
+    modal.open({
+      component: ConfirmModal,
+      title: '确认回滚',
+      props: {
+        message: `即将回滚至 ${selectedSnapshot.value?.name || '选定快照'}。此操作将覆盖当前系统状态，期间 API 服务将短暂离线约 45-60 秒。是否继续？`,
+        confirmText: '执行回滚',
+        confirmClass: 'bg-error hover:bg-error/90',
+        successMessage: '回滚任务已提交，预计 60 秒完成',
+        onConfirm: async () => {
+          if (selectedSnapshot.value) {
+            await snapshotsApi.rollback(selectedSnapshot.value.id)
+          }
+        },
+      },
+    })
+  }
 }
 
 function openRevertConfirm() {
@@ -916,6 +1097,26 @@ function selectSnapshot(snap: Snapshot) {
   selectedSnapshot.value = snap
   loadDiff(snap.id)
   loadContainers(snap.id)
+  loadStateSnapshot(snap.id)
+}
+
+async function loadStateSnapshot(snapshotId: number) {
+  loadingState.value = true
+  stateSnapshot.value = null
+  try {
+    const res = await snapshotsApi.getState(snapshotId)
+    if (res) {
+      // The API returns the state JSON as a string, parse it
+      const parsed = typeof res === 'string' ? JSON.parse(res) : res
+      stateSnapshot.value = parsed
+      showState.value = true
+    }
+  } catch (e) {
+    // State may not be available for this snapshot
+    stateSnapshot.value = null
+  } finally {
+    loadingState.value = false
+  }
 }
 
 async function loadContainers(snapshotId: number) {

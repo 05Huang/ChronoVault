@@ -725,7 +725,7 @@ async function scanDrift() {
 const topologyCanvas = ref<HTMLElement | null>(null)
 const topologyNodes = ref<Array<{ name: string; x: number; y: number; status: string; icon: string; networks: string; type: string; isServer?: boolean }>>([])
 const topologyEdges = ref<Array<{ x1: number; y1: number; x2: number; y2: number; label: string }>>([])
-const topologyRawEdges = ref<[string, string, string?][]>([])
+const topologyRawEdges = ref<{ source: string; target: string }[]>([])
 let dragNodeIndex = -1
 let dragOffsetX = 0
 let dragOffsetY = 0
@@ -991,10 +991,10 @@ function recalcTopologyEdges() {
 
   // Edges from raw topology data (container-to-container network connections)
   topologyRawEdges.value.forEach(edge => {
-    const a = nameToNode[edge[0]]
-    const b = nameToNode[edge[1]]
+    const a = nameToNode[edge.source]
+    const b = nameToNode[edge.target]
     if (a && b) {
-      edges.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, label: edge[2] || '' })
+      edges.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, label: '' })
     }
   })
 

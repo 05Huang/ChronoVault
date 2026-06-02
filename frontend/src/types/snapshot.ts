@@ -14,6 +14,9 @@ export interface Snapshot {
   serverId?: number
   storageTargetId?: number
   tags?: SnapshotTag[]
+  stateJson?: string | null
+  changeSummaryJson?: string | null
+  microserviceCount?: number | null
 }
 
 export interface CreateSnapshotRequest {
@@ -32,7 +35,8 @@ export interface SnapshotDiff {
   changeType?: 'added' | 'modified' | 'deleted'
 }
 
-export interface DiffSummary {
+/** File-level diff summary (from Restic snapshot comparison) */
+export interface FileDiffSummary {
   addedCount: number
   modifiedCount: number
   deletedCount: number
@@ -123,4 +127,35 @@ export interface ContainerState {
   ports: string
   volumes: string
   networks: string
+}
+
+export interface BatchServerResult {
+  serverId: number
+  serverName: string
+  snapshotId: number
+  status: string
+}
+
+export interface BatchStatus {
+  batchId: string
+  totalServers: number
+  name: string
+  createdAt: string
+  completedAt?: string
+  results: BatchServerResult[]
+}
+
+export interface RollbackPreview {
+  snapshotId: number
+  snapshotTitle: string
+  serverName: string
+  serverIp: string
+  hash: string
+  sizeBytes: number
+  createdAt: string
+  hasValidBackup: boolean
+  changeSummary?: string
+  storageAvailable: boolean
+  storageType?: string
+  estimatedRestoreTimeSeconds: number
 }

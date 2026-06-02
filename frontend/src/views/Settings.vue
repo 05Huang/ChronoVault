@@ -389,7 +389,7 @@ import { verificationApi } from '@/api/verification'
 import { scheduledBackupsApi } from '@/api/scheduledBackups'
 import GenerateKeyModal from '@/components/modals/GenerateKeyModal.vue'
 import ConfirmModal from '@/components/modals/ConfirmModal.vue'
-import type { AiConfig, WebhookEndpoint, WebhookDeliveryLog, VerificationJob, ScheduledBackup } from '@/types'
+import type { AiConfig, WebhookEndpoint, VerificationJob, ScheduledBackup } from '@/types'
 
 const modal = useModalStore()
 const toast = useToastStore()
@@ -530,7 +530,6 @@ const savingAi = ref(false)
 
 // Webhook state
 const webhooks = ref<WebhookEndpoint[]>([])
-const webhookLogs = ref<WebhookDeliveryLog[]>([])
 const showWebhookForm = ref(false)
 const editingWebhook = ref<WebhookEndpoint | null>(null)
 const webhookForm = ref({ url: '', secret: '', events: 'SNAPSHOT_CREATED,SNAPSHOT_DELETED,SNAPSHOT_RESTORED', enabled: true })
@@ -587,18 +586,8 @@ async function testWebhook(id: number) {
   }
 }
 
-async function loadWebhookLogs(id: number) {
-  try {
-    const res = await webhooksApi.getLogs(id)
-    webhookLogs.value = res || []
-  } catch (e) {
-    webhookLogs.value = []
-  }
-}
-
 // Verification job state
 const verificationJobs = ref<VerificationJob[]>([])
-const servers = ref<any[]>([])
 
 async function loadVerificationJobs() {
   try {

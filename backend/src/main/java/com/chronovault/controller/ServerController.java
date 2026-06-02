@@ -1,5 +1,7 @@
 package com.chronovault.controller;
 
+import com.chronovault.audit.Auditable;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.chronovault.ai.AiAnalysisService;
 import com.chronovault.dto.server.*;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
@@ -21,6 +23,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/servers")
 @RequiredArgsConstructor
+@Tag(name = "Servers", description = "服务器管理 — 添加、监控、克隆、漂移检测")
 public class ServerController {
 
     private final ServerService serverService;
@@ -41,6 +44,7 @@ public class ServerController {
         return ResponseEntity.ok(ApiResponse.success(serverService.getServer(id)));
     }
 
+    @Auditable(action = "添加服务器", changeType = "SERVER_ADDED")
     @PostMapping
     public ResponseEntity<ApiResponse<ServerDTO>> createServer(Authentication auth, @Valid @RequestBody CreateServerRequest request) {
         ServerDTO server = serverService.createServer(auth.getName(), request.name(), request.ip(), request.os());

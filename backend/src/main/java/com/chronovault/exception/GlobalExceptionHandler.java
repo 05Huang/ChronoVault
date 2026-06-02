@@ -3,6 +3,7 @@ package com.chronovault.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.util.List;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.validation.FieldError;
@@ -82,6 +83,22 @@ public class GlobalExceptionHandler {
 
         public static ApiResponse<Void> error(int code, String message) {
             return new ApiResponse<>(code, message, null, LocalDateTime.now());
+        }
+
+        public static <T> ApiResponse<PageResponse<T>> successPage(List<T> content, int page, int size, long total) {
+            return new ApiResponse<>(200, "success", new PageResponse<>(content, page, size, total), LocalDateTime.now());
+        }
+    }
+
+    public record PageResponse<T>(
+            List<T> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages
+    ) {
+        public PageResponse(List<T> content, int page, int size, long totalElements) {
+            this(content, page, size, totalElements, (int) Math.ceil((double) totalElements / size));
         }
     }
 }
