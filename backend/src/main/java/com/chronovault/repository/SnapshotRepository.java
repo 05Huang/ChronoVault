@@ -40,4 +40,19 @@ public interface SnapshotRepository extends JpaRepository<Snapshot, Long> {
      */
     @Query("SELECT s FROM Snapshot s WHERE s.server.id = :serverId AND s.id <> :snapshotId ORDER BY s.createdAt DESC")
     List<Snapshot> findPreviousSnapshots(@Param("serverId") Long serverId, @Param("snapshotId") Long snapshotId, Pageable pageable);
+
+    /**
+     * Find the latest snapshot for each server — single query, no N+1.
+     * Returns Snapshot entities ordered by server id.
+     */
+    @Query("SELECT s FROM Snapshot s WHERE s.id IN " +
+           "(SELECT s2.id FROM Snapshot s2 WHERE s2.createdAt = " +
+           "(SELECT MAX(s3.createdAt) FROM Snapshot s3 WHERE s3.server.id = s2.server.id))")
+    List<Snapshot> findLatestPerServer();
+
+    /**
+     * Find recent snapshots with non-null change summary, limited — for dashboard overview.
+     */
+    @Query("SELECT s FROM Snapshot s WHERE s.changeSummaryJson IS NOT NULL AND s.changeSummaryJson <> '' ORDER BY s.createdAt DESC")
+    List<Snapshot> findRecentWithChangeSummary(Pageable pageable);
 }

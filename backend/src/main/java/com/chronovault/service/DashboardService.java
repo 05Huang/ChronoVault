@@ -185,17 +185,24 @@ public class DashboardService {
         DashboardOverviewDTO cached = cacheService.get("dashboard:overview", DashboardOverviewDTO.class);
         if (cached != null) return cached;
 
-        // 1. Server snapshot statuses
+        // 1. Server snapshot statuses — use findLatestPerServer() to avoid N+1
         List<Server> servers = serverRepository.findAll();
+        List<com.chronovault.entity.Snapshot> latestSnapshots = snapshotRepository.findLatestPerServer();
+        Map<Long, com.chronovault.entity.Snapshot> latestByServer = new java.util.HashMap<>();
+        for (com.chronovault.entity.Snapshot s : latestSnapshots) {
+            if (s.getServer() != null) {
+                latestByServer.put(s.getServer().getId(), s);
+            }
+        }
+
         List<ServerSnapshotStatus> serverStatuses = servers.stream().map(server -> {
-            List<com.chronovault.entity.Snapshot> snapshots = snapshotRepository.findByServerIdOrderByCreatedAtDesc(server.getId());
-            if (snapshots.isEmpty()) {
+            com.chronovault.entity.Snapshot latest = latestByServer.get(server.getId());
+            if (latest == null) {
                 return new ServerSnapshotStatus(
                     server.getId(), server.getName(),
                     null, "从未快照", true, null
                 );
             }
-            com.chronovault.entity.Snapshot latest = snapshots.get(0);
             java.time.LocalDateTime lastTime = latest.getCreatedAt();
             long minutesSince = lastTime != null ?
                 java.time.Duration.between(lastTime, java.time.LocalDateTime.now()).toMinutes() : Long.MAX_VALUE;
@@ -211,11 +218,10 @@ public class DashboardService {
             );
         }).toList();
 
-        // 2. Recent change summaries (last 10 snapshots with changes)
-        List<com.chronovault.entity.Snapshot> recentSnapshots = snapshotRepository.findAllByOrderByCreatedAtDesc();
+        // 2. Recent change summaries — use paginated query instead of findAll()
+        List<com.chronovault.entity.Snapshot> recentSnapshots = snapshotRepository.findRecentWithChangeSummary(
+                org.springframework.data.domain.PageRequest.of(0, 10));
         List<RecentChangeSummary> recentChanges = recentSnapshots.stream()
-            .filter(s -> s.getChangeSummaryJson() != null && !s.getChangeSummaryJson().isBlank())
-            .limit(10)
             .map(s -> {
                 try {
                     com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();

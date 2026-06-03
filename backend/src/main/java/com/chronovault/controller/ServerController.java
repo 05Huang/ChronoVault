@@ -36,6 +36,7 @@ public class ServerController {
     private final UserService userService;
 
     @GetMapping
+    @Operation(summary = "获取服务器列表", description = "返回当前用户可见的所有服务器")
     public ResponseEntity<ApiResponse<List<ServerDTO>>> getServers(Authentication auth) {
         return ResponseEntity.ok(ApiResponse.success(serverService.getServers(auth.getName())));
     }
@@ -97,6 +98,7 @@ public class ServerController {
     }
 
     @PostMapping("/{id}/connect")
+    @Operation(summary = "获取 SSH 连接信息", description = "返回服务器的 SSH 连接参数（不包含密钥）")
     public ResponseEntity<ApiResponse<Map<String, String>>> connect(@PathVariable Long id) {
         ServerDTO server = serverService.getServer(id);
         return ResponseEntity.ok(ApiResponse.success(Map.of(
@@ -217,6 +219,8 @@ public class ServerController {
     }
 
     @PostMapping("/{id}/install-agent")
+    @Operation(summary = "安装 Agent", description = "通过 SSH 在目标服务器上安装 ChronoVault Agent")
+
     public ResponseEntity<ApiResponse<Map<String, Object>>> installAgent(
             @PathVariable Long id, Authentication auth,
             jakarta.servlet.http.HttpServletRequest request) {

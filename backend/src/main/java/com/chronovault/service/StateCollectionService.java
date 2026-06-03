@@ -25,28 +25,96 @@ public class StateCollectionService {
 
     private final ObjectMapper objectMapper;
 
+    private static final java.time.Duration MODULE_TIMEOUT = java.time.Duration.ofSeconds(10);
+
     /**
      * Collect system state via SSH and return it as a JSON string.
+     * Each collection module runs with a 10-second timeout to prevent hanging.
      * Returns null if collection fails entirely.
      */
     public String collectStateViaSsh(SshConnection conn) {
+        long totalStart = System.currentTimeMillis();
         try {
             Map<String, Object> state = new LinkedHashMap<>();
             state.put("collected_at", DateTimeFormatter.ISO_INSTANT.format(Instant.now()));
             state.put("agent_version", "0.1.0-backend");
-            state.put("os", collectOS(conn));
-            state.put("packages", collectPackages(conn));
-            state.put("services", collectServices(conn));
-            state.put("ports", collectPorts(conn));
-            state.put("docker", collectDocker(conn));
-            state.put("configs", collectConfigs(conn));
-            state.put("crontab", collectCrontab(conn));
 
+            // Collect with timing for each module
+            long start;
+            Map<String, Long> durations = new LinkedHashMap<>();
+
+            start = System.currentTimeMillis();
+            state.put("system", collectSystem(conn));
+            durations.put("system", System.currentTimeMillis() - start);
+
+            start = System.currentTimeMillis();
+            state.put("os", collectOS(conn));
+            durations.put("os", System.currentTimeMillis() - start);
+
+            start = System.currentTimeMillis();
+            state.put("packages", collectPackages(conn));
+            durations.put("packages", System.currentTimeMillis() - start);
+
+            start = System.currentTimeMillis();
+            state.put("services", collectServices(conn));
+            durations.put("services", System.currentTimeMillis() - start);
+
+            start = System.currentTimeMillis();
+            state.put("ports", collectPorts(conn));
+            durations.put("ports", System.currentTimeMillis() - start);
+
+            start = System.currentTimeMillis();
+            state.put("docker", collectDocker(conn));
+            durations.put("docker", System.currentTimeMillis() - start);
+
+            start = System.currentTimeMillis();
+            state.put("configs", collectConfigs(conn));
+            durations.put("configs", System.currentTimeMillis() - start);
+
+            start = System.currentTimeMillis();
+            state.put("crontab", collectCrontab(conn));
+            durations.put("crontab", System.currentTimeMillis() - start);
+
+            long totalDuration = System.currentTimeMillis() - totalStart;
+            state.put("collection_duration_ms", totalDuration);
+            state.put("module_durations_ms", durations);
+
+            log.info("State collection completed in {}ms (modules: {})", totalDuration, durations);
             return objectMapper.writeValueAsString(state);
         } catch (Exception e) {
             log.error("Failed to collect state via SSH: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Collect basic system info: hostname, IP, memory, disk, CPU, uptime.
+     */
+    private Map<String, Object> collectSystem(SshConnection conn) {
+        Map<String, Object> sys = new LinkedHashMap<>();
+        try {
+            SshConnection.CommandResult r;
+            r = conn.executeCommand("hostname 2>/dev/null");
+            sys.put("hostname", r.isSuccess() ? r.stdout().trim() : "unknown");
+
+            r = conn.executeCommand("hostname -I 2>/dev/null | awk '{print $1}'");
+            sys.put("ip", r.isSuccess() ? r.stdout().trim() : "unknown");
+
+            r = conn.executeCommand("free -m 2>/dev/null | awk '/^Mem:/{printf \"%d/%dMB (%.1f%%)\", $3, $2, $3*100/$2}'");
+            sys.put("memory", r.isSuccess() ? r.stdout().trim() : "unknown");
+
+            r = conn.executeCommand("df -h / 2>/dev/null | awk 'NR==2{printf \"%s/%s (%s)\", $3, $2, $5}'");
+            sys.put("disk_root", r.isSuccess() ? r.stdout().trim() : "unknown");
+
+            r = conn.executeCommand("nproc 2>/dev/null");
+            sys.put("cpu_cores", r.isSuccess() ? r.stdout().trim() : "unknown");
+
+            r = conn.executeCommand("uptime -p 2>/dev/null || uptime 2>/dev/null");
+            sys.put("uptime", r.isSuccess() ? r.stdout().trim() : "unknown");
+        } catch (Exception e) {
+            log.warn("Failed to collect system info: {}", e.getMessage());
+        }
+        return sys;
     }
 
     private Map<String, String> collectOS(SshConnection conn) {

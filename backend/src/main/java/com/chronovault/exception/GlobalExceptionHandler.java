@@ -124,6 +124,20 @@ public class GlobalExceptionHandler {
             return new ApiResponse<>(code, message, null, LocalDateTime.now());
         }
 
+        /**
+         * Create error response using unified ErrorCode enum.
+         */
+        public static ApiResponse<Void> error(ErrorCode errorCode) {
+            return new ApiResponse<>(errorCode.getCode(), errorCode.getDefaultMessage(), null, LocalDateTime.now());
+        }
+
+        /**
+         * Create error response using unified ErrorCode with custom message.
+         */
+        public static ApiResponse<Void> error(ErrorCode errorCode, String customMessage) {
+            return new ApiResponse<>(errorCode.getCode(), customMessage, null, LocalDateTime.now());
+        }
+
         public static <T> ApiResponse<PageResponse<T>> successPage(List<T> content, int page, int size, long total) {
             return new ApiResponse<>(200, "success", new PageResponse<>(content, page, size, total), LocalDateTime.now());
         }
