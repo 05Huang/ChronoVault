@@ -1,6 +1,7 @@
 package com.chronovault.controller;
 
 import com.chronovault.dto.snapshot.SnapshotDTO;
+import com.chronovault.dto.stash.CreateStashRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.SnapshotStashService;
 import com.chronovault.service.UserService;
@@ -10,7 +11,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/servers/{serverId}/stash")
@@ -24,9 +24,9 @@ public class ServerStashController {
     public ResponseEntity<ApiResponse<SnapshotDTO>> createStash(
             Authentication auth,
             @PathVariable Long serverId,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestBody(required = false) CreateStashRequest body) {
         Long userId = userService.getByEmail(auth.getName()).getId();
-        String note = body != null ? body.get("note") : null;
+        String note = body != null ? body.note() : null;
         return ResponseEntity.ok(ApiResponse.success(stashService.createStash(serverId, note, userId)));
     }
 

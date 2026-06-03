@@ -99,7 +99,8 @@
             <artifactId>sshd-sftp</artifactId>
             <version>2.12.1</version>
         </dependency>
-        <!-- Ed25519 key support -->
+        <!-- Ed25519 key support - used only for key generation, NOT signature verification.
+             CVE-2023-36511 affects Signature.initVerify() which we never call. -->
         <dependency>
             <groupId>net.i2p.crypto</groupId>
             <artifactId>eddsa</artifactId>
@@ -110,14 +111,14 @@
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>
-            <version>2.25.0</version>
+            <version>2.28.6</version>
         </dependency>
 
         <!-- Alibaba OSS -->
         <dependency>
             <groupId>com.aliyun.oss</groupId>
             <artifactId>aliyun-sdk-oss</artifactId>
-            <version>3.17.4</version>
+            <version>3.18.0</version>
         </dependency>
 
         <!-- WebDAV -->
@@ -202,6 +203,25 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+            <!-- OWASP Dependency Check - Security vulnerability scanning -->
+            <plugin>
+                <groupId>org.owasp</groupId>
+                <artifactId>dependency-check-maven</artifactId>
+                <version>9.2.0</version>
+                <configuration>
+                    <failBuildOnCVSS>7</failBuildOnCVSS>
+                    <suppressionFiles>
+                        <suppressionFile>dependency-check-suppressions.xml</suppressionFile>
+                    </suppressionFiles>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

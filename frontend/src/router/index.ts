@@ -39,6 +39,16 @@ const router = createRouter({
           component: () => import('@/views/Snapshots.vue'),
         },
         {
+          path: 'snapshots/timeline',
+          name: 'Timeline',
+          component: () => import('@/views/Timeline.vue'),
+        },
+        {
+          path: 'snapshots/diff',
+          name: 'SnapshotDiff',
+          component: () => import('@/views/SnapshotDiff.vue'),
+        },
+        {
           path: 'recovery',
           name: 'Recovery',
           component: () => import('@/views/Recovery.vue'),

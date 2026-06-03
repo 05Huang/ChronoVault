@@ -479,6 +479,8 @@ storybook-static/
 .ralph/progress.json
 .ralph/status.json
 .ralph/live.log
+.ralph/.claude_session_id
+.ralph/.response_analysis
 
 # Configuration files — keep tracked
 # .ralph/PROMPT.md

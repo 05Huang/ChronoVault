@@ -81,9 +81,9 @@ public class SnapshotService {
 
     @Transactional(readOnly = true)
     public List<SnapshotDTO> getSnapshotsByTag(String tagName) {
-        List<Snapshot> allSnapshots = snapshotRepository.findAll();
-        return allSnapshots.stream()
-                .filter(s -> tagRepository.findBySnapshotIdAndName(s.getId(), tagName).isPresent())
+        // Use JOIN query instead of loading all snapshots and filtering in memory
+        List<Snapshot> snapshots = snapshotRepository.findByTagName(tagName);
+        return snapshots.stream()
                 .map(s -> {
                     List<SnapshotTagDTO> tags = tagRepository.findBySnapshotIdOrderByCreatedAtDesc(s.getId())
                             .stream().map(SnapshotTagDTO::from).toList();
@@ -171,17 +171,15 @@ public class SnapshotService {
         Snapshot snapshot = snapshotRepository.findById(snapshotId)
                 .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
 
-        // Try to get real diff from restic if we have two snapshots
-        List<Snapshot> allSnapshots = snapshotRepository.findByServerIdOrderByCreatedAtDesc(
-                snapshot.getServer().getId());
+        // Use paginated query to find only the previous snapshot instead of loading all
+        List<Snapshot> previousSnapshots = snapshotRepository.findPreviousSnapshots(
+                snapshot.getServer().getId(), snapshotId, PageRequest.of(0, 1));
 
-        if (allSnapshots.size() >= 2 && snapshot.getHash() != null) {
+        if (!previousSnapshots.isEmpty() && snapshot.getHash() != null) {
             try {
-                Snapshot previous = allSnapshots.stream()
-                        .filter(s -> !s.getId().equals(snapshotId))
-                        .findFirst().orElse(null);
+                Snapshot previous = previousSnapshots.get(0);
 
-                if (previous != null && previous.getHash() != null) {
+                if (previous.getHash() != null) {
                     SshConnection conn = sshManager.getConnection(snapshot.getServer());
                     List<StorageTarget> targets = storageTargetRepository.findAll();
                     if (!targets.isEmpty()) {
@@ -237,7 +235,11 @@ public class SnapshotService {
         return new SnapshotDiffDTO.DiffSummary(added, modified, deleted, diffs);
     }
 
-    @Transactional
+    /**
+     * Execute a full rollback — restores files via Restic over SSH.
+     * Split into non-transactional SSH work + transactional DB updates
+     * to avoid holding a DB transaction open during long network calls.
+     */
     public void rollback(Long snapshotId, Long userId) {
         Snapshot snapshot = snapshotRepository.findById(snapshotId)
                 .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
@@ -247,36 +249,51 @@ public class SnapshotService {
             throw new BadRequestException("没有可用的存储目标");
         }
 
-        // Use SnapshotEngine for real restore
+        // Non-transactional: SSH operations (can take minutes)
+        boolean success;
         try {
             SshConnection conn = sshManager.getConnection(snapshot.getServer());
 
-            // Ensure restic is installed
             if (!resticClient.ensureResticInstalled(conn)) {
                 throw new BadRequestException("无法在目标服务器上安装 restic 备份工具");
             }
 
             String repoUrl = resticClient.buildRepoUrl(targets.get(0));
-            boolean success = resticClient.restore(conn, repoUrl, resticPassword,
+            success = resticClient.restore(conn, repoUrl, resticPassword,
                     snapshot.getHash(), "/");
-
-            if (success) {
-                snapshot.setStatus(Snapshot.SnapshotStatus.STABLE);
-                // Record blame
-                User user = userRepository.findById(userId).orElse(null);
-                attributionService.record(AuditLog.ChangeType.SNAPSHOT_RESTORED,
-                        "回滚至快照 " + snapshot.getTitle(), user, snapshot.getServer(),
-                        snapshot, snapshot.getId(), "执行了全量回滚");
-            } else {
-                snapshot.setStatus(Snapshot.SnapshotStatus.WARNING);
-            }
-            snapshotRepository.save(snapshot);
         } catch (Exception e) {
-            log.error("Rollback failed: {}", e.getMessage());
-            snapshot.setStatus(Snapshot.SnapshotStatus.WARNING);
-            snapshotRepository.save(snapshot);
-            throw new RuntimeException("回滚失败: " + e.getMessage());
+            log.error("Rollback SSH operation failed: {}", e.getMessage());
+            updateRollbackStatus(snapshotId, Snapshot.SnapshotStatus.WARNING);
+            throw new BadRequestException("回滚失败: " + e.getMessage());
         }
+
+        // Transactional: Update DB status after SSH completes
+        updateRollbackResult(snapshotId, success, userId);
+    }
+
+    @Transactional
+    void updateRollbackStatus(Long snapshotId, Snapshot.SnapshotStatus status) {
+        snapshotRepository.findById(snapshotId).ifPresent(s -> {
+            s.setStatus(status);
+            snapshotRepository.save(s);
+        });
+    }
+
+    @Transactional
+    void updateRollbackResult(Long snapshotId, boolean success, Long userId) {
+        Snapshot snapshot = snapshotRepository.findById(snapshotId)
+                .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
+
+        if (success) {
+            snapshot.setStatus(Snapshot.SnapshotStatus.STABLE);
+            User user = userRepository.findById(userId).orElse(null);
+            attributionService.record(AuditLog.ChangeType.SNAPSHOT_RESTORED,
+                    "回滚至快照 " + snapshot.getTitle(), user, snapshot.getServer(),
+                    snapshot, snapshot.getId(), "执行了全量回滚");
+        } else {
+            snapshot.setStatus(Snapshot.SnapshotStatus.WARNING);
+        }
+        snapshotRepository.save(snapshot);
     }
 
     /**

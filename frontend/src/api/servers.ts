@@ -22,7 +22,7 @@ export const serversApi = {
     client.post<Volume>(`/servers/${id}/volumes`, data) as unknown as Promise<Volume>,
   getLogs: (id: number) => client.get<LogEntry[]>(`/servers/${id}/logs`) as unknown as Promise<LogEntry[]>,
   clearLogs: (id: number) => client.delete(`/servers/${id}/logs`) as unknown as Promise<void>,
-  connect: (id: number) => client.post(`/servers/${id}/connect`) as unknown as Promise<any>,
+  connect: (id: number) => client.post<ConnectionTestResult>(`/servers/${id}/connect`) as unknown as Promise<ConnectionTestResult>,
   updateSshConfig: (id: number, data: UpdateSshConfigRequest) =>
     client.put(`/servers/${id}/ssh`, data) as unknown as Promise<void>,
   testConnection: (id: number) => client.post<ConnectionTestResult>(`/servers/${id}/test-connection`) as unknown as Promise<ConnectionTestResult>,

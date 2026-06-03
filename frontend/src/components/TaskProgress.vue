@@ -86,7 +86,18 @@ function dismiss(id: number) {
   activeTasks.value = activeTasks.value.filter((t) => t.id !== id)
 }
 
-function handleTaskUpdate(data: any) {
+interface TaskUpdateData {
+  id?: number
+  taskId?: number
+  taskType?: string
+  type?: string
+  status?: string
+  progress?: number
+  message?: string
+  error?: string
+}
+
+function handleTaskUpdate(data: TaskUpdateData) {
   const taskId = data.id || data.taskId
   if (!taskId) return
 

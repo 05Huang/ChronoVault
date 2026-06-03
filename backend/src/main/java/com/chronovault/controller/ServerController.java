@@ -1,6 +1,7 @@
 package com.chronovault.controller;
 
 import com.chronovault.audit.Auditable;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.chronovault.ai.AiAnalysisService;
 import com.chronovault.dto.server.*;
@@ -63,10 +64,9 @@ public class ServerController {
     @PutMapping("/{id}/auto-snapshot")
     public ResponseEntity<ApiResponse<Void>> toggleAutoSnapshot(
             @PathVariable Long id,
-            @RequestBody Map<String, Boolean> body) {
-        Boolean enabled = body.get("enabled");
-        autoSnapshotService.setAutoSnapshotEnabled(id, enabled != null && enabled);
-        return ResponseEntity.ok(ApiResponse.successMsg("自动快照已" + (enabled != null && enabled ? "开启" : "关闭")));
+            @Valid @RequestBody ToggleAutoSnapshotRequest body) {
+        autoSnapshotService.setAutoSnapshotEnabled(id, body.enabled());
+        return ResponseEntity.ok(ApiResponse.successMsg("自动快照已" + (body.enabled() ? "开启" : "关闭")));
     }
 
     @GetMapping("/{id}/containers")
@@ -174,13 +174,10 @@ public class ServerController {
     }
 
     @PostMapping("/{id}/images/pull")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> pullImage(@PathVariable Long id,
-                                                                       @RequestBody Map<String, String> body) {
-        String image = body.get("image");
-        if (image == null || image.isBlank()) {
-            return ResponseEntity.badRequest().body(ApiResponse.success(Map.of("success", false, "message", "镜像名称不能为空")));
-        }
-        return ResponseEntity.ok(ApiResponse.success(serverService.pullImage(id, image)));
+    public ResponseEntity<ApiResponse<Map<String, Object>>> pullImage(
+            @PathVariable Long id,
+            @Valid @RequestBody PullImageRequest body) {
+        return ResponseEntity.ok(ApiResponse.success(serverService.pullImage(id, body.image())));
     }
 
     @DeleteMapping("/{id}/images/{imageId}")
@@ -229,8 +226,14 @@ public class ServerController {
     }
 
     @PostMapping("/batch-scan")
-    public ResponseEntity<ApiResponse<String>> batchScan(@RequestBody List<Long> ids) {
-        int scanned = serverService.batchScan(ids);
+    public ResponseEntity<ApiResponse<String>> batchScan(@Valid @RequestBody BatchScanRequest request) {
+        int scanned = serverService.batchScan(request.ids());
         return ResponseEntity.ok(ApiResponse.success("已触发 " + scanned + " 台服务器扫描"));
+    }
+
+    @PostMapping("/{id}/rotate-key")
+    @Operation(summary = "轮换 SSH 密钥", description = "生成新的 Ed25519 密钥对，加密存储私钥，返回公钥供用户安装到目标服务器")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> rotateKey(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(serverService.rotateKey(id)));
     }
 }

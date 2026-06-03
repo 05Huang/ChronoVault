@@ -3,6 +3,7 @@ package com.chronovault.controller;
 import com.chronovault.dto.alert.*;
 import com.chronovault.dto.integration.IntegrationDTO;
 import com.chronovault.dto.integration.CreateIntegrationRequest;
+import com.chronovault.dto.integration.UpdateIntegrationRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.AlertService;
 import jakarta.validation.Valid;
@@ -85,9 +86,10 @@ public class AlertController {
     }
 
     @PutMapping("/integrations/{id}")
-    public ResponseEntity<ApiResponse<IntegrationDTO>> updateIntegration(@PathVariable Long id, @RequestBody java.util.Map<String, Object> body) {
-        Boolean active = body.containsKey("active") ? (Boolean) body.get("active") : null;
-        return ResponseEntity.ok(ApiResponse.success(alertService.updateIntegration(id, active)));
+    public ResponseEntity<ApiResponse<IntegrationDTO>> updateIntegration(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateIntegrationRequest body) {
+        return ResponseEntity.ok(ApiResponse.success(alertService.updateIntegration(id, body.active())));
     }
 
     @DeleteMapping("/rules/{id}")

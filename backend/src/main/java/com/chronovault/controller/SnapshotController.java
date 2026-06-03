@@ -6,17 +6,25 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import com.chronovault.dto.snapshot.BisectMarkRequest;
 import com.chronovault.dto.snapshot.BisectSessionDTO;
 import com.chronovault.dto.snapshot.BisectStartRequest;
+import com.chronovault.dto.snapshot.BatchDeleteRequest;
+import com.chronovault.dto.snapshot.BatchTagRequest;
 import com.chronovault.dto.snapshot.CherryPickRequest;
 import com.chronovault.dto.snapshot.CreateSnapshotRequest;
+import com.chronovault.dto.snapshot.ReplicateSnapshotRequest;
 import com.chronovault.dto.snapshot.SelectiveRestoreRequest;
+import com.chronovault.dto.snapshot.SelectiveRollbackRequest;
 import com.chronovault.dto.snapshot.SnapshotDTO;
 import com.chronovault.dto.snapshot.SnapshotDiffDTO;
 import com.chronovault.dto.snapshot.SnapshotFileEntry;
 import com.chronovault.dto.snapshot.SnapshotTagDTO;
 import com.chronovault.dto.snapshot.SnapshotVerifyResult;
+import com.chronovault.dto.snapshot.StartBatchRequest;
 import com.chronovault.dto.snapshot.ContainerStateDTO;
 import com.chronovault.repository.ContainerStateRepository;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.chronovault.service.SnapshotBisectService;
 import com.chronovault.service.SnapshotService;
 import com.chronovault.service.SnapshotTagService;
@@ -88,12 +96,66 @@ public class SnapshotController {
         return ResponseEntity.ok(ApiResponse.success(snapshotService.compareSnapshots(from, to)));
     }
 
+    // ===== State.json endpoints (P0-4) =====
+
+    @GetMapping("/{id}/state")
+    @Operation(summary = "获取快照的 state.json", description = "返回 Agent 采集的系统状态 JSON（包、服务、端口、Docker、配置）")
+    public ResponseEntity<ApiResponse<String>> getStateSnapshot(@PathVariable Long id) {
+        String stateJson = snapshotService.getStateSnapshot(id);
+        if (stateJson == null) {
+            return ResponseEntity.ok(ApiResponse.success("此快照没有系统状态数据", null));
+        }
+        return ResponseEntity.ok(ApiResponse.success(stateJson));
+    }
+
+    @GetMapping("/{id}/summary")
+    @Operation(summary = "获取快照变更摘要", description = "返回该快照相对于上一个快照的变更摘要（用于时间线视图）")
+    public ResponseEntity<ApiResponse<String>> getChangeSummary(@PathVariable Long id) {
+        String summary = snapshotService.getChangeSummary(id);
+        return ResponseEntity.ok(ApiResponse.success(summary));
+    }
+
+    @GetMapping("/state-diff")
+    @Operation(summary = "对比两个快照的系统状态", description = "计算两个快照的 state.json 之间的结构化差异")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getStateDiff(
+            @RequestParam Long from,
+            @RequestParam Long to) {
+        return ResponseEntity.ok(ApiResponse.success(snapshotService.computeStateDiff(from, to)));
+    }
+
+    @GetMapping("/timeline")
+    @Operation(summary = "获取快照时间线", description = "返回指定服务器的快照时间线（含变更摘要）")
+    public ResponseEntity<ApiResponse<List<SnapshotDTO>>> getTimeline(
+            @RequestParam Long serverId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        List<SnapshotDTO> snapshots = snapshotService.getSnapshotsForTimeline(serverId, page, size);
+        return ResponseEntity.ok(ApiResponse.success(snapshots));
+    }
+
     @Auditable(action = "回滚快照", changeType = "SNAPSHOT_RESTORED")
     @PostMapping("/{id}/rollback")
     public ResponseEntity<ApiResponse<Void>> rollback(Authentication auth, @PathVariable Long id) {
         Long userId = userService.getByEmail(auth.getName()).getId();
         snapshotService.rollback(id, userId);
         return ResponseEntity.ok(ApiResponse.successMsg("回滚成功"));
+    }
+
+    @GetMapping("/{id}/rollback/preview")
+    @Operation(summary = "回滚预演", description = "预览回滚操作将产生的影响，不执行实际回滚")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> rollbackPreview(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(snapshotService.rollbackPreview(id)));
+    }
+
+    @PostMapping("/{id}/rollback/selective")
+    @Operation(summary = "选择性回滚", description = "只回滚指定的配置文件或包版本")
+    public ResponseEntity<ApiResponse<String>> selectiveRollback(
+            Authentication auth,
+            @PathVariable Long id,
+            @Valid @RequestBody SelectiveRollbackRequest request) {
+        Long userId = userService.getByEmail(auth.getName()).getId();
+        String result = snapshotService.selectiveRollback(id, request.items(), userId);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     @Auditable(action = "撤销快照", changeType = "SNAPSHOT_REVERTED")
@@ -153,12 +215,8 @@ public class SnapshotController {
     @PostMapping("/{id}/replicate")
     public ResponseEntity<ApiResponse<String>> replicateSnapshot(
             @PathVariable Long id,
-            @RequestBody java.util.Map<String, Long> body) {
-        Long targetStorageId = body.get("targetStorageId");
-        if (targetStorageId == null) {
-            throw new com.chronovault.exception.BadRequestException("请指定目标存储");
-        }
-        replicationService.replicateSnapshot(id, targetStorageId);
+            @Valid @RequestBody ReplicateSnapshotRequest body) {
+        replicationService.replicateSnapshot(id, body.targetStorageId());
         return ResponseEntity.ok(ApiResponse.success("复制任务已提交，正在后台执行"));
     }
 
@@ -185,13 +243,9 @@ public class SnapshotController {
     @PostMapping("/batch-tag")
     public ResponseEntity<ApiResponse<String>> batchTag(
             Authentication auth,
-            @RequestBody Map<String, Object> body) {
+            @Valid @RequestBody BatchTagRequest body) {
         Long userId = userService.getByEmail(auth.getName()).getId();
-        @SuppressWarnings("unchecked")
-        List<Long> snapshotIds = (List<Long>) body.get("snapshotIds");
-        String tagName = (String) body.get("tagName");
-        String color = (String) body.get("color");
-        int count = tagService.bulkTag(snapshotIds, tagName, color, userId);
+        int count = tagService.bulkTag(body.snapshotIds(), body.tagName(), body.color(), userId);
         return ResponseEntity.ok(ApiResponse.success("已为 " + count + " 个快照添加标签"));
     }
 
@@ -223,8 +277,8 @@ public class SnapshotController {
     }
 
     @PostMapping("/batch-delete")
-    public ResponseEntity<ApiResponse<String>> batchDelete(@RequestBody List<Long> ids) {
-        int deleted = snapshotService.batchDelete(ids);
+    public ResponseEntity<ApiResponse<String>> batchDelete(@Valid @RequestBody BatchDeleteRequest request) {
+        int deleted = snapshotService.batchDelete(request.ids());
         return ResponseEntity.ok(ApiResponse.success("已删除 " + deleted + " 个快照"));
     }
 
@@ -233,13 +287,9 @@ public class SnapshotController {
     @PostMapping("/batch")
     public ResponseEntity<ApiResponse<String>> startBatch(
             Authentication auth,
-            @RequestBody Map<String, Object> body) {
+            @Valid @RequestBody StartBatchRequest body) {
         Long userId = userService.getByEmail(auth.getName()).getId();
-        @SuppressWarnings("unchecked")
-        List<Long> serverIds = (List<Long>) body.get("serverIds");
-        Long storageTargetId = body.get("storageTargetId") != null ? Long.valueOf(body.get("storageTargetId").toString()) : null;
-        String name = body.get("name") != null ? body.get("name").toString() : null;
-        String batchId = batchService.startBatch(serverIds, storageTargetId, name, userId);
+        String batchId = batchService.startBatch(body.serverIds(), body.storageTargetId(), body.name(), userId);
         return ResponseEntity.ok(ApiResponse.success(batchId));
     }
 
@@ -254,37 +304,33 @@ public class SnapshotController {
         List<SnapshotDTO> snapshots = snapshotService.getSnapshots();
 
         if ("yaml".equalsIgnoreCase(format) || "yml".equalsIgnoreCase(format)) {
-            StringBuilder yaml = new StringBuilder("snapshots:\n");
-            for (SnapshotDTO s : snapshots) {
-                yaml.append("  - id: ").append(s.id()).append("\n");
-                yaml.append("    name: \"").append(escapeYaml(s.name())).append("\"\n");
-                yaml.append("    status: \"").append(s.status()).append("\"\n");
-                yaml.append("    server: \"").append(escapeYaml(s.serverName())).append("\"\n");
-                yaml.append("    created_at: \"").append(s.createdAt()).append("\"\n");
-                yaml.append("    size_bytes: ").append(s.sizeBytes()).append("\n");
+            try {
+                ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory())
+                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                String yaml = yamlMapper.writerWithDefaultPrettyPrinter()
+                        .writeValueAsString(Map.of("snapshots", snapshots));
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=snapshots.yaml")
+                        .contentType(MediaType.parseMediaType("text/yaml"))
+                        .body(yaml);
+            } catch (Exception e) {
+                throw new com.chronovault.exception.BadRequestException("导出 YAML 失败: " + e.getMessage());
             }
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=snapshots.yaml")
-                    .contentType(MediaType.parseMediaType("text/yaml"))
-                    .body(yaml.toString());
         }
 
         if ("json".equalsIgnoreCase(format)) {
-            // Build JSON manually to avoid dependency
-            StringBuilder json = new StringBuilder("[\n");
-            for (int i = 0; i < snapshots.size(); i++) {
-                SnapshotDTO s = snapshots.get(i);
-                json.append(String.format(
-                    "  {\"id\":%d,\"name\":\"%s\",\"status\":\"%s\",\"serverName\":\"%s\",\"createdAt\":\"%s\",\"sizeBytes\":%d}",
-                    s.id(), escapeJson(s.name()), s.status(), escapeJson(s.serverName()), s.createdAt(), s.sizeBytes()));
-                if (i < snapshots.size() - 1) json.append(",");
-                json.append("\n");
+            try {
+                ObjectMapper jsonMapper = new ObjectMapper()
+                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                String json = jsonMapper.writerWithDefaultPrettyPrinter()
+                        .writeValueAsString(snapshots);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=snapshots.json")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(json);
+            } catch (Exception e) {
+                throw new com.chronovault.exception.BadRequestException("导出 JSON 失败: " + e.getMessage());
             }
-            json.append("]");
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=snapshots.json")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(json.toString());
         }
 
         // Default: CSV
@@ -305,15 +351,5 @@ public class SnapshotController {
             return "\"" + s.replace("\"", "\"\"") + "\"";
         }
         return s;
-    }
-
-    private String escapeJson(String s) {
-        if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
-    private String escapeYaml(String s) {
-        if (s == null) return "";
-        return s.replace("\"", "\\\"");
     }
 }

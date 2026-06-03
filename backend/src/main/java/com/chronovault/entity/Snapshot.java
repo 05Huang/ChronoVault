@@ -41,6 +41,19 @@ public class Snapshot {
     @Column(name = "microservice_count")
     private Integer microserviceCount;
 
+    @Column(name = "state_json", columnDefinition = "jsonb")
+    private String stateJson;
+
+    @Column(name = "state_collected_at")
+    private LocalDateTime stateCollectedAt;
+
+    @Column(name = "change_summary_json", columnDefinition = "jsonb")
+    private String changeSummaryJson;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "previous_snapshot_id")
+    private Snapshot previousSnapshot;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id")
     private ServerBranch branch;

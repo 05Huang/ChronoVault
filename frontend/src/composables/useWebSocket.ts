@@ -6,7 +6,7 @@ import SockJS from 'sockjs-client/dist/sockjs'
 interface WebSocketOptions {
   onConnect?: () => void
   onDisconnect?: () => void
-  onError?: (error: any) => void
+  onError?: (error: Error | { headers: Record<string, string> }) => void
 }
 
 const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol}//${window.location.host}/ws/events`
@@ -93,22 +93,39 @@ export function useWebSocket(options: WebSocketOptions = {}) {
   }
 }
 
-export function subscribeToTask(taskId: number, callback: (data: any) => void) {
+interface TaskEventData {
+  id?: number
+  taskId?: number
+  taskType?: string
+  type?: string
+  status?: string
+  progress?: number
+  message?: string
+  error?: string
+}
+
+interface ServerEventData {
+  serverId?: number
+  event?: string
+  data?: unknown
+}
+
+export function subscribeToTask(taskId: number, callback: (data: TaskEventData) => void) {
   const { subscribe, unsubscribe } = useWebSocket()
   const topic = `/topic/tasks/${taskId}`
-  subscribe(topic, callback)
+  subscribe<TaskEventData>(topic, callback)
   return () => unsubscribe(topic)
 }
 
-export function subscribeToServerEvents(serverId: number, callback: (data: any) => void) {
+export function subscribeToServerEvents(serverId: number, callback: (data: ServerEventData) => void) {
   const { subscribe, unsubscribe } = useWebSocket()
   const topic = `/topic/servers/${serverId}`
-  subscribe(topic, callback)
+  subscribe<ServerEventData>(topic, callback)
   return () => unsubscribe(topic)
 }
 
-export function subscribeToGlobalEvents(callback: (data: any) => void) {
+export function subscribeToGlobalEvents(callback: (data: Record<string, unknown>) => void) {
   const { subscribe, unsubscribe } = useWebSocket()
-  subscribe('/topic/events', callback)
+  subscribe<Record<string, unknown>>('/topic/events', callback)
   return () => unsubscribe('/topic/events')
 }

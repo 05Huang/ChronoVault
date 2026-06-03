@@ -34,7 +34,8 @@ public class AuthService {
         userRepository.save(user);
 
         String token = jwtTokenProvider.generateToken(user.getEmail());
-        return new AuthResponse(token, UserDTO.from(user));
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
+        return new AuthResponse(token, refreshToken, UserDTO.from(user));
     }
 
     @Transactional
@@ -55,7 +56,8 @@ public class AuthService {
         userRepository.save(user);
 
         String token = jwtTokenProvider.generateToken(user.getEmail());
-        return new AuthResponse(token, UserDTO.from(user));
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getEmail());
+        return new AuthResponse(token, refreshToken, UserDTO.from(user));
     }
 
     public UserDTO getCurrentUser(String email) {

@@ -1,10 +1,10 @@
 import client from './client'
-import type { AuditLog, ApiKey, GenerateKeyRequest, CreateApiKeyResponse, AiConfig } from '@/types'
+import type { AuditLog, ApiKey, GenerateKeyRequest, CreateApiKeyResponse, AiConfig, PaginatedResponse } from '@/types'
 
 export const settingsApi = {
   getAuditLogs: () => client.get<AuditLog[]>('/settings/audit-logs') as unknown as Promise<AuditLog[]>,
   searchAuditLogs: (params: { action?: string; userId?: number; since?: string; until?: string; page?: number; size?: number }) =>
-    client.get('/settings/audit-logs/search', { params }) as unknown as Promise<any>,
+    client.get<PaginatedResponse<AuditLog>>('/settings/audit-logs/search', { params }) as unknown as Promise<PaginatedResponse<AuditLog>>,
   getApiKeys: () => client.get<ApiKey[]>('/settings/api-keys') as unknown as Promise<ApiKey[]>,
   generateKey: (data: GenerateKeyRequest) =>
     client.post<CreateApiKeyResponse>('/settings/api-keys', data) as unknown as Promise<CreateApiKeyResponse>,

@@ -1,7 +1,9 @@
 package com.chronovault.controller;
 
+import com.chronovault.dto.terminal.TerminalExecRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.TerminalService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -33,12 +35,8 @@ public class TerminalController {
     @PostMapping("/sessions/{sessionId}/exec")
     public ResponseEntity<ApiResponse<Map<String, Object>>> executeCommand(
             @PathVariable String sessionId,
-            @RequestBody Map<String, String> body) {
-        String command = body.get("command");
-        if (command == null || command.isBlank()) {
-            return ResponseEntity.badRequest().body(ApiResponse.success(Map.of("error", "命令不能为空")));
-        }
-        return ResponseEntity.ok(ApiResponse.success(terminalService.executeCommand(sessionId, command)));
+            @Valid @RequestBody TerminalExecRequest body) {
+        return ResponseEntity.ok(ApiResponse.success(terminalService.executeCommand(sessionId, body.command())));
     }
 
     /**

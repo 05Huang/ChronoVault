@@ -13,6 +13,28 @@ ChronoVault is a server backup and recovery platform that provides Git-like oper
 - **Bisect** to find which snapshot introduced a problem
 - **Clone** servers with full state replication
 
+## Why ChronoVault?
+
+Traditional backup tools only capture files. ChronoVault captures **everything** — packages, services, ports, Docker containers, configs, and crontab. This enables:
+
+- **State-aware snapshots**: Not just files, but the entire system state
+- **Intelligent diffs**: See exactly what changed between snapshots (packages upgraded, services restarted, ports opened)
+- **Selective rollback**: Roll back specific packages or config files without restoring everything
+- **Change detection**: Automatic alerts when high-risk changes occur (new ports, service disabling, critical config edits)
+
+## Comparison with Backrest
+
+| Feature | ChronoVault | Backrest |
+|---------|-------------|----------|
+| **State Collection** | ✅ Packages, services, ports, Docker, configs, crontab | ❌ Files only |
+| **State Diff** | ✅ See exactly what changed (packages, services, ports) | ❌ File-level diff only |
+| **Selective Rollback** | ✅ Roll back individual packages or config files | ❌ Full restore only |
+| **Git-like Operations** | ✅ Branch, Bisect, Cherry-pick, Stash, Blame | ❌ Basic backup/restore |
+| **Multi-server** | ✅ Centralized management | ⚠️ Single server |
+| **Change Alerts** | ✅ Auto-detect high-risk changes | ❌ No alerting |
+| **Timeline View** | ✅ Git-log style with change summaries | ❌ Basic list view |
+| **Diff Visualization** | ✅ Color-coded state changes with rollback buttons | ❌ No visual diff |
+
 ## Architecture
 
 ```
@@ -68,6 +90,18 @@ npm install
 npm run dev
 ```
 
+### Agent Installation
+
+```bash
+# Install agent on target server
+curl -sSL https://raw.githubusercontent.com/your-org/chronovault/main/install-agent.sh | bash
+
+# Or manually
+wget https://github.com/your-org/chronovault/releases/latest/download/chronovault-agent-linux-amd64
+chmod +x chronovault-agent-linux-amd64
+./chronovault-agent-linux-amd64 register --server-url http://your-backend:8080 --api-key YOUR_API_KEY
+```
+
 ### Default Credentials
 - Email: `admin@chronovault.com`
 - Password: `admin123`
@@ -99,6 +133,29 @@ npm run dev
 - **Storage Replication**: Cross-target backup replication
 - **Pre/Post Hooks**: User-configurable automation hooks
 - **Container State Capture**: Docker container state in snapshots
+
+### State-Aware Features (Core Differentiator)
+- **state.json Collection**: Agent collects comprehensive system state during each snapshot
+  - Installed packages (apt/dpkg, rpm/yum, apk)
+  - Systemd service status and enabled state
+  - Open ports with process association
+  - Docker containers and compose files
+  - /etc config file SHA-256 hashes
+  - Crontab entries
+- **State Diff Engine**: Compare state.json between snapshots to show:
+  - Package upgrades, additions, and removals
+  - Service status changes
+  - Port changes
+  - Config file modifications
+  - Docker container changes
+- **Selective Rollback**: Roll back specific items from the diff view:
+  - Config files: Extract from Restic snapshot and write via SSH
+  - Packages: Execute apt/yum install with specific version
+  - Services: Re-enable disabled services
+- **Change Detection**: Automatic alerts for high-risk changes:
+  - New high-risk ports (22, 3306, 5432, 6379)
+  - Service disabling
+  - Critical config changes (/etc/hosts, /etc/sudoers, /etc/passwd)
 
 ## API Reference
 
@@ -171,6 +228,49 @@ CHRONOVAULT_RESTIC_PASSWORD=your-restic-password
 
 # Frontend
 VITE_API_URL=http://localhost:8080
+VITE_WS_URL=ws://localhost:8080/ws/events
+
+# Agent (on target server)
+CHRONOVAULT_SERVER_URL=http://your-backend:8080
+CHRONOVAULT_API_KEY=your-api-key
+```
+
+### Docker Compose (Full Stack)
+```yaml
+services:
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: chronovault
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      - CHRONOVAULT_DB_URL=jdbc:postgresql://postgres:5432/chronovault
+      - CHRONOVAULT_REDIS_HOST=redis
+      - CHRONOVAULT_JWT_SECRET=${JWT_SECRET}
+      - CHRONOVAULT_RESTIC_PASSWORD=${RESTIC_PASSWORD}
+    depends_on:
+      - postgres
+      - redis
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
 ```
 
 ### Docker Compose
@@ -200,6 +300,7 @@ chronovault/
 │   │   ├── audit/           # Audit logging (AOP)
 │   │   ├── config/          # Security, CORS, WebSocket configs
 │   │   ├── controller/      # REST controllers
+│   │   ├── diff/            # State diff engine (state.json comparison)
 │   │   ├── dto/             # Data Transfer Objects
 │   │   ├── entity/          # JPA entities
 │   │   ├── health/          # Health indicators
@@ -212,20 +313,21 @@ chronovault/
 │   │   ├── task/            # Async task management
 │   │   └── websocket/       # WebSocket handlers
 │   └── src/main/resources/
-│       ├── db/migration/    # Flyway migrations (V1-V36)
+│       ├── db/migration/    # Flyway migrations (V1-V39)
 │       └── logback-spring.xml
 ├── frontend/                # Vue 3 SPA
 │   └── src/
 │       ├── api/             # API client modules
-│       ├── components/      # Vue components
+│       ├── components/      # Vue components (StateTree, TaskProgress, etc.)
+│       ├── composables/     # Vue composables (useWebSocket, etc.)
 │       ├── stores/          # Pinia state stores
 │       ├── types/           # TypeScript interfaces
-│       └── views/           # Page views
+│       └── views/           # Page views (Timeline, SnapshotDiff, etc.)
 ├── agent/                   # Go CLI daemon
 │   ├── cmd/                 # CLI commands
 │   ├── config/              # Configuration
 │   ├── restic/              # Restic CLI wrapper
-│   ├── scanner/             # Environment scanner
+│   ├── scanner/             # Environment scanner (state.json collection)
 │   ├── server/              # Local API server
 │   └── transport/           # HTTP client
 └── docker-compose.yml

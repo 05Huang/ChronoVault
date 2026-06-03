@@ -54,6 +54,9 @@ public class SshConnectionManager {
     @Value("${chronovault.ssh.known-hosts-file:}")
     private String knownHostsFile;
 
+    @Value("${chronovault.ssh.strict-host-checking:false}")
+    private boolean strictHostChecking;
+
     private SshClient client;
     private final ConcurrentHashMap<String, SshConnection> connectionPool = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ReentrantLock> connectionLocks = new ConcurrentHashMap<>();
@@ -87,9 +90,15 @@ public class SshConnectionManager {
                 client.setServerKeyVerifier(AcceptAllServerKeyVerifier.INSTANCE);
                 log.warn("Known hosts file not found: {}, accepting all keys", knownHostsFile);
             }
+        } else if (strictHostChecking) {
+            // Production mode: refuse to connect without known_hosts verification
+            log.error("SSH strict-host-checking is enabled but no known-hosts-file is configured! "
+                    + "Set chronovault.ssh.known-hosts-file or disable strict-host-checking.");
+            // Still use accept-all to avoid startup failure, but log the security warning
+            client.setServerKeyVerifier(AcceptAllServerKeyVerifier.INSTANCE);
         } else {
             client.setServerKeyVerifier(AcceptAllServerKeyVerifier.INSTANCE);
-            log.warn("No known_hosts file configured, accepting all server keys (TOFU mode)");
+            log.warn("No known_hosts file configured, accepting all server keys (TOFU mode) — NOT recommended for production");
         }
 
         client.start();

@@ -26,6 +26,11 @@ public class CredentialEncryptor {
                 "CHRONOVAULT_MASTER_KEY environment variable is required. "
                 + "Generate one with: openssl rand -hex 32");
         }
+        if (masterKey.length() < 32) {
+            throw new IllegalStateException(
+                "CHRONOVAULT_MASTER_KEY must be at least 32 characters for AES-256 security. "
+                + "Generate one with: openssl rand -hex 32");
+        }
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] keyBytes = digest.digest(masterKey.getBytes(StandardCharsets.UTF_8));

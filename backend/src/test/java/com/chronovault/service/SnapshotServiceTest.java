@@ -19,6 +19,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.Spy;
+
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.when;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -150,7 +153,7 @@ class SnapshotServiceTest {
     @Test
     void getSnapshotDiff_returnsDiffList() {
         when(snapshotRepository.findById(1L)).thenReturn(Optional.of(testSnapshot));
-        when(snapshotRepository.findByServerIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(testSnapshot));
+        when(snapshotRepository.findPreviousSnapshots(eq(1L), eq(1L), any())).thenReturn(List.of());
         when(snapshotDiffRepository.findBySnapshotId(1L)).thenReturn(List.of());
         List<SnapshotDiffDTO> result = snapshotService.getSnapshotDiff(1L);
         assertNotNull(result);

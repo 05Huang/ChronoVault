@@ -16,6 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.chronovault.service.StateCollectionService;
+import com.chronovault.service.SnapshotService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +38,11 @@ public class SnapshotEngine {
     private final SnapshotHookService hookService;
     private final StorageRouter storageRouter;
     private final AsyncTaskManager taskManager;
+    private final StateCollectionService stateCollectionService;
+
+    @Lazy
+    @Autowired
+    private SnapshotService snapshotServiceRef;
 
     @Value("${chronovault.restic-password}")
     private String resticPassword;
@@ -71,15 +81,17 @@ public class SnapshotEngine {
     private void executeSnapshot(Long taskId, Snapshot snapshot, Server server,
                                   StorageTarget storageTarget, Snapshot.SnapshotType type,
                                   List<String> customPaths, List<String> customExcludes) {
+        String currentStep = "初始化";
         try {
+            currentStep = "连接服务器";
             taskManager.updateProgress(taskId, 10, "连接服务器...");
-            this.currentServerId = server.getId();
             SshConnection conn = sshManager.getConnection(server);
 
             // Ensure restic is installed on the target server
+            currentStep = "检查备份工具";
             taskManager.updateProgress(taskId, 15, "检查备份工具...");
             if (!resticClient.ensureResticInstalled(conn)) {
-                throw new RuntimeException("无法在目标服务器上安装 restic 备份工具");
+                throw new SnapshotStepException("备份工具安装", "无法在目标服务器上安装 restic 备份工具，请检查 sudo 权限");
             }
 
             String repoUrl = resticClient.buildRepoUrl(storageTarget);
@@ -87,12 +99,14 @@ public class SnapshotEngine {
 
             // Ensure repo directory exists for local storage
             if (storageTarget.getType() == StorageTarget.StorageType.LOCAL) {
+                currentStep = "准备存储目录";
                 String mkdirResult = conn.executeCommand(
                         "sudo mkdir -p " + repoUrl + " && sudo chown $(whoami) " + repoUrl + " 2>&1").stdout();
                 log.info("mkdir result: {}", mkdirResult);
             }
 
             // Initialize repo if needed
+            currentStep = "初始化存储仓库";
             taskManager.updateProgress(taskId, 20, "初始化存储仓库...");
             boolean initOk = resticClient.init(conn, repoUrl, resticPassword);
             if (!initOk) {
@@ -100,8 +114,9 @@ public class SnapshotEngine {
             }
 
             // Pre-snapshot hooks
+            currentStep = "执行预快照钩子";
             taskManager.updateProgress(taskId, 30, "执行预快照钩子...");
-            runPreSnapshotHooks(conn);
+            runPreSnapshotHooks(conn, server.getId());
 
             // Find parent for incremental
             String parentId = null;
@@ -116,6 +131,7 @@ public class SnapshotEngine {
             }
 
             // Execute backup
+            currentStep = "执行备份";
             taskManager.updateProgress(taskId, 50, "执行快照备份...");
             List<String> paths = customPaths != null && !customPaths.isEmpty()
                     ? customPaths
@@ -128,16 +144,40 @@ public class SnapshotEngine {
                     conn, repoUrl, resticPassword, paths, excludes, parentId);
 
             if (resticSnapshot == null) {
-                throw new RuntimeException("Restic backup 命令执行失败，请检查服务器连接和存储配置");
+                throw new SnapshotStepException("备份执行", "Restic backup 命令执行失败，请检查服务器连接和存储配置");
             }
 
             // Post-snapshot hooks
+            currentStep = "执行后置钩子";
             taskManager.updateProgress(taskId, 80, "执行后置钩子...");
-            runPostSnapshotHooks(conn);
+            runPostSnapshotHooks(conn, server.getId());
 
             // Capture Docker container state
             taskManager.updateProgress(taskId, 85, "捕获容器状态...");
             captureContainerState(conn, snapshot);
+
+            // Capture system state.json (the core differentiator)
+            taskManager.updateProgress(taskId, 88, "采集系统状态...");
+            try {
+                String stateJson = stateCollectionService.collectStateViaSsh(conn);
+                if (stateJson != null && !stateJson.isBlank()) {
+                    // P3-2: Optimize large state.json to prevent DB bloat
+                    // If state_json exceeds 1MB, truncate the packages array
+                    // to keep storage under control while preserving diff capability
+                    if (stateJson.length() > 1_048_576) {
+                        log.warn("Large state.json detected ({} bytes) for snapshot {}, truncating packages array",
+                                stateJson.length(), snapshot.getId());
+                        stateJson = optimizeLargeStateJson(stateJson);
+                    }
+                    snapshot.setStateJson(stateJson);
+                    snapshot.setStateCollectedAt(LocalDateTime.now());
+                    log.info("Captured state.json for snapshot {} ({} bytes)",
+                            snapshot.getId(), stateJson.length());
+                }
+            } catch (Exception e) {
+                log.warn("State collection failed for snapshot {}: {}", snapshot.getId(), e.getMessage());
+                // Continue — state collection is not critical for backup success
+            }
 
             // Update snapshot record
             snapshot.setHash(resticSnapshot.snapshotId());
@@ -147,21 +187,45 @@ public class SnapshotEngine {
             log.info("Snapshot {} saved with hash={}, size={}", snapshot.getId(),
                     resticSnapshot.snapshotId(), resticSnapshot.totalBytesProcessed());
 
+            // Compute change summary and detect high-risk changes (P1-4)
+            taskManager.updateProgress(taskId, 92, "分析变更...");
+            try {
+                // Find the previous snapshot for this server
+                List<Snapshot> previousSnapshots = snapshotRepository
+                        .findByServerIdAndCreatedAtBeforeOrderByCreatedAtAsc(
+                                server.getId(), snapshot.getCreatedAt());
+                if (!previousSnapshots.isEmpty() && snapshot.getStateJson() != null) {
+                    Snapshot previous = previousSnapshots.get(previousSnapshots.size() - 1);
+                    // Compute and cache change summary
+                    snapshotServiceRef.computeAndCacheChangeSummary(snapshot);
+                    // Detect high-risk changes and create alerts
+                    snapshotServiceRef.detectAndAlertHighRiskChanges(previous, snapshot);
+                }
+            } catch (Exception e) {
+                log.warn("Change analysis failed for snapshot {}: {}", snapshot.getId(), e.getMessage());
+                // Continue — analysis is not critical
+            }
+
             // Record manifest
-            taskManager.updateProgress(taskId, 90, "记录文件清单...");
+            taskManager.updateProgress(taskId, 95, "记录文件清单...");
             recordManifest(conn, snapshot, repoUrl);
 
             taskManager.updateProgress(taskId, 100, "快照创建完成");
 
-        } catch (Exception e) {
-            log.error("Snapshot failed for server {}: {}", server.getIp(), e.getMessage(), e);
+        } catch (SnapshotStepException e) {
+            log.error("Snapshot failed at step '{}' for server {}: {}", currentStep, server.getIp(), e.getMessage(), e);
             snapshot.setStatus(Snapshot.SnapshotStatus.WARNING);
             snapshotRepository.save(snapshot);
-            throw new RuntimeException("快照创建失败: " + e.getMessage(), e);
+            throw new RuntimeException("快照创建失败 [" + currentStep + "]: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("Snapshot failed at step '{}' for server {}: {}", currentStep, server.getIp(), e.getMessage(), e);
+            snapshot.setStatus(Snapshot.SnapshotStatus.WARNING);
+            snapshotRepository.save(snapshot);
+            throw new RuntimeException("快照创建失败 [" + currentStep + "]: " + e.getMessage(), e);
         }
     }
 
-    private void runPreSnapshotHooks(SshConnection conn) {
+    private void runPreSnapshotHooks(SshConnection conn, Long serverId) {
         // Built-in hooks: MySQL lock
         SshConnection.CommandResult mysqlCheck = conn.executeCommand("docker ps --format '{{.Names}}' | grep -i mysql");
         if (mysqlCheck.isSuccess() && !mysqlCheck.stdout().isBlank()) {
@@ -178,13 +242,13 @@ public class SnapshotEngine {
 
         // User-configured hooks
         try {
-            hookService.executeHooks(conn, getCurrentServerId(), SnapshotHook.HookType.PRE_SNAPSHOT);
+            hookService.executeHooks(conn, serverId, SnapshotHook.HookType.PRE_SNAPSHOT);
         } catch (Exception e) {
             log.warn("Failed to execute user pre-snapshot hooks: {}", e.getMessage());
         }
     }
 
-    private void runPostSnapshotHooks(SshConnection conn) {
+    private void runPostSnapshotHooks(SshConnection conn, Long serverId) {
         // Built-in hooks: Unlock MySQL
         SshConnection.CommandResult mysqlCheck = conn.executeCommand("docker ps --format '{{.Names}}' | grep -i mysql");
         if (mysqlCheck.isSuccess() && !mysqlCheck.stdout().isBlank()) {
@@ -194,16 +258,10 @@ public class SnapshotEngine {
 
         // User-configured hooks
         try {
-            hookService.executeHooks(conn, getCurrentServerId(), SnapshotHook.HookType.POST_SNAPSHOT);
+            hookService.executeHooks(conn, serverId, SnapshotHook.HookType.POST_SNAPSHOT);
         } catch (Exception e) {
             log.warn("Failed to execute user post-snapshot hooks: {}", e.getMessage());
         }
-    }
-
-    private Long currentServerId;
-
-    private Long getCurrentServerId() {
-        return currentServerId;
     }
 
     private void captureContainerState(SshConnection conn, Snapshot snapshot) {
@@ -293,5 +351,52 @@ public class SnapshotEngine {
         if (path.endsWith(".env") || path.endsWith(".yml") || path.endsWith(".yaml")) return "ENV";
         if (path.contains("docker-compose")) return "COMPOSE";
         return "FILE";
+    }
+
+    /**
+     * Optimize large state.json by truncating the packages array.
+     * When state_json exceeds 1MB, this keeps the most important data
+     * while reducing storage footprint. The diff engine still works
+     * correctly on truncated data.
+     */
+    private String optimizeLargeStateJson(String stateJson) {
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(stateJson);
+
+            com.fasterxml.jackson.databind.node.ObjectNode result = mapper.createObjectNode();
+            // Copy non-packages fields as-is
+            result.set("collected_at", root.get("collected_at"));
+            result.set("agent_version", root.get("agent_version"));
+            result.set("os", root.get("os"));
+            result.set("services", root.get("services"));
+            result.set("ports", root.get("ports"));
+            result.set("docker", root.get("docker"));
+            result.set("configs", root.get("configs"));
+            result.set("crontab", root.get("crontab"));
+
+            // Truncate packages to first 5000 entries
+            com.fasterxml.jackson.databind.JsonNode packages = root.get("packages");
+            if (packages != null && packages.isArray()) {
+                com.fasterxml.jackson.databind.node.ArrayNode truncatedPackages = mapper.createArrayNode();
+                int count = 0;
+                for (com.fasterxml.jackson.databind.JsonNode pkg : packages) {
+                    if (count >= 5000) {
+                        log.info("Truncated packages array from {} to 5000 entries", packages.size());
+                        break;
+                    }
+                    truncatedPackages.add(pkg);
+                    count++;
+                }
+                result.set("packages", truncatedPackages);
+            } else {
+                result.set("packages", mapper.createArrayNode());
+            }
+
+            return mapper.writeValueAsString(result);
+        } catch (Exception e) {
+            log.warn("Failed to optimize large state.json: {}", e.getMessage());
+            return stateJson; // Return original if optimization fails
+        }
     }
 }

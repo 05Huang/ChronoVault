@@ -279,7 +279,7 @@ function openNewBackup() {
 
 function openApplyOptimizations() {
   const recs = aiRecommendations.value
-  const recNames = recs.map((r: any) => r.title).join('、')
+  const recNames = recs.map((r: AiRecommendation) => r.title).join('、')
   modal.open({
     component: ConfirmModal,
     title: '应用优化建议',

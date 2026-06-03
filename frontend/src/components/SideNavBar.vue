@@ -81,6 +81,7 @@ const navItems = [
   { path: '/dashboard', icon: 'dashboard', label: '总览' },
   { path: '/servers', icon: 'dns', label: '服务器' },
   { path: '/snapshots', icon: 'history', label: '快照' },
+  { path: '/snapshots/timeline', icon: 'timeline', label: '时间线' },
   { path: '/recovery', icon: 'restore', label: '恢复' },
   { path: '/storage', icon: 'storage', label: '存储' },
 ]

@@ -4,6 +4,7 @@ import com.chronovault.dto.settings.ApiKeyDTO;
 import com.chronovault.dto.settings.AuditLogDTO;
 import com.chronovault.dto.settings.CreateApiKeyResponse;
 import com.chronovault.dto.settings.GenerateKeyRequest;
+import com.chronovault.dto.settings.UpdateAiConfigRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.SettingsService;
 import jakarta.validation.Valid;
@@ -52,8 +53,8 @@ public class SettingsController {
     }
 
     @PutMapping("/ai-config")
-    public ResponseEntity<ApiResponse<Void>> updateAiConfig(@RequestBody Map<String, Object> config) {
-        settingsService.updateAiConfig(config);
+    public ResponseEntity<ApiResponse<Void>> updateAiConfig(@Valid @RequestBody UpdateAiConfigRequest body) {
+        settingsService.updateAiConfig(body.config());
         return ResponseEntity.ok(ApiResponse.successMsg("AI 配置已更新"));
     }
 

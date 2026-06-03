@@ -86,6 +86,8 @@ chronovault:
     keepalive-interval: 30000
     max-retry: 2
     idle-eviction-millis: 300000
+    strict-host-checking: ${CHRONOVAULT_SSH_STRICT_HOST_CHECKING:false}
+    known-hosts-file: ${CHRONOVAULT_SSH_KNOWN_HOSTS_FILE:}
   ai:
     enabled: true
     base-url: ${MIMO_BASE_URL:https://api.xiaomimimo.com/v1}

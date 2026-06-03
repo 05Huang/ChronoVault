@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+    <!--
+        CVE-2023-36511: net.i2p.crypto.eddsa
+        Severity: MODERATE (CVSS 5.9)
+        Description: Timing side-channel in EdDSA signature verification
+        Justification: We only use eddsa for Ed25519 key generation and raw byte extraction.
+                       We never call Signature.initVerify() which is the vulnerable code path.
+                       The library is used solely for SSH key rotation (ServerService.rotateKey()).
+    -->
+    <suppress>
+        <notes>CVE-2023-36511 only affects Signature.initVerify() which we never call. We use eddsa only for key generation.</notes>
+        <packageUrl regex="true">pkg:maven/net\.i2p\.crypto/eddsa@.*</packageUrl>
+        <cve>CVE-2023-36511</cve>
+    </suppress>
+
+    <!--
+        CVE-2023-36512: net.i2p.crypto.eddsa
+        Severity: LOW (CVSS 3.7)
+        Description: Information disclosure via exception messages in EdDSA
+        Justification: Same as above - we don't use the signature verification path.
+    -->
+    <suppress>
+        <notes>CVE-2023-36512 only affects signature operations which we never perform.</notes>
+        <packageUrl regex="true">pkg:maven/net\.i2p\.crypto/eddsa@.*</packageUrl>
+        <cve>CVE-2023-36512</cve>
+    </suppress>
+</suppressions>

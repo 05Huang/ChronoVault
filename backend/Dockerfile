@@ -1,25 +1,20 @@
-# Stage 1: Build
-FROM maven:3.9-eclipse-temurin-17-alpine AS build
-WORKDIR /app
-COPY pom.xml .
-RUN mvn dependency:go-offline -B
-COPY src ./src
-RUN mvn package -DskipTests -B
-
-# Stage 2: Runtime
+# Use pre-built JAR (build locally with: mvn package -DskipTests)
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
 RUN addgroup -S cv && adduser -S cv -G cv
 
-COPY --from=build /app/target/*.jar app.jar
+COPY target/*.jar app.jar
 
 RUN chown -R cv:cv /app
 USER cv
 
 EXPOSE 8080
 
+# JVM tuning for production: G1GC, 512MB-1GB heap, container-aware
+ENV JAVA_OPTS="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -XX:+UseContainerSupport -Djava.security.egd=file:/dev/./urandom"
+
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD wget -qO- http://localhost:8080/actuator/health || exit 1
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

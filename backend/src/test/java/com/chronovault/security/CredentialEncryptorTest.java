@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CredentialEncryptorTest {
 
+    private static final String VALID_KEY = "test-master-key-that-is-long-enough-for-aes256!";
+
     private CredentialEncryptor encryptor;
 
     @BeforeEach
     void setUp() {
-        encryptor = new CredentialEncryptor("test-master-key");
+        encryptor = new CredentialEncryptor(VALID_KEY);
     }
 
     @Test
@@ -39,9 +41,14 @@ class CredentialEncryptorTest {
     @Test
     void decrypt_withWrongKey_fails() {
         String encrypted = encryptor.encrypt("secret");
-        CredentialEncryptor wrongKeyEncryptor = new CredentialEncryptor("wrong-key");
+        CredentialEncryptor wrongKeyEncryptor = new CredentialEncryptor("wrong-key-but-long-enough-for-validation!!");
 
         assertThrows(RuntimeException.class, () -> wrongKeyEncryptor.decrypt(encrypted));
+    }
+
+    @Test
+    void constructor_tooShortKey_throws() {
+        assertThrows(IllegalStateException.class, () -> new CredentialEncryptor("short"));
     }
 
     @Test

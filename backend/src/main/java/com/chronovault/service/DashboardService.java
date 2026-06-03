@@ -133,7 +133,6 @@ public class DashboardService {
 
     public List<ActivityTrendDTO> getActivityTrend(String range) {
         int days = "24h".equals(range) ? 1 : "7d".equals(range) ? 7 : 30;
-        String pattern = days <= 1 ? "HH:00" : "MM-dd";
 
         Map<String, int[]> dataMap = new TreeMap<>();
 
@@ -152,7 +151,8 @@ public class DashboardService {
         }
 
         java.time.LocalDateTime cutoff = java.time.LocalDateTime.now().minusDays(days);
-        List<Event> events = eventRepository.findByCreatedAtAfterOrderByCreatedAtDesc(cutoff);
+        // Use limited query to prevent memory issues on high-volume systems (max 10k events)
+        List<Event> events = eventRepository.findTop10000ByCreatedAtAfterOrderByCreatedAtDesc(cutoff);
         for (Event event : events) {
             if (event.getCreatedAt() != null && event.getCreatedAt().isAfter(cutoff)) {
                 String key;
@@ -173,6 +173,95 @@ public class DashboardService {
         return dataMap.entrySet().stream()
                 .map(e -> new ActivityTrendDTO(e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2]))
                 .toList();
+    }
+
+    /**
+     * Get dashboard overview with enhanced metrics for P2-4 redesign.
+     * Single API call to avoid N+1 requests from the frontend.
+     * Results are cached for 30 seconds to reduce database load.
+     */
+    public DashboardOverviewDTO getOverview() {
+        // Check cache first (30 second TTL for dashboard data)
+        DashboardOverviewDTO cached = cacheService.get("dashboard:overview", DashboardOverviewDTO.class);
+        if (cached != null) return cached;
+
+        // 1. Server snapshot statuses
+        List<Server> servers = serverRepository.findAll();
+        List<ServerSnapshotStatus> serverStatuses = servers.stream().map(server -> {
+            List<com.chronovault.entity.Snapshot> snapshots = snapshotRepository.findByServerIdOrderByCreatedAtDesc(server.getId());
+            if (snapshots.isEmpty()) {
+                return new ServerSnapshotStatus(
+                    server.getId(), server.getName(),
+                    null, "从未快照", true, null
+                );
+            }
+            com.chronovault.entity.Snapshot latest = snapshots.get(0);
+            java.time.LocalDateTime lastTime = latest.getCreatedAt();
+            long minutesSince = lastTime != null ?
+                java.time.Duration.between(lastTime, java.time.LocalDateTime.now()).toMinutes() : Long.MAX_VALUE;
+            boolean isStale = minutesSince > 1440; // > 24 hours
+            String timeSince = minutesSince < 60 ? minutesSince + "分钟前" :
+                minutesSince < 1440 ? (minutesSince / 60) + "小时前" :
+                (minutesSince / 1440) + "天前";
+            return new ServerSnapshotStatus(
+                server.getId(), server.getName(),
+                lastTime != null ? lastTime.toString() : null,
+                timeSince, isStale,
+                latest.getChangeSummaryJson()
+            );
+        }).toList();
+
+        // 2. Recent change summaries (last 10 snapshots with changes)
+        List<com.chronovault.entity.Snapshot> recentSnapshots = snapshotRepository.findAllByOrderByCreatedAtDesc();
+        List<RecentChangeSummary> recentChanges = recentSnapshots.stream()
+            .filter(s -> s.getChangeSummaryJson() != null && !s.getChangeSummaryJson().isBlank())
+            .limit(10)
+            .map(s -> {
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> summary = mapper.readValue(s.getChangeSummaryJson(), java.util.Map.class);
+                    return new RecentChangeSummary(
+                        s.getId(),
+                        s.getServer() != null ? s.getServer().getName() : "未知",
+                        s.getCreatedAt() != null ? s.getCreatedAt().toString() : "",
+                        getIntOrDefault(summary, "packages_added"),
+                        getIntOrDefault(summary, "packages_removed"),
+                        getIntOrDefault(summary, "packages_upgraded"),
+                        getIntOrDefault(summary, "services_changed"),
+                        getIntOrDefault(summary, "configs_changed")
+                    );
+                } catch (Exception e) {
+                    return new RecentChangeSummary(s.getId(),
+                        s.getServer() != null ? s.getServer().getName() : "未知",
+                        s.getCreatedAt() != null ? s.getCreatedAt().toString() : "",
+                        0, 0, 0, 0, 0);
+                }
+            }).toList();
+
+        // 3. Pending alerts
+        long totalPending = alertRepository.countByStatus(com.chronovault.entity.Alert.AlertStatus.OPEN);
+        long highRisk = alertRepository.countBySeverity(com.chronovault.entity.Alert.AlertSeverity.CRITICAL);
+        long warnings = alertRepository.countBySeverity(com.chronovault.entity.Alert.AlertSeverity.WARNING);
+        PendingAlertsInfo pendingAlerts = new PendingAlertsInfo(
+            (int) totalPending, (int) highRisk, (int) warnings
+        );
+
+        // 4. Recent rollback (from audit log - use events as proxy)
+        RecentRollbackInfo recentRollback = new RecentRollbackInfo(null, null, null);
+
+        DashboardOverviewDTO result = new DashboardOverviewDTO(serverStatuses, recentChanges, pendingAlerts, recentRollback);
+
+        // Cache for 30 seconds to reduce database load
+        cacheService.put("dashboard:overview", result, java.time.Duration.ofSeconds(30));
+
+        return result;
+    }
+
+    private int getIntOrDefault(java.util.Map<String, Object> map, String key) {
+        Object val = map.get(key);
+        if (val instanceof Number) return ((Number) val).intValue();
+        return 0;
     }
 
     private String formatSize(long bytes) {

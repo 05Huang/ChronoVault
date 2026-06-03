@@ -45,10 +45,8 @@ public class AutoSnapshotService {
     @Scheduled(fixedRate = 1800000)
     @Transactional
     public void checkAndAutoSnapshot() {
-        List<Server> servers = serverRepository.findAll().stream()
-                .filter(Server::isAutoSnapshotEnabled)
-                .filter(s -> s.getStatus() == Server.ServerStatus.RUNNING)
-                .toList();
+        List<Server> servers = serverRepository.findByAutoSnapshotEnabledTrueAndStatus(
+                Server.ServerStatus.RUNNING);
 
         for (Server server : servers) {
             try {

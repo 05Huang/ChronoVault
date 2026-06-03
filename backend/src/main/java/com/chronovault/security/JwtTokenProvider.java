@@ -83,4 +83,50 @@ public class JwtTokenProvider {
             return false;
         }
     }
+
+    /**
+     * Generate a refresh token with longer expiration (7 days).
+     * Used for token refresh flow.
+     */
+    public String generateRefreshToken(String email) {
+        Date now = new Date();
+        long refreshExpiration = 7 * 24 * 60 * 60 * 1000L; // 7 days
+        Date expiryDate = new Date(now.getTime() + refreshExpiration);
+
+        return Jwts.builder()
+                .subject(email)
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .claim("type", "refresh")
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    /**
+     * Generate a new access token from a valid refresh token.
+     * Returns null if the refresh token is invalid or expired.
+     */
+    public String refreshAccessToken(String refreshToken) {
+        if (!validateToken(refreshToken)) {
+            return null;
+        }
+
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(refreshToken)
+                    .getPayload();
+
+            // Verify this is a refresh token
+            if (!"refresh".equals(claims.get("type"))) {
+                return null;
+            }
+
+            String email = claims.getSubject();
+            return generateToken(email);
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

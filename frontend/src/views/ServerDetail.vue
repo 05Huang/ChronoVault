@@ -803,10 +803,11 @@ async function testSshConnection() {
   sshTesting.value = true
   sshTestResult.value = null
   try {
-    const res = await serversApi.testConnection(serverId) as any
-    sshTestResult.value = res.data || res
-  } catch (e: any) {
-    sshTestResult.value = { success: false, message: e?.response?.data?.message || '测试失败' }
+    const res = await serversApi.testConnection(serverId)
+    sshTestResult.value = res
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } } }
+    sshTestResult.value = { success: false, message: err?.response?.data?.message || '测试失败' }
   } finally {
     sshTesting.value = false
   }
@@ -884,15 +885,14 @@ function stopResizeTerminal() {
 function retryAiAnalysis() {
   aiError.value = ''
   aiLoading.value = true
-  aiApi.analyzeServer(serverId).then(res => {
-    const data = (res as any).data || res || null
+  aiApi.analyzeServer(serverId).then(data => {
     if (data && data.healthScore !== undefined) {
       aiAnalysis.value = data
       aiError.value = ''
     } else {
       aiError.value = '分析结果格式异常'
     }
-  }).catch(e => {
+  }).catch((e: Error) => {
     aiError.value = '分析失败: ' + (e?.message || '网络错误')
   }).finally(() => { aiLoading.value = false })
 }

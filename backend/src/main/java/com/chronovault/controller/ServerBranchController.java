@@ -2,6 +2,7 @@ package com.chronovault.controller;
 
 import com.chronovault.dto.branch.CreateBranchRequest;
 import com.chronovault.dto.branch.MergeBranchRequest;
+import com.chronovault.dto.branch.RenameBranchRequest;
 import com.chronovault.dto.branch.ServerBranchDTO;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.ServerBranchService;
@@ -66,8 +67,8 @@ public class ServerBranchController {
     public ResponseEntity<ApiResponse<ServerBranchDTO>> renameBranch(
             @PathVariable Long serverId,
             @PathVariable Long branchId,
-            @RequestBody java.util.Map<String, String> body) {
+            @Valid @RequestBody RenameBranchRequest body) {
         return ResponseEntity.ok(ApiResponse.success(
-                branchService.renameBranch(serverId, branchId, body.get("name"))));
+                branchService.renameBranch(serverId, branchId, body.name())));
     }
 }

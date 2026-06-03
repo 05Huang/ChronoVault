@@ -9,4 +9,7 @@ export const authApi = {
     client.post<AuthResponse>('/auth/register', { name, email, password } as RegisterRequest) as unknown as Promise<AuthResponse>,
 
   getMe: () => client.get<User>('/auth/me') as unknown as Promise<User>,
+
+  refreshToken: (refreshToken: string) =>
+    client.post<{ accessToken: string }>('/auth/refresh', { refreshToken }) as unknown as Promise<{ accessToken: string }>,
 }

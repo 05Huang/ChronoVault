@@ -1,114 +1,180 @@
-# ChronoVault — Build and Run Instructions
+# ChronoVault — Build & Run Commands
 
-## Project Setup
+## 环境要求
 
-### Infrastructure (Docker)
+- Docker & Docker Compose（必须）
+- Java 17（Backend 开发）
+- Node.js 20 + npm（Frontend 开发）
+- Go 1.22（Agent 开发）
+- Maven 3.9+（Backend 构建）
+
+---
+
+## 一键启动（开发环境）
+
 ```bash
-# Start PostgreSQL and Redis
-docker-compose up -d postgres redis
+# 启动所有服务（首选）
+docker-compose up -d
+
+# 查看服务状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f backend
+docker-compose logs -f frontend
 ```
 
-### Backend (Spring Boot)
+---
+
+## Backend（Spring Boot）
+
 ```bash
 cd backend
 
-# Maven is located at (use full path if mvn is not in PATH):
-MVN="/c/Users/34415/.m2/wrapper/dists/apache-maven-3.9.6-bin/3311e1d4/apache-maven-3.9.6/bin/mvn"
+# 编译（不运行测试）
+mvn compile -q
 
-# Compile only
-$MVN compile
+# 运行测试
+mvn test
 
-# Run tests (uses H2 in-memory DB, profile: test)
-$MVN test
+# 运行集成测试
+mvn verify -P integration-test
 
-# Run a single test class
-$MVN test -Dtest=SshConnectionManagerTest
+# 启动开发服务器（需要先启动 postgres 和 redis）
+docker-compose up -d postgres redis
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
-# Start in dev mode
-$MVN spring-boot:run -Dspring-boot.run.profiles=dev
+# 检查健康状态
+curl -s http://localhost:8080/actuator/health | jq .
+
+# 依赖安全扫描
+mvn dependency-check:check
+
+# 查看 Swagger UI
+# http://localhost:8080/swagger-ui.html
 ```
 
-### Frontend (Vue 3)
+---
+
+## Frontend（Vue 3 + TypeScript）
+
 ```bash
 cd frontend
 
-# Install dependencies
+# 安装依赖
 npm install
 
-# Type check
+# TypeScript 类型检查（零错误才算通过）
 npx vue-tsc --noEmit
 
-# Dev server (port 5173)
-npm run dev
-
-# Production build
+# 构建
 npm run build
+
+# 开发服务器
+npm run dev
+# 访问: http://localhost:5173
+
+# Lint
+npm run lint
 ```
 
-### Agent (Go)
+---
+
+## Agent（Go）
+
 ```bash
 cd agent
 
-# Build
+# 编译
 go build -o chronovault-agent .
 
-# Run tests
-go test ./...
+# 运行测试（含竞态检测）
+go test -race ./...
 
-# Scan server environment
+# 运行特定测试
+go test ./scanner/... -v
+go test ./restic/... -v
+
+# 交叉编译（发布用）
+GOOS=linux GOARCH=amd64 go build -o dist/chronovault-agent-linux-amd64 .
+GOOS=linux GOARCH=arm64 go build -o dist/chronovault-agent-linux-arm64 .
+GOOS=darwin GOARCH=amd64 go build -o dist/chronovault-agent-darwin-amd64 .
+
+# 扫描本机环境
 ./chronovault-agent scan
 
-# Start daemon
-./chronovault-agent run
+# 完整状态采集
+./chronovault-agent scan --full
+
+# 启动守护进程
+./chronovault-agent run --backend-url http://localhost:8080 --token <token>
 ```
 
-## Database Migrations
+---
 
-Migrations are in `backend/src/main/resources/db/migration/`.
-Check latest version before creating new migration:
+## 数据库
+
 ```bash
-ls backend/src/main/resources/db/migration/ | sort -V | tail -1
+# 连接到 PostgreSQL
+docker-compose exec postgres psql -U chronovault -d chronovault
+
+# 查看 Flyway 迁移状态
+cd backend && mvn flyway:info
+
+# 手动执行迁移
+cd backend && mvn flyway:migrate
+
+# 重置数据库（开发用，危险！）
+cd backend && mvn flyway:clean flyway:migrate
 ```
 
-Naming convention: `V{next_number}__description.sql`
+---
 
-JPA uses `ddl-auto: validate` — schema must match migrations exactly.
-If you modify entity fields, you MUST create a new Flyway migration.
+## 全量验证（提交前必须全部通过）
 
-## Key Code Patterns
+```bash
+# 1. Backend 编译 + 单元测试
+cd backend && mvn test
 
-### Backend
-- Use Lombok: `@Slf4j`, `@Service`, `@RequiredArgsConstructor`
-- Constructor injection (no `@Autowired`)
-- `@Transactional` on service methods
-- DTOs use Java records: `public record FooDTO(...) {}`
-- Entities use `@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder`
-- Custom exceptions: `BadRequestException`, `ResourceNotFoundException`
-- Global error handling: `GlobalExceptionHandler`
+# 2. Frontend TypeScript 检查 + 构建
+cd frontend && npx vue-tsc --noEmit && npm run build
 
-### Frontend
-- Tailwind CSS 4 with Material Design 3 tokens
-- Icons: `material-symbols-outlined`
-- Glass panels: `glass-panel` class
-- State management: Pinia stores in `src/stores/`
-- API modules: one per domain in `src/api/`
-- Types: one per domain in `src/types/`
-- Modals: opened via `useModalStore().open({ component, title, props })`
+# 3. Agent 编译 + 测试
+cd agent && go build ./... && go test -race ./...
 
-## Verification Checklist (After Each Task)
+# 4. Docker Compose 启动验证
+docker-compose up -d
+sleep 15
+curl -s http://localhost:8080/actuator/health | grep -q '"status":"UP"' && echo "✅ Backend healthy" || echo "❌ Backend unhealthy"
+curl -s http://localhost/ | grep -q "ChronoVault" && echo "✅ Frontend loaded" || echo "❌ Frontend failed"
+```
 
-1. Backend compiles: `$MVN compile` (from backend/ directory)
-2. Frontend type checks: `cd frontend && npx vue-tsc --noEmit`
-3. Existing tests pass: `$MVN test` (from backend/ directory)
-4. Git commit (MANDATORY): `git add -A && git commit -m "feat(scope): description"`
+---
 
-## IMPORTANT: Git Commit
-You MUST execute git commit yourself after every task. Do NOT skip this.
-Do NOT ask the user to commit. Do NOT suggest manual commit.
-Run: `git add -A && git commit -m "..."`
+## 常见问题
 
-## Key Learnings
-- SSH commands use `SshConnection.executeCommand(cmd, timeout)`
-- Restic commands are built with `shellEscape()` for security
-- Flyway migrations run automatically on app startup
-- WebSocket topics: `/topic/events`, `/topic/tasks`, `/topic/tasks/{id}`
+### Backend 启动失败
+```bash
+# 检查数据库连接
+docker-compose exec postgres pg_isready -U chronovault
+
+# 检查 application-dev.yml 配置
+cat backend/src/main/resources/application-dev.yml
+```
+
+### Agent 无法连接 Backend
+```bash
+# 检查 Backend 是否监听
+curl http://localhost:8080/actuator/health
+
+# 检查 Agent 认证 token
+./chronovault-agent health-check --backend-url http://localhost:8080
+```
+
+### Frontend 构建失败
+```bash
+# 清除缓存重试
+rm -rf node_modules .vite dist
+npm install
+npm run build
+```

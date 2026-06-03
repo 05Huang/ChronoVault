@@ -47,4 +47,10 @@ public class DashboardController {
             @RequestParam(defaultValue = "7d") String range) {
         return ResponseEntity.ok(ApiResponse.success(dashboardService.getActivityTrend(range)));
     }
+
+    @GetMapping("/overview")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Dashboard 总览", description = "单一接口返回所有 Dashboard 数据，避免前端多次请求")
+    public ResponseEntity<ApiResponse<DashboardOverviewDTO>> getOverview() {
+        return ResponseEntity.ok(ApiResponse.success(dashboardService.getOverview()));
+    }
 }
