@@ -10,4 +10,8 @@ import java.lang.annotation.Target;
 public @interface Auditable {
     String action() default "";
     String changeType() default "USER_ACTION";
+    /** Resource type: SERVER, SNAPSHOT, STORAGE, ALERT, USER, etc. */
+    String resourceType() default "";
+    /** SpEL expression to extract resource ID from method parameters, e.g. "#result.id" or "#id" */
+    String resourceId() default "";
 }

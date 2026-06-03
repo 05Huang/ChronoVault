@@ -18,6 +18,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 
 @Slf4j
 @Aspect
@@ -48,24 +49,68 @@ public class AuditLogAspect {
                 user = userRepository.findByEmail(auth.getName()).orElse(null);
             }
 
-            // Get IP address
+            // Get IP address and user agent
             String ipAddress = getClientIp();
+            String userAgent = getUserAgent();
+
+            // Extract resource type from annotation
+            String resourceType = auditable.resourceType().isEmpty() ? null : auditable.resourceType();
+
+            // Extract resource ID from result or method parameters
+            Long resourceId = extractResourceId(auditable.resourceId(), result, joinPoint, signature);
 
             AuditLog auditLog = AuditLog.builder()
                     .user(user)
                     .action(action)
-                    .icon(auditable.changeType())
+                    .changeType(auditable.changeType())
+                    .resourceType(resourceType)
+                    .resourceId(resourceId)
                     .ipAddress(ipAddress)
                     .build();
             auditLogRepository.save(auditLog);
 
-            log.debug("Audit log recorded: action={}, user={}, ip={}", action,
+            log.debug("Audit log recorded: action={}, resource={}:{}, user={}, ip={}",
+                    action, resourceType, resourceId,
                     user != null ? user.getEmail() : "anonymous", ipAddress);
         } catch (Exception e) {
             log.warn("Failed to record audit log: {}", e.getMessage());
         }
 
         return result;
+    }
+
+    /**
+     * Extract resource ID from method result or parameters.
+     * Supports: "#result.id" for return value, "#paramName" for method parameters.
+     */
+    private Long extractResourceId(String resourceIdExpr, Object result,
+                                    ProceedingJoinPoint joinPoint, MethodSignature signature) {
+        if (resourceIdExpr == null || resourceIdExpr.isEmpty()) return null;
+
+        try {
+            if ("#result.id".equals(resourceIdExpr) && result != null) {
+                // Extract id from result object via reflection
+                var getIdMethod = result.getClass().getMethod("id");
+                if (getIdMethod == null) getIdMethod = result.getClass().getMethod("getId");
+                if (getIdMethod != null) {
+                    Object id = getIdMethod.invoke(result);
+                    if (id instanceof Long l) return l;
+                    if (id instanceof Number n) return n.longValue();
+                }
+            } else if (resourceIdExpr.startsWith("#")) {
+                String paramName = resourceIdExpr.substring(1);
+                String[] paramNames = signature.getParameterNames();
+                Object[] args = joinPoint.getArgs();
+                for (int i = 0; i < paramNames.length; i++) {
+                    if (paramName.equals(paramNames[i]) && args[i] instanceof Long l) {
+                        return l;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to extract resource ID from '{}': {}", resourceIdExpr, e.getMessage());
+        }
+        return null;
     }
 
     private String getClientIp() {
@@ -87,5 +132,17 @@ public class AuditLogAspect {
             log.debug("Failed to get client IP: {}", e.getMessage());
         }
         return "unknown";
+    }
+
+    private String getUserAgent() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                return attrs.getRequest().getHeader("User-Agent");
+            }
+        } catch (Exception e) {
+            log.debug("Failed to get user agent: {}", e.getMessage());
+        }
+        return null;
     }
 }

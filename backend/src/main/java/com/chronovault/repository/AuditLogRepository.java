@@ -24,4 +24,14 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                           @Param("since") LocalDateTime since,
                           @Param("until") LocalDateTime until,
                           Pageable pageable);
+
+    /**
+     * Find audit logs for a specific resource — view operation history for any resource.
+     */
+    List<AuditLog> findByResourceTypeAndResourceIdOrderByCreatedAtDesc(String resourceType, Long resourceId);
+
+    /**
+     * Delete audit logs older than a given date — for retention enforcement.
+     */
+    void deleteByCreatedAtBefore(LocalDateTime cutoff);
 }

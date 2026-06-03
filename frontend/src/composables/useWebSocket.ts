@@ -1,6 +1,5 @@
 import { ref } from 'vue'
 import { Client } from '@stomp/stompjs'
-// @ts-ignore
 import SockJS from 'sockjs-client/dist/sockjs'
 
 interface WebSocketOptions {
@@ -60,7 +59,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         const data = JSON.parse(message.body)
         callback(data)
       } catch {
-        callback(message.body as any)
+        callback(message.body as unknown as T)
       }
     })
 

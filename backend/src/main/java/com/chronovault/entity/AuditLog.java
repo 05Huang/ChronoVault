@@ -35,6 +35,9 @@ public class AuditLog {
     @Column(name = "change_type", length = 50)
     private String changeType;
 
+    @Column(name = "resource_type", length = 50)
+    private String resourceType;
+
     @Column(name = "resource_id")
     private Long resourceId;
 

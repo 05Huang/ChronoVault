@@ -1,5 +1,6 @@
 package com.chronovault.controller;
 
+import com.chronovault.audit.Auditable;
 import com.chronovault.dto.storage.CreateStorageRequest;
 import com.chronovault.dto.storage.StorageDistributionDTO;
 import com.chronovault.dto.storage.StorageHealthDTO;
@@ -36,6 +37,7 @@ public class StorageController {
         return ResponseEntity.ok(ApiResponse.success(storageService.getHealth()));
     }
 
+    @Auditable(action = "添加存储目标", changeType = "CONFIG_CHANGED", resourceType = "STORAGE")
     @PostMapping
     public ResponseEntity<ApiResponse<StorageOverviewDTO>> addTarget(Authentication auth, @Valid @RequestBody CreateStorageRequest request) {
         StorageOverviewDTO target = storageService.addTarget(
