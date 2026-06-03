@@ -1,6 +1,7 @@
 import axios from 'axios'
 import router from '@/router'
 import { authApi } from './auth'
+import { useToastStore } from '@/stores/toast'
 
 const client = axios.create({
   baseURL: '/api',
@@ -84,6 +85,20 @@ client.interceptors.response.use(
       localStorage.removeItem('cv_refresh_token')
       router.push('/login')
     }
+
+    // Show toast notification for non-auth errors
+    try {
+      const toast = useToastStore()
+      const status = err.response?.status
+      const message = err.response?.data?.message || err.message || '请求失败'
+      if (status === 400) toast.warning(message)
+      else if (status === 404) toast.error('资源不存在')
+      else if (status === 409) toast.warning('数据冲突: ' + message)
+      else if (status === 429) toast.warning('请求过于频繁，请稍后再试')
+      else if (status >= 500) toast.error('服务器错误: ' + message)
+      else if (!err.response) toast.error('网络连接失败，请检查网络')
+    } catch { /* toast init may fail outside app context */ }
+
     return Promise.reject(err.response?.data || err)
   }
 )
