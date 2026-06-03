@@ -166,9 +166,15 @@ func heartbeatLoop(client *transport.Client) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		if err := client.Heartbeat(); err != nil {
-			log.Printf("Heartbeat failed: %v", err)
+	for {
+		select {
+		case <-shutdownCtx.Done():
+			log.Println("Heartbeat loop stopped (shutdown)")
+			return
+		case <-ticker.C:
+			if err := client.Heartbeat(); err != nil {
+				log.Printf("Heartbeat failed: %v", err)
+			}
 		}
 	}
 }
@@ -208,6 +214,14 @@ func taskPollingLoop(client *transport.Client) {
 }
 
 func executeTask(client *transport.Client, task transport.TaskInfo) {
+	// Panic recovery to prevent agent crash from goroutine panics
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC in task %d: %v", task.ID, r)
+			client.FailTask(task.ID, fmt.Sprintf("任务执行异常: %v", r))
+		}
+	}()
+
 	client.UpdateTaskProgress(task.ID, 10, "开始执行...")
 
 	switch task.Type {
