@@ -53,7 +53,9 @@ function handleLogout() {
 
 const pageTitles: Record<string, { title: string; breadcrumb?: string }> = {
   '/dashboard': { title: '总览', breadcrumb: '仪表盘' },
-  '/snapshots': { title: '快照', breadcrumb: '时间线视图' },
+  '/snapshots': { title: '快照', breadcrumb: '列表' },
+  '/snapshots/timeline': { title: '快照', breadcrumb: '时间线' },
+  '/snapshots/diff': { title: '快照', breadcrumb: '差异对比' },
   '/recovery': { title: '恢复' },
   '/storage': { title: '存储' },
   '/team': { title: '团队' },
@@ -64,6 +66,13 @@ const pageTitles: Record<string, { title: string; breadcrumb?: string }> = {
   '/onboarding': { title: '引导' },
 }
 
-const pageTitle = computed(() => pageTitles[route.path]?.title || 'ChronoVault')
-const breadcrumb = computed(() => pageTitles[route.path]?.breadcrumb)
+const pageTitle = computed(() => {
+  // Handle dynamic routes
+  if (route.path.startsWith('/servers/')) return '服务器详情'
+  return pageTitles[route.path]?.title || 'ChronoVault'
+})
+const breadcrumb = computed(() => {
+  if (route.path.startsWith('/servers/')) return `#${route.params.id}`
+  return pageTitles[route.path]?.breadcrumb
+})
 </script>
