@@ -6,6 +6,8 @@ import com.chronovault.dto.integration.CreateIntegrationRequest;
 import com.chronovault.dto.integration.UpdateIntegrationRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.AlertService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,11 +20,13 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/alerts")
 @RequiredArgsConstructor
+@Tag(name = "Alerts", description = "告警管理 — 查看、确认、规则管理")
 public class AlertController {
 
     private final AlertService alertService;
 
     @GetMapping
+    @Operation(summary = "获取告警列表", description = "返回告警列表，支持分页和过滤")
     public ResponseEntity<?> getAlerts(
             @RequestParam(required = false) String filter,
             @RequestParam(required = false) Integer page,

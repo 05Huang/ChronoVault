@@ -4,6 +4,8 @@ import com.chronovault.entity.WebhookDeliveryLog;
 import com.chronovault.entity.WebhookEndpoint;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.WebhookService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +15,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/webhooks")
 @RequiredArgsConstructor
+@Tag(name = "Webhooks", description = "Webhook管理 — 创建、测试、删除 webhook 端点")
 public class WebhookController {
 
     private final WebhookService webhookService;

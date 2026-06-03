@@ -2,181 +2,62 @@
 
 All notable changes to ChronoVault will be documented in this file.
 
-## [0.6.0] - 2026-06-03
-
-### 🎉 State-Aware Snapshots — Core Differentiator
-
-This release introduces ChronoVault's core differentiator: **state-aware snapshots**.
-Unlike traditional backup tools, ChronoVault captures not just files but the entire system state
-(packages, services, ports, Docker containers, config hashes, crontab) and provides
-Git-style diff and selective rollback.
-
-### ✨ New Features
-
-#### State Collection (Agent)
-- **Package Detection**: apt/dpkg, rpm/yum, apk with auto-detection
-- **Service Monitoring**: systemd services with status, enabled state, PID
-- **Port Scanning**: Open ports via ss/netstat with process association
-- **Docker State**: Container list, images, ports, compose file discovery
-- **Config Hashing**: SHA-256 for /etc/nginx, /etc/mysql, /etc/redis, /etc/ssh, /etc/hosts
-- **Crontab Capture**: System and user crontab entries
-
-#### Diff Engine (Backend)
-- `StateDiffEngine`: Compares state.json between any two snapshots
-- Categorized diffs: packages (added/removed/upgraded), services, ports, Docker, configs
-- 12 unit tests covering all diff types
-- API: `GET /api/snapshots/state-diff?from={id}&to={id}`
-
-#### Timeline View (Frontend)
-- Git-log-style timeline with timestamps and change summary badges
-- Each node: timestamp, commit message, change badges (+2 pkgs, -1 svc, ⚠ 3 configs), size
-- Click to view details, select two for Diff view
-- API: `GET /api/snapshots/timeline?serverId={id}`
-
-#### Diff Visualization (Frontend)
-- StateTree component with color-coded changes (green/red/yellow)
-- Tabs: packages, services, ports, Docker, configs, crontab
-- Summary cards with risk level indicators
-- Selective rollback buttons on each change item
-
-#### Selective Rollback
-- Roll back individual config files (via Restic dump + SSH write)
-- Roll back packages to specific versions (via apt/yum install)
-- Roll back services (re-enable disabled services)
-- API: `POST /api/snapshots/{id}/rollback/selective`
-
-#### Alert System Enhancement
-- Automatic high-risk change detection after each snapshot
-- Alert push to Slack, DingTalk, Webhook via `NotificationService`
-- Detection: new high-risk ports, service disabling, critical config changes
-
-#### Dashboard Redesign
-- Server snapshot staleness indicators (time since last snapshot)
-- Recent change summaries with package/service/config counts
-- Pending alerts count (high-risk, warnings)
-- Single `/api/dashboard/overview` with Redis caching (30s TTL)
-
-### 🔧 Backend Changes
-
-- **39 Flyway migrations** (V37-V39: state.json, JSONB conversion, performance indexes)
-- `StateDiffEngine`: 12 unit tests for all diff types
-- `StateCollectionService`: SSH-based state collection
-- `NotificationService`: Multi-channel alert push
-- `DashboardService.getOverview()`: Single API call with caching
-- Performance: 7 PostgreSQL indexes, event query limited to 10k
-- JWT refresh token mechanism (7-day expiry)
-- Auth refresh endpoint: `POST /api/auth/refresh`
-
-### 🖥️ Frontend Changes
-
-- **Timeline.vue**: Git-style timeline with lazy loading
-- **SnapshotDiff.vue**: Interactive diff with selective rollback
-- **StateTree.vue**: Color-coded state change display
-- **Dashboard.vue**: Redesigned with staleness indicators
-- System state tab in snapshot details
-- JWT refresh token with automatic renewal
-- TypeScript types for all API responses
-- Route lazy loading for code splitting
-
-### 🤖 Agent Changes
-
-- Full state collection via `CollectStateSnapshot()`
-- Packages, services, ports, Docker, configs, crontab
-- JSON serialization matching state.json format
-- Unit tests for parsing and JSON output
-
-### 🔒 Security
-
-- JWT access token (1h) + refresh token (7d) mechanism
-- Automatic token renewal in frontend Axios interceptor
-- SSH known_hosts verification (configurable)
-- Rate limiting (100 requests/minute)
-
-### 📊 Performance
-
-- PostgreSQL indexes for snapshot list, events, alerts, state.json
-- Redis caching for Dashboard overview (30s) and stats (5min)
-- Event query limited to 10k records
-- Frontend route lazy loading
-
----
-
-## [0.5.0] - 2026-01-15
+## [Unreleased]
 
 ### Added
-- **Snapshot Bisect**: Find which snapshot introduced a problem using binary search
-- **Snapshot Revert**: Undo specific snapshot changes with pre-revert safety snapshot
-- **Selective Restore**: Restore specific files from snapshots to any path
-- **Snapshot Comparison**: Compare two snapshots with diff statistics
-- **Snapshot File Browser**: Browse and download files from snapshot contents
-- **Snapshot Verification**: Verify snapshot integrity with restic check
-- **Container State Capture**: Capture Docker container state during snapshots
-- **Drift Detection**: Monitor container, file, and port changes on servers
-- **Server Branches**: Parallel state tracks per server (git branch)
-- **Server Clone**: Replicate server configuration to new target
-- **Snapshot Cherry-pick**: Apply specific file changes to target server
-- **Snapshot Stash**: Quick temporary saves with auto-expiry
-- **Auto-snapshot**: Automatic snapshots on drift detection with threshold/cooldown
-- **Multi-server Snapshots**: Batch snapshot creation across multiple servers
-- **Server Groups**: Organize servers by environment (prod/staging/dev)
-- **Storage Replication**: Cross-target backup replication
-- **Pre/Post Hooks**: User-configurable automation hooks
-- **Webhook System**: Event-driven integrations with HMAC signing
-- **Disaster Recovery Runbooks**: Plan-based recovery with RTO/RPO
-- **Backup Verification Jobs**: Scheduled backup integrity checks
-- **Health Indicators**: SSH and Storage health checks for Actuator
-- **Backup Metrics**: Micrometer counters/timers for backup operations
-- **Redis Caching**: Dashboard stats with 5-minute TTL
-- **Audit Logging**: AOP-based audit trail with IP extraction
-- **Security Headers**: XSS, clickjacking, HSTS, CSP protection
-- **Password Sanitization**: Credential masking in log output
-- **Logback Configuration**: Structured logging with rotation
-- **JWT Validation**: WebSocket strict auth with token verification
-- **Retry Logic**: Exponential backoff for API requests
+- **Input Validation**: 23 type-safe DTOs replacing all raw Map/List @RequestBody parameters across 11 controllers
+- **XSS Prevention**: SanitizeUtil for HTML escaping, Jackson ObjectMapper for safe export serialization
+- **Security Hardening**: Narrowed WebSocket auth paths, Swagger UI disabled in prod, master key length validation
+- **Exception Handling**: 6 new exception handlers (ConstraintViolation, DataIntegrity, HttpMessageNotReadable, etc.)
+- **ErrorCode Enum**: Unified error codes (40001-50302) for all API responses
+- **Database Optimization**: JPQL JOIN queries replacing N+1, paginated diff queries, transaction-split rollback
+- **Structured Logging**: LogContextFilter with MDC (requestId, userId, clientIp), logback-spring.xml config
+- **API Design**: Unified pagination, SnapshotController endpoint split (/snapshots paged + /snapshots/all)
+- **Audit Enhancement**: @Auditable with resourceType/resourceId, V40 migration, userAgent tracking
+- **Dashboard Optimization**: findLatestPerServer() single query replacing N+1, paginated change summaries
+- **State Collection**: System info (hostname, IP, memory, disk, CPU, uptime), per-module timing
+- **Distributed Locking**: Redis SETNX for AutoSnapshotService and ServerHealthMonitor
+- **SSH Metrics**: Connection pool logging (active connections, pool size) every 60s
+- **Frontend Error Handling**: API client toast notifications for 400/404/409/429/500 errors
+- **Frontend Type Safety**: SockJS type declarations, eliminated all 'any' types in API modules
+- **Frontend UX**: SkeletonLoader, EmptyState, LoadingSpinner components, page transitions, breadcrumbs
+- **Agent Reliability**: Panic recovery in executeTask(), shutdown-aware heartbeat loop
+- **Agent Health Reporting**: Enhanced heartbeat with disk/memory/uptime/restic metrics
+- **Docker Hardening**: restart:unless-stopped, healthchecks, memory limits, .dockerignore files
+- **CI/CD Pipeline**: GitHub Actions for backend test, frontend type check, agent build
+- **Monitoring**: Prometheus + Grafana stack (docker-compose.monitoring.yml)
+- **Controller Tests**: 27 new tests (SnapshotController, ServerController, AuthController)
+- **Swagger Documentation**: @Tag annotations on all 9 core controllers
+- **User Documentation**: QUICKSTART.md, SECURITY.md, updated CLAUDE.md
 
 ### Changed
-- All 24 Request DTOs now have Jakarta Validation annotations
-- CORS tightened with configurable allowed headers
-- WebSocket heartbeat for stale connection detection
+- SnapshotController.getSnapshots(): Now defaults to paged (page=0, size=20)
+- SnapshotService.rollback(): Split into non-transactional SSH + transactional DB updates
+- AutoSnapshotService: Uses findByAutoSnapshotEnabledTrueAndStatus() query
+- DashboardService.getOverview(): Uses findLatestPerServer() and findRecentWithChangeSummary()
+- StateCollectionService: Each module timed independently, system info collected
+- Application-prod.yml: Prometheus endpoint exposed
 
-### Testing
-- Added 15 new test suites with 130+ test cases
-- AuthServiceTest (10), SnapshotServiceTest (12), SnapshotTagServiceTest (8)
-- ServerServiceTest (18), StorageServiceTest (8), RecoveryServiceTest (8)
-- AlertServiceTest (8), ScheduledBackupServiceTest (6), DashboardServiceTest (6)
-- TeamServiceTest (6), SettingsServiceTest (6), AsyncTaskManagerTest (10)
-- DriftDetectionServiceTest (8), RiskServiceTest (6), UserServiceTest (6)
+### Fixed
+- CredentialEncryptor: Added 32-char minimum key length validation
+- SecurityConfig: WebSocket auth narrowed from /ws/** to /ws/events + /ws/topics/**
+- Agent heartbeatLoop: Now respects shutdown context
+- SnapshotServiceTest: Updated to match new repository method signatures
 
-## [0.4.0] - 2025-12-01
-
-### Added
-- Snapshot tagging system
-- AI-powered server analysis
-- Scheduled backups
-- Retention policies
-- Alert system with rules
-- Integration webhooks (Slack, DingTalk)
-
-## [0.3.0] - 2025-10-15
+## [0.1.0] - 2026-06-01
 
 ### Added
-- Docker container monitoring
-- Volume management
-- SSH connection pooling
-- Restic backup engine
-
-## [0.2.0] - 2025-09-01
-
-### Added
-- Server management
-- Basic snapshot/rollback
-- User authentication (JWT)
-
-## [0.1.0] - 2025-07-15
-
-### Added
-- Initial project setup
-- Spring Boot backend
-- Vue 3 frontend
-- PostgreSQL database
-- Basic architecture
+- Initial release with Spring Boot backend, Vue 3 frontend, Go agent
+- Server management with SSH connection pooling
+- Snapshot creation with Restic backup engine
+- state.json collection (packages, services, ports, Docker, configs, crontab)
+- Snapshot diff engine (state.json comparison)
+- Git-style timeline view
+- Diff visualization with syntax highlighting
+- Selective rollback capability
+- Multi-storage support (Local, S3, OSS, WebDAV)
+- Team management with RBAC (OWNER/ADMIN/MEMBER/VIEWER)
+- Alert system with configurable rules
+- AI-powered analysis (MiMo integration)
+- WebSocket real-time updates
+- Docker Compose deployment

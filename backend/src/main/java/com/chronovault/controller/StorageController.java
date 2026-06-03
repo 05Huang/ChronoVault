@@ -7,6 +7,8 @@ import com.chronovault.dto.storage.StorageHealthDTO;
 import com.chronovault.dto.storage.StorageOverviewDTO;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.StorageService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +20,13 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/storage")
 @RequiredArgsConstructor
+@Tag(name = "Storage", description = "存储管理 — 添加、查看、删除存储目标")
 public class StorageController {
 
     private final StorageService storageService;
 
     @GetMapping("/overview")
+    @Operation(summary = "获取存储概览", description = "返回所有存储目标的使用概览")
     public ResponseEntity<ApiResponse<List<StorageOverviewDTO>>> getOverview() {
         return ResponseEntity.ok(ApiResponse.success(storageService.getOverview()));
     }

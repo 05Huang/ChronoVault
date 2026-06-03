@@ -7,6 +7,8 @@ import com.chronovault.dto.settings.GenerateKeyRequest;
 import com.chronovault.dto.settings.UpdateAiConfigRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.SettingsService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -22,6 +24,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/settings")
 @RequiredArgsConstructor
+@Tag(name = "Settings", description = "系统设置 — API密钥、审计日志、AI配置")
 public class SettingsController {
 
     private final SettingsService settingsService;

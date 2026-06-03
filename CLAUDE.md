@@ -84,11 +84,13 @@ go build -o chronovault-agent .
 - `composables/useWebSocket.ts` — STOMP/SockJS wrapper for real-time subscriptions.
 - `stores/` — Pinia stores: `auth` (JWT/login), `modal` (dynamic modals), `toast` (notifications), `app`, `layout`.
 - `styles/global.css` — Tailwind 4 `@theme` with Material Design 3 color tokens, glass-morphism components.
+- `components/` — Reusable: SkeletonLoader, EmptyState, LoadingSpinner, DiffViewer, StateTree, ToastContainer.
 
 ### Database
 
-- PostgreSQL 15, managed by Flyway migrations in `backend/src/main/resources/db/migration/` (V1–V21).
+- PostgreSQL 15, managed by Flyway migrations in `backend/src/main/resources/db/migration/` (V1–V40).
 - JPA `ddl-auto: validate` — schema must match migrations exactly. If you modify entity fields, create a new Flyway migration.
+- Check latest version: `ls backend/src/main/resources/db/migration/ | sort -V | tail -1`
 - Demo data seeded in V12: three users (`xuan@chronovault.io` OWNER, `liwei@chronovault.io` ADMIN, `zhangmin@chronovault.io` MEMBER), all with password `password123`.
 - Key tables: `servers`, `snapshots`, `snapshot_manifests`, `storage_targets`, `async_tasks`, `events`, `alerts`, `users`.
 
@@ -129,7 +131,8 @@ Backend reads `.env` via `DotenvPostProcessor` (registered in `config/`). Fronte
 
 - Backend tests use `application-test.yml` (H2 in-memory DB, Flyway disabled, AI disabled).
 - Test profile: `spring.profiles.active=test` (set in test resources).
-- No frontend test suite configured.
+- **287 tests** across 24 test classes: controllers (SnapshotController, ServerController, AuthController), services (Snapshot, Server, Auth, Dashboard, Alert, Storage, Team, Settings, Drift, File, Recovery, Risk, ScheduledBackup, SnapshotTag), security (CredentialEncryptor, SshConnectionManager), diff (StateDiffEngine), docker (DockerOperationService), task (AsyncTaskManager).
+- No frontend test suite configured (Vitest setup pending).
 
 ## Production Deployment
 

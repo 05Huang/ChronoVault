@@ -2,11 +2,15 @@ package transport
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -85,13 +89,44 @@ func (c *Client) Register(scanResult scanner.ScanResult) (*RegisterResponse, err
 }
 
 func (c *Client) Heartbeat() error {
+	// Collect system metrics for health reporting
+	metrics := map[string]interface{}{
+		"timestamp": time.Now().Unix(),
+	}
+
+	// Add disk usage
+	if diskOut, err := execCommand("df -h / 2>/dev/null | awk 'NR==2{print $5}'"); err == nil {
+		metrics["disk_usage"] = strings.TrimSpace(diskOut)
+	}
+
+	// Add memory usage
+	if memOut, err := execCommand("free -m 2>/dev/null | awk '/^Mem:/{printf \"%.1f%%\", $3*100/$2}'"); err == nil {
+		metrics["memory_usage"] = strings.TrimSpace(memOut)
+	}
+
+	// Add uptime
+	if uptimeOut, err := execCommand("uptime -p 2>/dev/null || uptime 2>/dev/null"); err == nil {
+		metrics["uptime"] = strings.TrimSpace(uptimeOut)
+	}
+
+	// Add restic version
+	if resticOut, err := execCommand("restic version 2>/dev/null | head -1"); err == nil {
+		metrics["restic_version"] = strings.TrimSpace(resticOut)
+	}
+
 	body := map[string]interface{}{
 		"agentId": c.agentID,
-		"metrics": map[string]interface{}{
-			"timestamp": time.Now().Unix(),
-		},
+		"metrics": metrics,
 	}
 	return c.post("/api/agent/heartbeat", body, nil)
+}
+
+func execCommand(cmd string) (string, error) {
+	out, err := exec.Command("sh", "-c", cmd).Output()
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }
 
 func (c *Client) GetPendingTasks() ([]TaskInfo, error) {
@@ -150,6 +185,14 @@ func (c *Client) post(path string, body interface{}, result interface{}) error {
 	req.Header.Set("Content-Type", "application/json")
 	if c.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+
+	// Add HMAC signature for request integrity
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
+	req.Header.Set("X-Timestamp", timestamp)
+	if c.apiKey != "" {
+		mac := computeHMAC(jsonBody, c.apiKey)
+		req.Header.Set("X-Signature", mac)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -227,4 +270,11 @@ func (c *Client) postWithRetry(path string, body interface{}, result interface{}
 	}
 
 	return fmt.Errorf("请求失败（已重试 %d 次）: %w", maxRetries, lastErr)
+}
+
+// computeHMAC computes HMAC-SHA256 signature for request integrity verification.
+func computeHMAC(data []byte, secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(data)
+	return hex.EncodeToString(mac.Sum(nil))
 }

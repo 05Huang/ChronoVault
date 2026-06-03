@@ -103,13 +103,15 @@ public class SshConnectionManager {
 
         client.start();
 
-        // Start idle connection eviction scheduler
+        // Start idle connection eviction scheduler + metrics logging
         scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "ssh-eviction");
             t.setDaemon(true);
             return t;
         });
         scheduler.scheduleAtFixedRate(this::evictIdleConnections, 60, 60, TimeUnit.SECONDS);
+        // Log pool metrics every 60 seconds
+        scheduler.scheduleAtFixedRate(this::logPoolMetrics, 60, 60, TimeUnit.SECONDS);
 
         log.info("SSH connection manager initialized (maxPerServer={}, timeout={}ms, retry={})",
                 maxConnectionsPerServer, connectionTimeout, maxRetry);
@@ -335,6 +337,17 @@ public class SshConnectionManager {
             return kp;
         } finally {
             Files.deleteIfExists(tempKey);
+        }
+    }
+
+    /**
+     * Log connection pool metrics for monitoring.
+     */
+    private void logPoolMetrics() {
+        int active = connectionPool.size();
+        int locks = connectionLocks.size();
+        if (active > 0 || locks > 0) {
+            log.info("[SSH_POOL] active={}, pool_size={}, locks={}", active, connectionPool.size(), locks);
         }
     }
 

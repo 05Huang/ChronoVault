@@ -5,6 +5,8 @@ import com.chronovault.dto.team.TeamMemberDTO;
 import com.chronovault.dto.team.UpdateMemberRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.TeamService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/team")
 @RequiredArgsConstructor
+@Tag(name = "Team", description = "团队管理 — 成员邀请、角色变更")
 public class TeamController {
 
     private final TeamService teamService;
