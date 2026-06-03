@@ -36,6 +36,7 @@ func (s *APIServer) Start() error {
 	mux.HandleFunc("/api/v1/scan", s.handleScan)
 	mux.HandleFunc("/api/v1/snapshot", s.handleSnapshot)
 	mux.HandleFunc("/api/v1/restore", s.handleRestore)
+	mux.HandleFunc("/api/v1/state", s.handleStateCollection)
 
 	var handler http.Handler = mux
 	if s.cfg.AuthToken != "" {
@@ -223,9 +224,35 @@ func executeSnapshotTask(client *transport.Client, task transport.TaskInfo) {
 		return
 	}
 
+	// Collect state.json — the core differentiator
+	client.UpdateTaskProgress(task.ID, 80, "采集系统状态...")
+	state, stateErr := scanner.CollectStateSnapshot()
+	if stateErr != nil {
+		log.Printf("Warning: state collection failed: %v", stateErr)
+	} else {
+		if saveErr := scanner.SaveStateSnapshot(state); saveErr != nil {
+			log.Printf("Warning: failed to save state snapshot locally: %v", saveErr)
+		}
+	}
+
 	result := fmt.Sprintf(`{"snapshotId":"%s","totalBytesProcessed":%d}`, snap.SnapshotID, snap.TotalBytesProcessed)
 	client.UpdateTaskProgress(task.ID, 100, "快照完成")
 	client.CompleteTask(task.ID, result)
+}
+
+func (s *APIServer) handleStateCollection(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	state, err := scanner.CollectStateSnapshot()
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, state)
 }
 
 func executeRecoverTask(client *transport.Client, task transport.TaskInfo) {

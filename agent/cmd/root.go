@@ -24,8 +24,6 @@ var (
 	shutdownFunc context.CancelFunc
 )
 
-var cfg *config.Config
-
 func init() {
 	var err error
 	cfg, err = config.LoadConfig("/etc/chronovault/agent.yml")

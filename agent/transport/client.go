@@ -127,6 +127,16 @@ func (c *Client) FailTask(taskID int64, errMsg string) error {
 	return c.post(fmt.Sprintf("/api/agent/tasks/%d/fail", taskID), body, nil)
 }
 
+// ReportStateSnapshot sends the collected state.json data to the backend.
+func (c *Client) ReportStateSnapshot(snapshotID string, stateData json.RawMessage) error {
+	body := map[string]interface{}{
+		"agentId":    c.agentID,
+		"snapshotId": snapshotID,
+		"state":      json.RawMessage(stateData),
+	}
+	return c.post("/api/agent/state/report", body, nil)
+}
+
 func (c *Client) post(path string, body interface{}, result interface{}) error {
 	jsonBody, err := json.Marshal(body)
 	if err != nil {

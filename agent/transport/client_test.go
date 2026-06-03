@@ -251,3 +251,80 @@ func TestTaskInfoFields(t *testing.T) {
 		t.Errorf("Excludes length = %d, want 1", len(task.Excludes))
 	}
 }
+
+func TestReportStateSnapshot(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/agent/state/report" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != "POST" {
+			t.Errorf("unexpected method: %s", r.Method)
+		}
+
+		var body map[string]interface{}
+		json.NewDecoder(r.Body).Decode(&body)
+		if body["agentId"] != "agent-1" {
+			t.Errorf("agentId = %v, want agent-1", body["agentId"])
+		}
+		if body["snapshotId"] != "snap-123" {
+			t.Errorf("snapshotId = %v, want snap-123", body["snapshotId"])
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"code":    200,
+			"message": "ok",
+			"data":    nil,
+		})
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "test-key", "agent-1")
+	stateData := json.RawMessage(`{"collected_at":"2026-06-03T10:00:00Z","packages":[]}`)
+	err := c.ReportStateSnapshot("snap-123", stateData)
+	if err != nil {
+		t.Errorf("ReportStateSnapshot() error: %v", err)
+	}
+}
+
+func TestAPIAuthError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("unauthorized"))
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "wrong-key", "agent-1")
+	err := c.Heartbeat()
+	if err == nil {
+		t.Error("Heartbeat() should return error on 401")
+	}
+}
+
+func TestAPIRetryOn5xx(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts < 3 {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("server error"))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"code":    200,
+			"message": "ok",
+			"data":    nil,
+		})
+	}))
+	defer server.Close()
+
+	c := NewClient(server.URL, "test-key", "agent-1")
+	err := c.postWithRetry("/api/agent/heartbeat", map[string]string{"agentId": "agent-1"}, nil)
+	if err != nil {
+		t.Errorf("postWithRetry() should succeed after retries, got error: %v", err)
+	}
+	if attempts != 3 {
+		t.Errorf("Expected 3 attempts, got %d", attempts)
+	}
+}

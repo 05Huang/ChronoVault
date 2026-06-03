@@ -264,6 +264,59 @@ func (c *Client) Diff(repoURL, password, snap1, snap2 string) (string, error) {
 	return string(out), nil
 }
 
+// Forget removes snapshots from the repository according to the given policy.
+// keepLatest, keepHourly, keepDaily, keepWeekly, keepMonthly, keepYearly specify retention counts.
+// If a count is <= 0, that policy is not applied.
+func (c *Client) Forget(repoURL, password string, snapshotIDs []string, keepLatest, keepHourly, keepDaily, keepWeekly, keepMonthly, keepYearly int) (string, error) {
+	args := []string{"forget"}
+
+	// Add specific snapshot IDs to forget
+	for _, id := range snapshotIDs {
+		args = append(args, id)
+	}
+
+	// Add retention policies
+	if keepLatest > 0 {
+		args = append(args, "--keep-latest", fmt.Sprintf("%d", keepLatest))
+	}
+	if keepHourly > 0 {
+		args = append(args, "--keep-hourly", fmt.Sprintf("%d", keepHourly))
+	}
+	if keepDaily > 0 {
+		args = append(args, "--keep-daily", fmt.Sprintf("%d", keepDaily))
+	}
+	if keepWeekly > 0 {
+		args = append(args, "--keep-weekly", fmt.Sprintf("%d", keepWeekly))
+	}
+	if keepMonthly > 0 {
+		args = append(args, "--keep-monthly", fmt.Sprintf("%d", keepMonthly))
+	}
+	if keepYearly > 0 {
+		args = append(args, "--keep-yearly", fmt.Sprintf("%d", keepYearly))
+	}
+
+	args = append(args, "--repo", repoURL)
+
+	ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
+	defer cancel()
+	cmd := c.buildCmd(ctx, password, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("restic forget failed: %s", string(out))
+	}
+	return string(out), nil
+}
+
+// Dump extracts a file's content from a snapshot.
+func (c *Client) Dump(repoURL, password, snapshotID, filePath string) (string, error) {
+	cmd := c.buildCmd(context.Background(), password, "dump", snapshotID, filePath, "--repo", repoURL)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("restic dump failed: %s", string(out))
+	}
+	return string(out), nil
+}
+
 // buildCmd constructs an exec.Cmd with RESTIC_PASSWORD set.
 func (c *Client) buildCmd(ctx context.Context, password string, args ...string) *exec.Cmd {
 	allArgs := args
