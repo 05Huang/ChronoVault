@@ -42,19 +42,28 @@ public class ServerHealthMonitor {
     private static final double DISK_CRITICAL = 90.0;
     private static final double DISK_WARNING = 85.0;
 
+    private final com.chronovault.config.DistributedLock distributedLock;
+
     @Scheduled(fixedRate = 300000) // Every 5 minutes
     public void monitorAllServers() {
-        List<Server> servers = serverRepository.findAll();
-        if (servers.isEmpty()) return;
+        String lockValue = distributedLock.tryLock("health-check", java.time.Duration.ofMinutes(3));
+        if (lockValue == null) return; // Another instance holds the lock
 
-        log.info("Starting health check for {} servers", servers.size());
-        for (Server server : servers) {
-            try {
-                checkServerHealth(server);
-            } catch (Exception e) {
-                log.warn("Health check failed for {}: {}", server.getIp(), e.getMessage());
-                markServerOffline(server);
+        try {
+            List<Server> servers = serverRepository.findAll();
+            if (servers.isEmpty()) return;
+
+            log.info("[HEALTH_CHECK] Checking {} servers", servers.size());
+            for (Server server : servers) {
+                try {
+                    checkServerHealth(server);
+                } catch (Exception e) {
+                    log.warn("[HEALTH_CHECK] Failed for {}: {}", server.getIp(), e.getMessage());
+                    markServerOffline(server);
+                }
             }
+        } finally {
+            distributedLock.releaseLock("health-check", lockValue);
         }
     }
 

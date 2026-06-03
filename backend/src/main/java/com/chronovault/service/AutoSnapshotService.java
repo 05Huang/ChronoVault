@@ -1,5 +1,6 @@
 package com.chronovault.service;
 
+import com.chronovault.config.DistributedLock;
 import com.chronovault.entity.Server;
 import com.chronovault.entity.Snapshot;
 import com.chronovault.entity.StorageTarget;
@@ -31,6 +32,7 @@ public class AutoSnapshotService {
     private final SnapshotEngine snapshotEngine;
     private final SshConnectionManager sshManager;
     private final ResticClient resticClient;
+    private final DistributedLock distributedLock;
 
     @Value("${chronovault.restic-password}")
     private String resticPassword;
@@ -40,20 +42,29 @@ public class AutoSnapshotService {
 
     /**
      * Check all servers with auto-snapshot enabled for drift.
+     * Uses distributed lock to prevent multiple instances from executing simultaneously.
      * Runs every 30 minutes.
      */
     @Scheduled(fixedRate = 1800000)
     @Transactional
     public void checkAndAutoSnapshot() {
-        List<Server> servers = serverRepository.findByAutoSnapshotEnabledTrueAndStatus(
-                Server.ServerStatus.RUNNING);
+        String lockValue = distributedLock.tryLock("auto-snapshot", java.time.Duration.ofMinutes(5));
+        if (lockValue == null) return; // Another instance holds the lock
 
-        for (Server server : servers) {
-            try {
-                checkServerForDrift(server);
-            } catch (Exception e) {
-                log.warn("Auto-snapshot check failed for server {}: {}", server.getName(), e.getMessage());
+        try {
+            List<Server> servers = serverRepository.findByAutoSnapshotEnabledTrueAndStatus(
+                    Server.ServerStatus.RUNNING);
+
+            log.info("[AUTO_SNAPSHOT] Checking {} servers for drift", servers.size());
+            for (Server server : servers) {
+                try {
+                    checkServerForDrift(server);
+                } catch (Exception e) {
+                    log.warn("[AUTO_SNAPSHOT] Check failed for server {}: {}", server.getName(), e.getMessage());
+                }
             }
+        } finally {
+            distributedLock.releaseLock("auto-snapshot", lockValue);
         }
     }
 
