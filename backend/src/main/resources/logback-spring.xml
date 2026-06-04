@@ -43,4 +43,17 @@
         <appender-ref ref="ASYNC_FILE"/>
     </root>
 
+    <!-- Production profile: more verbose logging for key packages -->
+    <springProfile name="prod">
+        <logger name="com.chronovault" level="INFO"/>
+        <logger name="com.chronovault.snapshot" level="INFO"/>
+        <logger name="com.chronovault.ssh" level="INFO"/>
+    </springProfile>
+
+    <!-- Dev profile: more verbose for debugging -->
+    <springProfile name="dev">
+        <logger name="com.chronovault" level="DEBUG"/>
+        <logger name="org.springframework.web" level="DEBUG"/>
+    </springProfile>
+
 </configuration>
