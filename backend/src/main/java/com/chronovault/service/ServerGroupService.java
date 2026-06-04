@@ -52,10 +52,8 @@ public class ServerGroupService {
     public void deleteGroup(Long groupId) {
         ServerGroup group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("分组不存在: " + groupId));
-        // Remove all servers from this group before deleting
-        List<Server> servers = serverRepository.findAll().stream()
-                .filter(s -> s.getGroup() != null && s.getGroup().getId().equals(groupId))
-                .toList();
+        // Use targeted query instead of loading all servers
+        List<Server> servers = serverRepository.findByGroupId(groupId);
         for (Server server : servers) {
             server.setGroup(null);
             serverRepository.save(server);

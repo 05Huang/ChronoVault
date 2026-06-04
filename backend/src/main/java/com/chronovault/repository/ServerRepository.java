@@ -13,4 +13,9 @@ public interface ServerRepository extends JpaRepository<Server, Long> {
      * Find servers with auto-snapshot enabled and running — avoids loading all servers.
      */
     List<Server> findByAutoSnapshotEnabledTrueAndStatus(Server.ServerStatus status);
+
+    /**
+     * Find servers belonging to a specific group — avoids loading all servers for group deletion.
+     */
+    List<Server> findByGroupId(Long groupId);
 }
