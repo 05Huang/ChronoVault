@@ -103,4 +103,61 @@ class SnapshotEngineTest {
         // Restore valid password for other tests
         ReflectionTestUtils.setField(snapshotEngine, "resticPassword", "test-password-123");
     }
+
+    @Test
+    void createSnapshot_withCustomPaths_usesCustomPaths() {
+        when(snapshotRepository.save(any(Snapshot.class))).thenAnswer(inv -> {
+            Snapshot s = inv.getArgument(0);
+            if (s.getId() == null) {
+                ReflectionTestUtils.setField(s, "id", 1L);
+            }
+            return s;
+        });
+
+        Snapshot result = snapshotEngine.createSnapshot(
+                testServer, testStorageTarget, "Custom Paths", "with excludes",
+                Snapshot.SnapshotType.FULL, 1L,
+                List.of("/var/www", "/etc/nginx"),
+                List.of("/var/cache"));
+
+        assertNotNull(result);
+        assertEquals("Custom Paths", result.getTitle());
+        verify(snapshotRepository).save(any(Snapshot.class));
+    }
+
+    @Test
+    void createSnapshot_incrementalType_setsIncrementalFlag() {
+        when(snapshotRepository.save(any(Snapshot.class))).thenAnswer(inv -> {
+            Snapshot s = inv.getArgument(0);
+            if (s.getId() == null) {
+                ReflectionTestUtils.setField(s, "id", 1L);
+            }
+            return s;
+        });
+
+        Snapshot result = snapshotEngine.createSnapshot(
+                testServer, testStorageTarget, "Incremental", "note",
+                Snapshot.SnapshotType.INCREMENTAL, 1L, null, null);
+
+        assertNotNull(result);
+        assertEquals(Snapshot.SnapshotType.INCREMENTAL, result.getType());
+    }
+
+    @Test
+    void createSnapshot_withNullUserId_handlesGracefully() {
+        when(snapshotRepository.save(any(Snapshot.class))).thenAnswer(inv -> {
+            Snapshot s = inv.getArgument(0);
+            if (s.getId() == null) {
+                ReflectionTestUtils.setField(s, "id", 1L);
+            }
+            return s;
+        });
+
+        Snapshot result = snapshotEngine.createSnapshot(
+                testServer, testStorageTarget, "No User", "note",
+                Snapshot.SnapshotType.FULL, null, null, null);
+
+        assertNotNull(result);
+        assertEquals("No User", result.getTitle());
+    }
 }

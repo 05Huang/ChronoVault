@@ -820,4 +820,72 @@ class StateDiffEngineTest {
         assertNotNull(result);
         assertFalse(result.hasError());
     }
+
+    @Test
+    void diff_largeStateJson_noError() {
+        // Test with a large state.json to ensure no OOM
+        StringBuilder largePackages = new StringBuilder("\"packages\":[");
+        for (int i = 0; i < 1000; i++) {
+            if (i > 0) largePackages.append(",");
+            largePackages.append("{\"name\":\"pkg").append(i).append("\",\"version\":\"1.0\",\"manager\":\"apt\"}");
+        }
+        largePackages.append("]");
+
+        String stateA = "{" + largePackages + ",\"services\":[],\"ports\":[],\"docker\":{\"containers\":[]},\"configs\":[],\"crontab\":[]}";
+        String stateB = "{" + largePackages + ",\"services\":[],\"ports\":[],\"docker\":{\"containers\":[]},\"configs\":[],\"crontab\":[]}";
+
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(stateA, stateB);
+        assertNotNull(result);
+        assertFalse(result.hasError());
+        assertEquals(0, result.summary().packagesAdded);
+    }
+
+    @Test
+    void diff_mixedChanges_allCategories() {
+        String stateA = """
+                {
+                  "packages": [{"name": "nginx", "version": "1.22.0", "manager": "apt"}],
+                  "services": [{"name": "nginx", "status": "active", "enabled": true}],
+                  "ports": [{"port": 80, "protocol": "tcp"}],
+                  "docker": {"containers": [{"name": "app1", "status": "running"}]},
+                  "configs": [{"path": "/etc/nginx.conf", "sha256": "aaa", "size": 100}],
+                  "crontab": [{"user": "root", "schedule": "0 * * * *", "command": "/opt/test.sh"}]
+                }""";
+        String stateB = """
+                {
+                  "packages": [{"name": "nginx", "version": "1.24.0", "manager": "apt"}, {"name": "curl", "version": "7.88", "manager": "apt"}],
+                  "services": [{"name": "nginx", "status": "inactive", "enabled": false}],
+                  "ports": [{"port": 80, "protocol": "tcp"}, {"port": 443, "protocol": "tcp"}],
+                  "docker": {"containers": [{"name": "app1", "status": "stopped"}]},
+                  "configs": [{"path": "/etc/nginx.conf", "sha256": "bbb", "size": 100}],
+                  "crontab": [{"user": "root", "schedule": "0 * * * *", "command": "/opt/test.sh"}, {"user": "root", "schedule": "5 * * * *", "command": "/opt/other.sh"}]
+                }""";
+
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(stateA, stateB);
+        assertNotNull(result);
+        assertFalse(result.hasError());
+
+        // Verify all categories have changes
+        assertEquals(1, result.summary().packagesAdded);    // curl
+        assertEquals(1, result.summary().packagesUpgraded); // nginx 1.22->1.24
+        assertEquals(1, result.summary().servicesChanged);  // nginx disabled
+        assertEquals(1, result.summary().portsChanged);     // 443 added
+        assertEquals(1, result.summary().dockerChanged);    // app1 stopped
+        assertEquals(1, result.summary().configsChanged);   // nginx.conf hash changed
+        assertEquals(1, result.summary().crontabChanged);   // new cron entry
+    }
+
+    @Test
+    void diff_resultHasError_returnsErrorMessage() {
+        StateDiffEngine.StateDiffResult errorResult = StateDiffEngine.StateDiffResult.error("Test error");
+        assertTrue(errorResult.hasError());
+        assertEquals("Test error", errorResult.error());
+    }
+
+    @Test
+    void diff_emptyResult_noError() {
+        StateDiffEngine.StateDiffResult emptyResult = StateDiffEngine.StateDiffResult.empty();
+        assertFalse(emptyResult.hasError());
+        assertNull(emptyResult.error());
+    }
 }

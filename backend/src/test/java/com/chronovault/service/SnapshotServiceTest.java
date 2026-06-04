@@ -8,6 +8,7 @@ import com.chronovault.exception.BadRequestException;
 import com.chronovault.exception.ResourceNotFoundException;
 import com.chronovault.repository.*;
 import com.chronovault.diff.StateDiffEngine;
+import org.springframework.data.domain.Page;
 import com.chronovault.snapshot.ResticClient;
 import com.chronovault.snapshot.SnapshotEngine;
 import com.chronovault.ssh.SshConnection;
@@ -92,6 +93,39 @@ class SnapshotServiceTest {
     }
 
     @Test
+    void getSnapshotsByTag_returnsFilteredList() {
+        Snapshot taggedSnap = Snapshot.builder().id(1L).server(testServer).title("Tagged").status(Snapshot.SnapshotStatus.STABLE).build();
+        when(snapshotRepository.findByTagName("production")).thenReturn(List.of(taggedSnap));
+        when(tagRepository.findBySnapshotIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+
+        List<SnapshotDTO> result = snapshotService.getSnapshotsByTag("production");
+        assertNotNull(result);
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    void getSnapshotsByTag_emptyTag_returnsEmptyList() {
+        when(snapshotRepository.findByTagName("nonexistent")).thenReturn(List.of());
+
+        List<SnapshotDTO> result = snapshotService.getSnapshotsByTag("nonexistent");
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void getSnapshotsPaged_returnsPageWithBatchTags() {
+        Page<Snapshot> snapshotPage = new org.springframework.data.domain.PageImpl<>(
+                List.of(testSnapshot), org.springframework.data.domain.PageRequest.of(0, 20), 1);
+        when(snapshotRepository.findAll(any(org.springframework.data.domain.Pageable.class))).thenReturn(snapshotPage);
+        when(tagRepository.findBySnapshotIdsIn(anyList())).thenReturn(List.of());
+
+        Page<SnapshotDTO> result = snapshotService.getSnapshotsPaged(0, 20);
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+        assertEquals("Test Snapshot", result.getContent().get(0).name());
+    }
+
+    @Test
     void getSnapshot_existingId_returnsSnapshot() {
         when(snapshotRepository.findById(1L)).thenReturn(Optional.of(testSnapshot));
         when(tagRepository.findBySnapshotIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
@@ -134,6 +168,16 @@ class SnapshotServiceTest {
         when(snapshotRepository.findAllById(List.of())).thenReturn(List.of());
         int deleted = snapshotService.batchDelete(List.of());
         assertEquals(0, deleted);
+    }
+
+    @Test
+    void batchDelete_partialIds_returnsActualCount() {
+        Snapshot s1 = Snapshot.builder().id(1L).server(testServer).title("S1").status(Snapshot.SnapshotStatus.STABLE).build();
+        // Only ID 1 exists, ID 999 doesn't
+        when(snapshotRepository.findAllById(List.of(1L, 999L))).thenReturn(List.of(s1));
+        int deleted = snapshotService.batchDelete(List.of(1L, 999L));
+        assertEquals(1, deleted);
+        verify(snapshotRepository).deleteAll(List.of(s1));
     }
 
     @Test
@@ -428,6 +472,20 @@ class SnapshotServiceTest {
     }
 
     @Test
+    void rollback_nonExistingSnapshot_throwsException() {
+        when(snapshotRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> snapshotService.rollback(999L, 1L));
+    }
+
+    @Test
+    void rollback_noHash_throwsBadRequest() {
+        Snapshot snapNoHash = Snapshot.builder().id(1L).server(testServer).title("No Hash")
+                .status(Snapshot.SnapshotStatus.STABLE).createdAt(LocalDateTime.now()).build();
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapNoHash));
+        assertThrows(BadRequestException.class, () -> snapshotService.rollback(1L, 1L));
+    }
+
+    @Test
     void selectiveRollback_configType_dumpsAndWrites() throws Exception {
         Snapshot snapWithHash = Snapshot.builder().id(1L).server(testServer).title("Selective Rollback")
                 .hash("abc123").status(Snapshot.SnapshotStatus.STABLE)
@@ -499,6 +557,28 @@ class SnapshotServiceTest {
 
         assertThrows(BadRequestException.class, () ->
                 snapshotService.selectiveRollback(1L, items, 1L));
+    }
+
+    @Test
+    void selectiveRollback_nonExistingSnapshot_throwsException() {
+        when(snapshotRepository.findById(999L)).thenReturn(Optional.empty());
+        java.util.List<Map<String, String>> items = List.of(Map.of("type", "config", "path", "/etc/nginx.conf"));
+        assertThrows(ResourceNotFoundException.class, () ->
+                snapshotService.selectiveRollback(999L, items, 1L));
+    }
+
+    @Test
+    void revert_nonExistingSnapshot_throwsException() {
+        when(snapshotRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> snapshotService.revert(999L, 1L));
+    }
+
+    @Test
+    void revert_noHash_throwsBadRequest() {
+        Snapshot snapNoHash = Snapshot.builder().id(1L).server(testServer).title("No Hash")
+                .status(Snapshot.SnapshotStatus.STABLE).createdAt(LocalDateTime.now()).build();
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapNoHash));
+        assertThrows(BadRequestException.class, () -> snapshotService.revert(1L, 1L));
     }
 
     @Test
@@ -591,6 +671,20 @@ class SnapshotServiceTest {
         assertEquals(2L, result.get("snapshot_b"));
         // With null inputs, StateDiffEngine returns empty result
         assertNotNull(result.get("summary"));
+    }
+
+    @Test
+    void computeStateDiff_fromSnapshotNotFound_throwsException() {
+        when(snapshotRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> snapshotService.computeStateDiff(999L, 1L));
+    }
+
+    @Test
+    void computeStateDiff_toSnapshotNotFound_throwsException() {
+        Snapshot fromSnap = Snapshot.builder().id(1L).server(testServer).stateJson("{}").status(Snapshot.SnapshotStatus.STABLE).build();
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(fromSnap));
+        when(snapshotRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> snapshotService.computeStateDiff(1L, 999L));
     }
 
     @Test
@@ -914,5 +1008,28 @@ class SnapshotServiceTest {
                     && saved.getChangeSummaryJson().contains("packages_added")
                     && saved.getPreviousSnapshot() != null;
         }));
+    }
+
+    @Test
+    void cleanupLocalRepo_deletesNullHashSnapshots() {
+        Snapshot nullHashSnap = Snapshot.builder().id(1L).server(testServer).title("Null Hash")
+                .status(Snapshot.SnapshotStatus.STABLE).build();
+        when(snapshotRepository.findNullHashSnapshots()).thenReturn(List.of(nullHashSnap));
+        when(storageTargetRepository.findAll()).thenReturn(List.of());
+
+        String result = snapshotService.cleanupLocalRepo();
+
+        assertTrue(result.contains("已清理"));
+        verify(snapshotRepository).deleteAll(anyList());
+    }
+
+    @Test
+    void cleanupLocalRepo_noNullHashSnapshots_returnsZero() {
+        when(snapshotRepository.findNullHashSnapshots()).thenReturn(List.of());
+        when(storageTargetRepository.findAll()).thenReturn(List.of());
+
+        String result = snapshotService.cleanupLocalRepo();
+
+        assertTrue(result.contains("0 条无效快照记录"));
     }
 }
