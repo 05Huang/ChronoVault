@@ -10,6 +10,7 @@ import com.chronovault.dto.auth.UserDTO;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.security.JwtTokenProvider;
 import com.chronovault.service.AuthService;
+import com.chronovault.audit.Auditable;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -19,10 +20,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.Map;
+import com.chronovault.config.ApiVersion;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping(ApiVersion.V1 + "/auth")
 @RequiredArgsConstructor
 @Tag(name = "Authentication", description = "认证管理 — 登录、注册、密码修改、个人资料、Token 刷新")
 public class AuthController {
@@ -30,16 +33,19 @@ public class AuthController {
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
 
+    @Auditable(action = "用户登录", changeType = "USER_ACTION", resourceType = "USER")
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @Auditable(action = "用户注册", changeType = "USER_ACTION", resourceType = "USER")
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
         AuthResponse response = authService.register(request);
-        return ResponseEntity.ok(ApiResponse.success(response));
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "auth/me"))
+                .body(ApiResponse.success(response));
     }
 
     @GetMapping("/me")
@@ -61,7 +67,9 @@ public class AuthController {
             Authentication authentication,
             @Valid @RequestBody UpdateProfileRequest body) {
         UserDTO updated = authService.updateProfile(authentication.getName(), body.name());
-        return ResponseEntity.ok(ApiResponse.success(updated));
+        return ResponseEntity.ok()
+                .location(URI.create(ApiVersion.V1 + "auth/me"))
+                .body(ApiResponse.success(updated));
     }
 
     @PostMapping("/refresh")

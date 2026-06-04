@@ -56,7 +56,7 @@ class AuthControllerTest {
         when(authService.register(request)).thenReturn(response);
 
         var result = controller.register(request);
-        assertEquals(200, result.getStatusCode().value());
+        assertEquals(201, result.getStatusCode().value());
         assertEquals("new@test.com", result.getBody().data().user().email());
     }
 

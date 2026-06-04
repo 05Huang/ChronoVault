@@ -39,7 +39,7 @@ class IntegrationControllerTest {
         var auth = new UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
         CreateIntegrationRequest request = new CreateIntegrationRequest("SLACK", "Slack", "https://hooks.slack.com/test");
         var response = controller.createIntegration(auth, request);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
     }
 
     @Test

@@ -43,7 +43,7 @@ class WebhookControllerTest {
         when(webhookService.createEndpoint(any(WebhookEndpoint.class))).thenReturn(endpoint);
 
         var response = controller.createEndpoint(endpoint);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
         verify(webhookService).createEndpoint(endpoint);
     }
 

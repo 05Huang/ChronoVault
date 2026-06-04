@@ -1,5 +1,6 @@
 package com.chronovault.controller;
 
+import com.chronovault.audit.Auditable;
 import com.chronovault.dto.alert.*;
 import com.chronovault.dto.integration.IntegrationDTO;
 import com.chronovault.dto.integration.CreateIntegrationRequest;
@@ -16,10 +17,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
+import com.chronovault.config.ApiVersion;
 
 @RestController
-@RequestMapping("/api/alerts")
+@RequestMapping(ApiVersion.V1 + "/alerts")
 @RequiredArgsConstructor
 @Tag(name = "Alerts", description = "告警管理 — 查看、确认、规则管理")
 public class AlertController {
@@ -71,9 +74,12 @@ public class AlertController {
         return ResponseEntity.ok(ApiResponse.success(alertService.getRules(SecurityUtils.getCurrentUsername(auth))));
     }
 
+    @Auditable(action = "创建告警规则", changeType = "CONFIG_CHANGED", resourceType = "ALERT_RULE")
     @PostMapping("/rules")
     public ResponseEntity<ApiResponse<AlertRuleDTO>> createRule(Authentication auth, @Valid @RequestBody CreateAlertRuleRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(alertService.createRule(SecurityUtils.getCurrentUsername(auth), request)));
+        AlertRuleDTO rule = alertService.createRule(SecurityUtils.getCurrentUsername(auth), request);
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "alerts/rules/" + rule.id()))
+                .body(ApiResponse.success(rule));
     }
 
     // Integration endpoints
@@ -84,23 +90,29 @@ public class AlertController {
 
     @PostMapping("/integrations")
     public ResponseEntity<ApiResponse<IntegrationDTO>> createIntegration(Authentication auth, @Valid @RequestBody CreateIntegrationRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(
-                alertService.createIntegration(SecurityUtils.getCurrentUsername(auth), request.type(), request.name(), request.url())));
+        IntegrationDTO integration = alertService.createIntegration(
+                SecurityUtils.getCurrentUsername(auth), request.type(), request.name(), request.url());
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "alerts/integrations/" + integration.id()))
+                .body(ApiResponse.success(integration));
     }
 
     @PutMapping("/integrations/{id}")
     public ResponseEntity<ApiResponse<IntegrationDTO>> updateIntegration(
             @PathVariable Long id,
             @Valid @RequestBody UpdateIntegrationRequest body) {
-        return ResponseEntity.ok(ApiResponse.success(alertService.updateIntegration(id, body.active())));
+        return ResponseEntity.ok()
+                .location(URI.create(ApiVersion.V1 + "alerts/integrations/" + id))
+                .body(ApiResponse.success(alertService.updateIntegration(id, body.active())));
     }
 
+    @Auditable(action = "删除告警规则", changeType = "CONFIG_CHANGED", resourceType = "ALERT_RULE", resourceId = "#id")
     @DeleteMapping("/rules/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteRule(@PathVariable Long id) {
         alertService.deleteRule(id);
         return ResponseEntity.ok(ApiResponse.successMsg("告警规则已删除"));
     }
 
+    @Auditable(action = "删除集成", changeType = "CONFIG_CHANGED", resourceType = "INTEGRATION", resourceId = "#id")
     @DeleteMapping("/integrations/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteIntegration(@PathVariable Long id) {
         alertService.deleteIntegration(id);

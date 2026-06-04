@@ -19,11 +19,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import com.chronovault.config.ApiVersion;
 
 @RestController
-@RequestMapping("/api/servers")
+@RequestMapping(ApiVersion.V1 + "/servers")
 @RequiredArgsConstructor
 @Tag(name = "Servers", description = "服务器管理 — 添加、监控、克隆、漂移检测")
 public class ServerController {
@@ -51,7 +53,8 @@ public class ServerController {
     @PostMapping
     public ResponseEntity<ApiResponse<ServerDTO>> createServer(Authentication auth, @Valid @RequestBody CreateServerRequest request) {
         ServerDTO server = serverService.createServer(SecurityUtils.getCurrentUsername(auth), request.name(), request.ip(), request.os());
-        return ResponseEntity.ok(ApiResponse.success(server));
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "servers/" + server.id()))
+                .body(ApiResponse.success(server));
     }
 
     @PostMapping("/clone")
@@ -68,7 +71,9 @@ public class ServerController {
             @PathVariable Long id,
             @Valid @RequestBody ToggleAutoSnapshotRequest body) {
         autoSnapshotService.setAutoSnapshotEnabled(id, body.enabled());
-        return ResponseEntity.ok(ApiResponse.successMsg("自动快照已" + (body.enabled() ? "开启" : "关闭")));
+        return ResponseEntity.ok()
+                .location(URI.create(ApiVersion.V1 + "servers/" + id))
+                .body(ApiResponse.successMsg("自动快照已" + (body.enabled() ? "开启" : "关闭")));
     }
 
     @GetMapping("/{id}/containers")
@@ -84,7 +89,8 @@ public class ServerController {
     @PostMapping("/{id}/volumes")
     public ResponseEntity<ApiResponse<VolumeDTO>> addVolume(@PathVariable Long id, @Valid @RequestBody AddVolumeRequest request) {
         VolumeDTO volume = serverService.addVolume(id, request.containerPath(), request.hostPath());
-        return ResponseEntity.ok(ApiResponse.success(volume));
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "servers/" + id + "/volumes/" + volume.id()))
+                .body(ApiResponse.success(volume));
     }
 
     @GetMapping("/{id}/logs")
@@ -112,8 +118,10 @@ public class ServerController {
 
     @PutMapping("/{id}/ssh")
     public ResponseEntity<ApiResponse<ServerDTO>> updateSshConfig(@PathVariable Long id, @Valid @RequestBody UpdateSshConfigRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(
-                serverService.updateSshConfig(id, request.port(), request.username(), request.authMethod(), request.credential())));
+        ServerDTO updated = serverService.updateSshConfig(id, request.port(), request.username(), request.authMethod(), request.credential());
+        return ResponseEntity.ok()
+                .location(URI.create(ApiVersion.V1 + "servers/" + id))
+                .body(ApiResponse.success(updated));
     }
 
     @PostMapping("/{id}/test-connection")
@@ -167,7 +175,10 @@ public class ServerController {
     @PostMapping("/{id}/containers/create")
     public ResponseEntity<ApiResponse<Map<String, Object>>> createContainer(@PathVariable Long id,
                                                                              @Valid @RequestBody CreateContainerRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(serverService.createContainer(id, request)));
+        Map<String, Object> result = serverService.createContainer(id, request);
+        String containerId = result.get("id") != null ? result.get("id").toString() : "";
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "servers/" + id + "/containers/" + containerId))
+                .body(ApiResponse.success(result));
     }
 
     // --- Docker Image Management ---

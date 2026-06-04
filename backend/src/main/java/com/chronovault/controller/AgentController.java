@@ -11,9 +11,11 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import com.chronovault.config.ApiVersion;
+import io.swagger.v3.oas.annotations.Operation;
 
 @RestController
-@RequestMapping("/api/agent")
+@RequestMapping(ApiVersion.V1 + "/agent")
 @RequiredArgsConstructor
 public class AgentController {
 
@@ -34,6 +36,7 @@ public class AgentController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
+    @Operation(summary = "操作 heartbeat")
     @PostMapping("/heartbeat")
     public ResponseEntity<ApiResponse<Void>> heartbeat(
             @Valid @RequestBody AgentHeartbeatRequest body) {
@@ -41,6 +44,7 @@ public class AgentController {
         return ResponseEntity.ok(ApiResponse.successMsg("心跳已更新"));
     }
 
+    @Operation(summary = "操作 get Pending Tasks")
     @PostMapping("/tasks/pending")
     public ResponseEntity<ApiResponse<List<AsyncTask>>> getPendingTasks(
             @Valid @RequestBody AgentPendingTasksRequest body) {
@@ -48,6 +52,7 @@ public class AgentController {
         return ResponseEntity.ok(ApiResponse.success(tasks));
     }
 
+    @Operation(summary = "操作 update Progress")
     @PostMapping("/tasks/{taskId}/progress")
     public ResponseEntity<ApiResponse<Void>> updateProgress(
             @PathVariable Long taskId,
@@ -56,6 +61,7 @@ public class AgentController {
         return ResponseEntity.ok(ApiResponse.successMsg("进度已更新"));
     }
 
+    @Operation(summary = "操作 complete Task")
     @PostMapping("/tasks/{taskId}/complete")
     public ResponseEntity<ApiResponse<Void>> completeTask(
             @PathVariable Long taskId,
@@ -64,6 +70,7 @@ public class AgentController {
         return ResponseEntity.ok(ApiResponse.successMsg("任务已完成"));
     }
 
+    @Operation(summary = "操作 fail Task")
     @PostMapping("/tasks/{taskId}/fail")
     public ResponseEntity<ApiResponse<Void>> failTask(
             @PathVariable Long taskId,
@@ -72,6 +79,7 @@ public class AgentController {
         return ResponseEntity.ok(ApiResponse.successMsg("任务已标记失败"));
     }
 
+    @Operation(summary = "操作 update Containers")
     @PostMapping("/containers/{serverId}")
     public ResponseEntity<ApiResponse<Void>> updateContainers(
             @PathVariable Long serverId,

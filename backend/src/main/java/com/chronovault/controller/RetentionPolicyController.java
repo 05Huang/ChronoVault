@@ -16,11 +16,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import com.chronovault.config.ApiVersion;
+import io.swagger.v3.oas.annotations.Operation;
 
 @RestController
-@RequestMapping("/api/retention-policies")
+@RequestMapping(ApiVersion.V1 + "/retention-policies")
 @RequiredArgsConstructor
 public class RetentionPolicyController {
 
@@ -36,16 +39,19 @@ public class RetentionPolicyController {
             Integer minKeepDays
     ) {}
 
+    @Operation(summary = "获取 All")
     @GetMapping
     public ResponseEntity<ApiResponse<List<SnapshotRetentionPolicy>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(retentionService.getAllPolicies()));
     }
 
+    @Operation(summary = "获取 By Server")
     @GetMapping("/server/{serverId}")
     public ResponseEntity<ApiResponse<List<SnapshotRetentionPolicy>>> getByServer(@PathVariable Long serverId) {
         return ResponseEntity.ok(ApiResponse.success(retentionService.getPoliciesByServer(serverId)));
     }
 
+    @Operation(summary = "操作 create")
     @PostMapping
     public ResponseEntity<ApiResponse<SnapshotRetentionPolicy>> create(
             @Valid @RequestBody CreateRetentionPolicyRequest request, Authentication auth) {
@@ -62,14 +68,20 @@ public class RetentionPolicyController {
                 .minKeepDays(request.minKeepDays() != null ? request.minKeepDays() : 7)
                 .build();
 
-        return ResponseEntity.ok(ApiResponse.success(retentionService.createPolicy(policy)));
+        SnapshotRetentionPolicy created = retentionService.createPolicy(policy);
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "retention-policies/" + created.getId()))
+                .body(ApiResponse.success(created));
     }
 
+    @Operation(summary = "更新 toggle")
     @PutMapping("/{id}/toggle")
     public ResponseEntity<ApiResponse<SnapshotRetentionPolicy>> toggle(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success(retentionService.togglePolicy(id)));
+        return ResponseEntity.ok()
+                .location(URI.create(ApiVersion.V1 + "retention-policies/" + id))
+                .body(ApiResponse.success(retentionService.togglePolicy(id)));
     }
 
+    @Operation(summary = "删除 delete")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         retentionService.deletePolicy(id);

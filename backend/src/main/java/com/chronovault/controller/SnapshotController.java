@@ -32,8 +32,11 @@ import com.chronovault.service.SnapshotTagService;
 import com.chronovault.service.BatchSnapshotService;
 import com.chronovault.service.StorageReplicationService;
 import com.chronovault.service.UserService;
+import com.chronovault.task.AsyncTaskManager;
+import com.chronovault.task.TaskType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -41,11 +44,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import com.chronovault.config.ApiVersion;
 
+@Slf4j
 @RestController
-@RequestMapping("/api/snapshots")
+@RequestMapping(ApiVersion.V1 + "/snapshots")
 @RequiredArgsConstructor
 @Tag(name = "Snapshots", description = "快照管理 — 创建、回滚、恢复、差异对比、二分查找")
 public class SnapshotController {
@@ -57,6 +67,12 @@ public class SnapshotController {
     private final ContainerStateRepository containerStateRepository;
     private final StorageReplicationService replicationService;
     private final BatchSnapshotService batchService;
+    private final AsyncTaskManager taskManager;
+
+    /** In-memory store for async export results, keyed by task ID. TTL is managed by cleanup. */
+    private final ConcurrentHashMap<Long, ExportResult> exportResults = new ConcurrentHashMap<>();
+
+    private record ExportResult(String filename, String contentType, byte[] content) {}
 
     @GetMapping
     @Operation(summary = "获取快照列表（分页）", description = "返回分页快照列表，支持按标签过滤。默认 page=0, size=20, sort=createdAt, direction=desc")
@@ -91,7 +107,9 @@ public class SnapshotController {
     @PostMapping
     public ResponseEntity<ApiResponse<SnapshotDTO>> createSnapshot(Authentication auth, @Valid @RequestBody CreateSnapshotRequest request) {
         Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
-        return ResponseEntity.ok(ApiResponse.success(snapshotService.createSnapshot(request, userId)));
+        SnapshotDTO snapshot = snapshotService.createSnapshot(request, userId);
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "snapshots/" + snapshot.id()))
+                .body(ApiResponse.success(snapshot));
     }
 
     @GetMapping("/{id}/diff")
@@ -267,7 +285,9 @@ public class SnapshotController {
     @PostMapping("/bisect/start")
     public ResponseEntity<ApiResponse<BisectSessionDTO>> startBisect(
             @Valid @RequestBody BisectStartRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(bisectService.start(request)));
+        BisectSessionDTO session = bisectService.start(request);
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "snapshots/bisect/" + session.sessionId()))
+                .body(ApiResponse.success(session));
     }
 
     @PostMapping("/bisect/{sessionId}/mark")
@@ -303,7 +323,8 @@ public class SnapshotController {
             @Valid @RequestBody StartBatchRequest body) {
         Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         String batchId = batchService.startBatch(body.serverIds(), body.storageTargetId(), body.name(), userId);
-        return ResponseEntity.ok(ApiResponse.success(batchId));
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "snapshots/batch/" + batchId))
+                .body(ApiResponse.success(batchId));
     }
 
     @GetMapping("/batch/{batchId}")
@@ -313,49 +334,96 @@ public class SnapshotController {
     }
 
     @GetMapping("/export")
-    public ResponseEntity<String> exportSnapshots(@RequestParam(defaultValue = "csv") String format) {
-        List<SnapshotDTO> snapshots = snapshotService.getSnapshots();
+    @Operation(summary = "导出快照数据", description = "异步导出快照数据，返回任务 ID。客户端应轮询任务状态，完成后通过 /export/{taskId}/download 下载文件")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> exportSnapshots(
+            Authentication auth,
+            @RequestParam(defaultValue = "csv") String format) {
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
+        String fmt = format.toLowerCase();
+        if (!fmt.equals("csv") && !fmt.equals("json") && !fmt.equals("yaml") && !fmt.equals("yml")) {
+            throw new com.chronovault.exception.BadRequestException("不支持的导出格式: " + format + "，支持 csv/json/yaml");
+        }
 
-        if ("yaml".equalsIgnoreCase(format) || "yml".equalsIgnoreCase(format)) {
-            try {
-                ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory())
-                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-                String yaml = yamlMapper.writerWithDefaultPrettyPrinter()
-                        .writeValueAsString(Map.of("snapshots", snapshots));
-                return ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=snapshots.yaml")
-                        .contentType(MediaType.parseMediaType("text/yaml"))
-                        .body(yaml);
-            } catch (Exception e) {
-                throw new com.chronovault.exception.BadRequestException("导出 YAML 失败: " + e.getMessage());
+        com.chronovault.entity.AsyncTask task = taskManager.submit(
+                TaskType.EXPORT, null, userId,
+                "导出快照数据 (" + fmt.toUpperCase() + ")",
+                t -> {
+                    try {
+                        taskManager.updateProgress(t.getId(), 10, "正在查询快照数据...");
+                        List<SnapshotDTO> snapshots = snapshotService.getSnapshots();
+                        taskManager.updateProgress(t.getId(), 50, "正在生成 " + fmt.toUpperCase() + " 文件...");
+
+                        String filename = "snapshots_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + "." + fmt;
+                        byte[] content;
+
+                        if ("yaml".equals(fmt) || "yml".equals(fmt)) {
+                            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory())
+                                    .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                            String yaml = yamlMapper.writerWithDefaultPrettyPrinter()
+                                    .writeValueAsString(Map.of("snapshots", snapshots));
+                            content = yaml.getBytes(StandardCharsets.UTF_8);
+                        } else if ("json".equals(fmt)) {
+                            ObjectMapper jsonMapper = new ObjectMapper()
+                                    .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                            String json = jsonMapper.writerWithDefaultPrettyPrinter()
+                                    .writeValueAsString(snapshots);
+                            content = json.getBytes(StandardCharsets.UTF_8);
+                        } else {
+                            // CSV
+                            StringBuilder csv = new StringBuilder("ID,名称,状态,服务器,创建时间,大小\n");
+                            for (SnapshotDTO s : snapshots) {
+                                csv.append(String.format("%d,%s,%s,%s,%s,%d\n",
+                                        s.id(), csvEscape(s.name()), s.status(),
+                                        csvEscape(s.serverName()), s.createdAt(), s.sizeBytes()));
+                            }
+                            content = csv.toString().getBytes(StandardCharsets.UTF_8);
+                        }
+
+                        String contentType = switch (fmt) {
+                            case "yaml", "yml" -> "text/yaml";
+                            case "json" -> "application/json";
+                            default -> "text/csv";
+                        };
+
+                        exportResults.put(t.getId(), new ExportResult(filename, contentType, content));
+                        taskManager.updateProgress(t.getId(), 100, "导出完成，文件已就绪");
+                        log.info("[EXPORT] [task={}] Export completed: {} ({} bytes)", t.getId(), filename, content.length);
+                    } catch (Exception e) {
+                        throw new RuntimeException("导出失败: " + e.getMessage(), e);
+                    }
+                });
+
+        return ResponseEntity.accepted()
+                .body(ApiResponse.success(Map.of(
+                        "taskId", task.getId(),
+                        "message", "导出任务已提交，请轮询任务状态，完成后通过 /api/snapshots/export/" + task.getId() + "/download 下载")));
+    }
+
+    @GetMapping("/export/{taskId}/download")
+    @Operation(summary = "下载导出文件", description = "快照导出任务完成后，通过此端点下载导出文件")
+    public ResponseEntity<byte[]> downloadExport(@PathVariable Long taskId) {
+        ExportResult result = exportResults.get(taskId);
+        if (result == null) {
+            // Check if task exists and is still running
+            com.chronovault.entity.AsyncTask task = taskManager.getStatus(taskId);
+            if (task == null) {
+                throw new com.chronovault.exception.ResourceNotFoundException("导出任务不存在: " + taskId);
             }
-        }
-
-        if ("json".equalsIgnoreCase(format)) {
-            try {
-                ObjectMapper jsonMapper = new ObjectMapper()
-                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-                String json = jsonMapper.writerWithDefaultPrettyPrinter()
-                        .writeValueAsString(snapshots);
-                return ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=snapshots.json")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(json);
-            } catch (Exception e) {
-                throw new com.chronovault.exception.BadRequestException("导出 JSON 失败: " + e.getMessage());
+            if (task.getStatus() == com.chronovault.entity.AsyncTask.TaskStatus.RUNNING
+                    || task.getStatus() == com.chronovault.entity.AsyncTask.TaskStatus.PENDING) {
+                throw new com.chronovault.exception.BadRequestException("导出任务尚未完成，请稍后再试");
             }
+            throw new com.chronovault.exception.BadRequestException("导出结果已过期或下载失败");
         }
 
-        // Default: CSV
-        StringBuilder csv = new StringBuilder("ID,名称,状态,服务器,创建时间,大小\n");
-        for (SnapshotDTO s : snapshots) {
-            csv.append(String.format("%d,%s,%s,%s,%s,%d\n",
-                    s.id(), csvEscape(s.name()), s.status(), csvEscape(s.serverName()), s.createdAt(), s.sizeBytes()));
-        }
+        // Clean up after download to free memory
+        exportResults.remove(taskId);
+
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=snapshots.csv")
-                .contentType(MediaType.parseMediaType("text/csv"))
-                .body(csv.toString());
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.filename() + "\"")
+                .contentType(MediaType.parseMediaType(result.contentType()))
+                .contentLength(result.content().length)
+                .body(result.content());
     }
 
     private String csvEscape(String s) {

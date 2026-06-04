@@ -64,7 +64,7 @@ class StorageControllerTest {
 
         CreateStorageRequest request = new CreateStorageRequest("LOCAL", "My Storage", null, null, null, null, null, null);
         var response = controller.addTarget(auth(), request);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
         assertEquals("My Storage", response.getBody().data().name());
     }
 

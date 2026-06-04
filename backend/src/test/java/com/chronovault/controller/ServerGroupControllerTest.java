@@ -43,7 +43,7 @@ class ServerGroupControllerTest {
         when(groupService.createGroup(eq(1L), any(ServerGroup.class))).thenReturn(group);
         var auth = new UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
         var response = controller.createGroup(auth, new ServerGroup());
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
     }
 
     @Test

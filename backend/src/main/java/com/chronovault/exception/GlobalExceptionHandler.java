@@ -24,13 +24,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error(404, ex.getMessage()));
+                .body(ApiResponse.error(ErrorCode.NOT_FOUND, ex.getMessage()));
     }
 
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(BadRequestException ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(400, ex.getMessage()));
+                .body(ApiResponse.error(ErrorCode.BAD_REQUEST, ex.getMessage()));
     }
 
     @ExceptionHandler(RollbackFailedException.class)
@@ -44,19 +44,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleUnauthorized(UnauthorizedException ex) {
         log.warn("认证信息缺失: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(401, ex.getMessage()));
+                .body(ApiResponse.error(ErrorCode.UNAUTHORIZED, ex.getMessage()));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(401, "邮箱或密码错误"));
+                .body(ApiResponse.error(ErrorCode.INVALID_CREDENTIALS));
     }
 
     @ExceptionHandler(UsernameNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleUserNotFound(UsernameNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(401, ex.getMessage()));
+                .body(ApiResponse.error(ErrorCode.UNAUTHORIZED, ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -67,39 +67,39 @@ public class GlobalExceptionHandler {
             String message = error.getDefaultMessage();
             errors.put(field, message);
         });
-        ApiResponse<Map<String, String>> response = new ApiResponse<>(400, "参数验证失败", errors, LocalDateTime.now());
+        ApiResponse<Map<String, String>> response = new ApiResponse<>(ErrorCode.VALIDATION_FAILED.getCode(), ErrorCode.VALIDATION_FAILED.getDefaultMessage(), errors, LocalDateTime.now());
         return ResponseEntity.badRequest().body(response);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(400, ex.getMessage()));
+                .body(ApiResponse.error(ErrorCode.BAD_REQUEST, ex.getMessage()));
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingParam(MissingServletRequestParameterException ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(400, "缺少必需参数: " + ex.getParameterName()));
+                .body(ApiResponse.error(ErrorCode.MISSING_PARAMETER, "缺少必需参数: " + ex.getParameterName()));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(400, "参数类型错误: " + ex.getName() + " 应为 " + (ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "正确类型")));
+                .body(ApiResponse.error(ErrorCode.INVALID_TYPE, "参数类型错误: " + ex.getName() + " 应为 " + (ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "正确类型")));
     }
 
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
         log.warn("数据库约束冲突: {}", ex.getMostSpecificCause().getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error(409, "数据冲突：违反数据库约束，请检查输入数据"));
+                .body(ApiResponse.error(ErrorCode.CONFLICT, "数据冲突：违反数据库约束，请检查输入数据"));
     }
 
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(400, "请求体格式错误: " + (ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : "无法解析请求体")));
+                .body(ApiResponse.error(ErrorCode.INVALID_FORMAT, "请求体格式错误: " + (ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : "无法解析请求体")));
     }
 
     @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
@@ -110,7 +110,7 @@ public class GlobalExceptionHandler {
             String message = violation.getMessage();
             errors.put(field, message);
         });
-        ApiResponse<Map<String, String>> response = new ApiResponse<>(400, "参数验证失败", errors, LocalDateTime.now());
+        ApiResponse<Map<String, String>> response = new ApiResponse<>(ErrorCode.VALIDATION_FAILED.getCode(), ErrorCode.VALIDATION_FAILED.getDefaultMessage(), errors, LocalDateTime.now());
         return ResponseEntity.badRequest().body(response);
     }
 
@@ -118,7 +118,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleGeneral(Exception ex) {
         log.error("未处理的异常: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error(500, "服务器内部错误"));
+                .body(ApiResponse.error(ErrorCode.INTERNAL_ERROR));
     }
 
     public record ApiResponse<T>(int code, String message, T data, LocalDateTime timestamp) {

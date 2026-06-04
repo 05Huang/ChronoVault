@@ -16,10 +16,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
+import com.chronovault.config.ApiVersion;
 
 @RestController
-@RequestMapping("/api/storage")
+@RequestMapping(ApiVersion.V1 + "/storage")
 @RequiredArgsConstructor
 @Tag(name = "Storage", description = "存储管理 — 添加、查看、删除存储目标")
 public class StorageController {
@@ -56,9 +58,11 @@ public class StorageController {
                 request.region(),
                 request.bucket()
         );
-        return ResponseEntity.ok(ApiResponse.success(target));
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "storage/" + target.id()))
+                .body(ApiResponse.success(target));
     }
 
+    @Auditable(action = "删除存储目标", changeType = "CONFIG_CHANGED", resourceType = "STORAGE", resourceId = "#id")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteTarget(@PathVariable Long id) {
         storageService.deleteTarget(id);

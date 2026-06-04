@@ -80,21 +80,21 @@
 ### P1-3: API 设计规范化
 - [x] 所有列表 API 统一分页参数：`page`（从 0 开始）、`size`（默认 20，最大 100）、`sort`、`direction`
 - [x] 所有列表 API 返回统一的 `PageResponse<T>` 结构（已定义在 `GlobalExceptionHandler.PageResponse`，需要所有端点都使用）
-- [ ] `SnapshotController.getSnapshots()` 中混合了分页和非分页逻辑，拆分为两个端点：`GET /api/snapshots`（分页）和 `GET /api/snapshots/all`（全量，仅限小数据量）
-- [ ] 为所有 POST/PUT 端点的 Response 添加 `Location` 头：`ResponseEntity.created(URI).body()`
-- [ ] `SnapshotController.exportSnapshots()` 改为异步导出（大数据量时先返回任务 ID，完成后通知下载），避免长时间 HTTP 连接
-- [ ] 创建 `@ApiVersion` 或 URL 前缀 `/api/v1/` 为未来 API 升级预留空间
-- [ ] 所有 `@Operation` 注解添加 `summary` 和 `description`（当前部分端点缺失 Swagger 文档）
-- [ ] 为所有 4xx/5xx 响应添加 `@ApiResponse` 注解（Swagger 文档中展示错误码和错误消息格式）
-- [ ] 创建 `ErrorCode` 枚举类，统一所有错误码（NOT_FOUND=40401, BAD_REQUEST=40001, UNAUTHORIZED=40101 等），替换硬编码的 `ApiResponse.error(404, "快照不存在")`
+- [x] `SnapshotController.getSnapshots()` 中混合了分页和非分页逻辑，拆分为两个端点：`GET /api/snapshots`（分页）和 `GET /api/snapshots/all`（全量，仅限小数据量）
+- [x] 为所有 POST/PUT 端点的 Response 添加 `Location` 头：`ResponseEntity.created(URI).body()`
+- [x] `SnapshotController.exportSnapshots()` 改为异步导出（大数据量时先返回任务 ID，完成后通知下载），避免长时间 HTTP 连接
+- [x] 创建 `@ApiVersion` 或 URL 前缀 `/api/v1/` 为未来 API 升级预留空间
+- [x] 所有 `@Operation` 注解添加 `summary` 和 `description`（当前部分端点缺失 Swagger 文档）
+- [x] 为所有 4xx/5xx 响应添加 `@ApiResponse` 注解（Swagger 文档中展示错误码和错误消息格式）
+- [x] 创建 `ErrorCode` 枚举类，统一所有错误码（NOT_FOUND=40401, BAD_REQUEST=40001, UNAUTHORIZED=40101 等），替换硬编码的 `ApiResponse.error(404, "快照不存在")`
 
 ### P1-4: 审计日志增强
-- [ ] `@Auditable` 注解扩展：添加 `resourceType`（SERVER/SNAPSHOT/STORAGE/ALERT 等）和 `resourceId` 字段
-- [ ] `AuditLogAspect` 在切面中提取资源 ID（通过 `@Auditable` 注解参数或方法参数名匹配），存入审计记录
-- [ ] 为以下操作添加 `@Auditable` 注解（当前缺失）：登录/登出、存储目标增删改、Webhook 增删改、定时备份增删改、告警规则增删改、用户角色变更
-- [ ] `AuditLogRepository` 添加查询方法：`findByResourceTypeAndResourceId(resourceType, resourceId)` — 查看某个资源的操作历史
-- [ ] 审计日志导出功能：`GET /api/audit/export` 支持 CSV 格式导出（按时间范围筛选）
-- [ ] 创建 `AuditLogRetentionScheduler`，定期清理超过 90 天的审计日志（归档到冷存储或删除）
+- [x] `@Auditable` 注解扩展：添加 `resourceType`（SERVER/SNAPSHOT/STORAGE/ALERT 等）和 `resourceId` 字段
+- [x] `AuditLogAspect` 在切面中提取资源 ID（通过 `@Auditable` 注解参数或方法参数名匹配），存入审计记录
+- [x] 为以下操作添加 `@Auditable` 注解（当前缺失）：登录/登出、存储目标增删改、Webhook 增删改、定时备份增删改、告警规则增删改、用户角色变更
+- [x] `AuditLogRepository` 添加查询方法：`findByResourceTypeAndResourceId(resourceType, resourceId)` — 查看某个资源的操作历史
+- [x] 审计日志导出功能：`GET /api/audit/export` 支持 CSV 格式导出（按时间范围筛选）
+- [x] 创建 `AuditLogRetentionScheduler`，定期清理超过 90 天的审计日志（归档到冷存储或删除）
 - [ ] `AuditLog` 实体添加 `ipAddress` 和 `userAgent` 字段（已有的 `AuditLogAspect` 通过 `RequestContextHolder` 获取，确认是否已存入）
 
 ### P1-5: SSH 连接池加固

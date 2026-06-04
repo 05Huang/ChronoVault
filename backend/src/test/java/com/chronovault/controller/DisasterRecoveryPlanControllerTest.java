@@ -41,7 +41,7 @@ class DisasterRecoveryPlanControllerTest {
         DisasterRecoveryPlan plan = DisasterRecoveryPlan.builder().id(1L).name("New Plan").build();
         when(planService.createPlan(any(DisasterRecoveryPlan.class))).thenReturn(plan);
         var response = controller.createPlan(new DisasterRecoveryPlan());
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
     }
 
     @Test

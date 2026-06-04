@@ -114,7 +114,7 @@ class ServerControllerTest {
 
         CreateServerRequest request = new CreateServerRequest("New Server", "10.0.0.1", "Ubuntu");
         var response = controller.createServer(auth(), request);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
         assertEquals("New Server", response.getBody().data().name());
     }
 }

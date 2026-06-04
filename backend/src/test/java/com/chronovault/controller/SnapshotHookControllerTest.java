@@ -33,7 +33,7 @@ class SnapshotHookControllerTest {
         SnapshotHook hook = SnapshotHook.builder().id(1L).name("test").command("ls").build();
         when(hookService.createHook(eq(1L), any(SnapshotHook.class))).thenReturn(hook);
         var response = controller.createHook(1L, new SnapshotHook());
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
     }
 
     @Test

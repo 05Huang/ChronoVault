@@ -11,15 +11,18 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import com.chronovault.config.ApiVersion;
+import io.swagger.v3.oas.annotations.Operation;
 
 @RestController
-@RequestMapping("/api/tasks")
+@RequestMapping(ApiVersion.V1 + "/tasks")
 @RequiredArgsConstructor
 public class TaskController {
 
     private final AsyncTaskRepository taskRepository;
     private final AsyncTaskManager taskManager;
 
+    @Operation(summary = "获取 Tasks")
     @GetMapping
     public ResponseEntity<?> getTasks(
             @RequestParam(defaultValue = "0") int page,
@@ -31,6 +34,7 @@ public class TaskController {
                 result.getContent(), page, size, result.getTotalElements()));
     }
 
+    @Operation(summary = "获取 Task")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<AsyncTask>> getTask(@PathVariable Long id) {
         AsyncTask task = taskManager.getStatus(id);
@@ -40,6 +44,7 @@ public class TaskController {
         return ResponseEntity.ok(ApiResponse.success(task));
     }
 
+    @Operation(summary = "操作 cancel Task")
     @PostMapping("/{id}/cancel")
     public ResponseEntity<ApiResponse<Void>> cancelTask(@PathVariable Long id) {
         taskManager.cancel(id);

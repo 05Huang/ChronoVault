@@ -33,7 +33,7 @@ class VerificationJobControllerTest {
         VerificationJob job = VerificationJob.builder().id(1L).enabled(true).build();
         when(jobService.createJob(any(VerificationJob.class))).thenReturn(job);
         var response = controller.createJob(new VerificationJob());
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
     }
 
     @Test

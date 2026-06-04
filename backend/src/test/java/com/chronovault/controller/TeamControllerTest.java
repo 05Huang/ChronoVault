@@ -47,7 +47,7 @@ class TeamControllerTest {
                 .thenReturn(new TeamMemberDTO(2L, "New User", "new@test.com", "MEMBER", "N", "PENDING", ""));
 
         var response = controller.invite(auth(), request);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
         assertEquals("new@test.com", response.getBody().data().email());
     }
 

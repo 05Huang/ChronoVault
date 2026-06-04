@@ -42,7 +42,7 @@ class SnapshotTagControllerTest {
         var auth = new UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
         CreateTagRequest request = new CreateTagRequest("important", "#ff0000");
         var response = controller.addTag(1L, auth, request);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
     }
 
     @Test

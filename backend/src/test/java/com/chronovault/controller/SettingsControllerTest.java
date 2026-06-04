@@ -49,7 +49,7 @@ class SettingsControllerTest {
                 .thenReturn(CreateApiKeyResponse.of(dto, "cv_xyz_secret_key"));
 
         var response = controller.generateKey(auth(), request);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
         assertNotNull(response.getBody().data().key());
     }
 

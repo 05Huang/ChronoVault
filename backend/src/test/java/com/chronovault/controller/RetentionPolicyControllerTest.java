@@ -47,7 +47,7 @@ class RetentionPolicyControllerTest {
         org.springframework.security.core.Authentication auth =
                 new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
         var response = controller.create(request, auth);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
     }
 
     @Test

@@ -10,10 +10,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.Map;
+import com.chronovault.config.ApiVersion;
+import io.swagger.v3.oas.annotations.Operation;
 
 @RestController
-@RequestMapping("/api/terminal")
+@RequestMapping(ApiVersion.V1 + "/terminal")
 @RequiredArgsConstructor
 public class TerminalController {
 
@@ -27,7 +30,8 @@ public class TerminalController {
             Authentication auth,
             @RequestParam Long serverId) {
         String sessionId = terminalService.createSession(serverId, SecurityUtils.getCurrentUsername(auth));
-        return ResponseEntity.ok(ApiResponse.success(Map.of("sessionId", sessionId)));
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "terminal/sessions/" + sessionId))
+                .body(ApiResponse.success(Map.of("sessionId", sessionId)));
     }
 
     /**
@@ -43,6 +47,7 @@ public class TerminalController {
     /**
      * Close a terminal session.
      */
+    @Operation(summary = "删除 close Session")
     @DeleteMapping("/sessions/{sessionId}")
     public ResponseEntity<ApiResponse<Void>> closeSession(@PathVariable String sessionId) {
         terminalService.closeSession(sessionId);

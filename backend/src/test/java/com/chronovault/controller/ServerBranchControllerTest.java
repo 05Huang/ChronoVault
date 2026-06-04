@@ -43,7 +43,7 @@ class ServerBranchControllerTest {
         var auth = new UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
         CreateBranchRequest request = new CreateBranchRequest("main", "desc", 1L);
         var response = controller.createBranch(auth, 1L, request);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
     }
 
     @Test

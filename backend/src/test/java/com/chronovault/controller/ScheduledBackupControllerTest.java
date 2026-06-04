@@ -53,7 +53,7 @@ class ScheduledBackupControllerTest {
         var auth = new UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
         CreateScheduledBackupRequest request = new CreateScheduledBackupRequest(1L, 1L, "Daily", "0 2 * * *", "/", null);
         var response = controller.create(auth, request);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
     }
 
     @Test

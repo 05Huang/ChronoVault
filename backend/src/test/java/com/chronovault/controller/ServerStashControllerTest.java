@@ -34,7 +34,7 @@ class ServerStashControllerTest {
         when(stashService.createStash(eq(1L), any(), eq(1L))).thenReturn(stash);
         var auth = new UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
         var response = controller.createStash(auth, 1L, null);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
     }
 
     @Test

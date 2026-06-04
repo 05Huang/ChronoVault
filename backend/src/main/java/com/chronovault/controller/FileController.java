@@ -11,11 +11,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import com.chronovault.config.ApiVersion;
+import io.swagger.v3.oas.annotations.Operation;
 
 @RestController
-@RequestMapping("/api/servers/{serverId}/files")
+@RequestMapping(ApiVersion.V1 + "/servers/{serverId}/files")
 @RequiredArgsConstructor
 public class FileController {
 
@@ -45,6 +48,7 @@ public class FileController {
     /**
      * Download a file.
      */
+    @Operation(summary = "获取 download File")
     @GetMapping("/download")
     public ResponseEntity<Resource> downloadFile(
             @PathVariable Long serverId,
@@ -67,12 +71,15 @@ public class FileController {
             @PathVariable Long serverId,
             @RequestParam String path,
             @RequestParam("file") MultipartFile file) {
-        return ResponseEntity.ok(ApiResponse.success(fileService.uploadFile(serverId, path, file)));
+        Map<String, Object> result = fileService.uploadFile(serverId, path, file);
+        return ResponseEntity.created(URI.create(ApiVersion.V1 + "servers/" + serverId + "/files/browse?path=" + java.net.URLEncoder.encode(path, java.nio.charset.StandardCharsets.UTF_8)))
+                .body(ApiResponse.success(result));
     }
 
     /**
      * Delete a file or directory.
      */
+    @Operation(summary = "删除 File")
     @DeleteMapping
     public ResponseEntity<ApiResponse<Void>> deleteFile(
             @PathVariable Long serverId,
@@ -85,6 +92,7 @@ public class FileController {
     /**
      * Create a directory.
      */
+    @Operation(summary = "操作 mkdir")
     @PostMapping("/mkdir")
     public ResponseEntity<ApiResponse<Void>> mkdir(
             @PathVariable Long serverId,
@@ -96,6 +104,7 @@ public class FileController {
     /**
      * Change file permissions.
      */
+    @Operation(summary = "操作 chmod")
     @PostMapping("/chmod")
     public ResponseEntity<ApiResponse<Void>> chmod(
             @PathVariable Long serverId,

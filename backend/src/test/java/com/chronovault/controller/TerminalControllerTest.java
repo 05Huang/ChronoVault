@@ -28,7 +28,7 @@ class TerminalControllerTest {
         when(terminalService.createSession(1L, "test@test.com")).thenReturn("session-123");
         var auth = new UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
         var response = controller.createSession(auth, 1L);
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(201, response.getStatusCode().value());
         assertNotNull(response.getBody());
     }
 

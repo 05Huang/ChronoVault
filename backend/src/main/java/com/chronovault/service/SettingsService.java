@@ -104,6 +104,37 @@ public class SettingsService {
                 .map(AuditLogDTO::from);
     }
 
+    /**
+     * Export audit logs as a list of maps for CSV generation.
+     * Supports optional time range filtering.
+     * Limited to 10000 records to prevent OOM.
+     */
+    public List<Map<String, String>> exportAuditLogs(LocalDateTime since, LocalDateTime until) {
+        Page<AuditLog> page;
+        if (since != null || until != null) {
+            LocalDateTime start = since != null ? since : LocalDateTime.of(2020, 1, 1, 0, 0);
+            LocalDateTime end = until != null ? until : LocalDateTime.now().plusDays(1);
+            page = auditLogRepository.findByCreatedAtBetween(start, end,
+                    PageRequest.of(0, 10000, Sort.by(Sort.Direction.DESC, "createdAt")));
+        } else {
+            page = auditLogRepository.findAllByOrderByCreatedAtDesc(
+                    PageRequest.of(0, 10000));
+        }
+
+        return page.getContent().stream().map(log -> {
+            Map<String, String> row = new LinkedHashMap<>();
+            row.put("id", String.valueOf(log.getId()));
+            row.put("user", log.getUser() != null ? log.getUser().getEmail() : "system");
+            row.put("action", log.getAction() != null ? log.getAction() : "");
+            row.put("changeType", log.getChangeType() != null ? log.getChangeType() : "");
+            row.put("resourceType", log.getResourceType() != null ? log.getResourceType() : "");
+            row.put("resourceId", log.getResourceId() != null ? String.valueOf(log.getResourceId()) : "");
+            row.put("ipAddress", log.getIpAddress() != null ? log.getIpAddress() : "");
+            row.put("createdAt", log.getCreatedAt() != null ? log.getCreatedAt().toString() : "");
+            return row;
+        }).toList();
+    }
+
     private String hashKey(String key) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
