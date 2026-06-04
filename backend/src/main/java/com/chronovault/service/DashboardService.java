@@ -105,6 +105,10 @@ public class DashboardService {
     }
 
     public TopologyDTO getTopology() {
+        // Check cache first (30 second TTL)
+        TopologyDTO cached = cacheService.get("dashboard:topology", TopologyDTO.class);
+        if (cached != null) return cached;
+
         List<Server> servers = serverRepository.findAll();
         List<TopologyDTO.Node> nodes = servers.stream()
                 .map(s -> new TopologyDTO.Node(s.getId().toString(), s.getName(), "server", s.getStatus().name()))
@@ -128,7 +132,9 @@ public class DashboardService {
             }
         }
 
-        return new TopologyDTO(nodes, edges);
+        TopologyDTO result = new TopologyDTO(nodes, edges);
+        cacheService.put("dashboard:topology", result, java.time.Duration.ofSeconds(30));
+        return result;
     }
 
     public List<ActivityTrendDTO> getActivityTrend(String range) {
