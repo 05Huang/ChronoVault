@@ -34,12 +34,14 @@ public class ChangeAttributionService {
         Server server = serverRepository.findById(serverId)
                 .orElseThrow(() -> new ResourceNotFoundException("服务器不存在: " + serverId));
 
-        // Query audit logs that reference this server, or snapshots on this server
-        List<AuditLog> logs = auditLogRepository.findAllByOrderByCreatedAtDesc().stream()
-                .filter(log -> {
-                    if (log.getServer() != null && log.getServer().getId().equals(serverId)) return true;
-                    if (log.getSnapshot() != null && log.getSnapshot().getServer() != null
-                            && log.getSnapshot().getServer().getId().equals(serverId)) return true;
+        // Use paginated query (max 500) to prevent OOM, then filter in-memory
+        // TODO: Add targeted JPQL query for better performance
+        List<AuditLog> logs = auditLogRepository.findAllByOrderByCreatedAtDesc(
+                PageRequest.of(0, 500)).getContent().stream()
+                .filter(auditLog -> {
+                    if (auditLog.getServer() != null && auditLog.getServer().getId().equals(serverId)) return true;
+                    if (auditLog.getSnapshot() != null && auditLog.getSnapshot().getServer() != null
+                            && auditLog.getSnapshot().getServer().getId().equals(serverId)) return true;
                     return false;
                 })
                 .limit(100)
@@ -56,9 +58,11 @@ public class ChangeAttributionService {
         Snapshot snapshot = snapshotRepository.findById(snapshotId)
                 .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
 
-        // Get audit logs that reference this snapshot
-        List<AuditLog> logs = auditLogRepository.findAllByOrderByCreatedAtDesc().stream()
-                .filter(log -> log.getSnapshot() != null && log.getSnapshot().getId().equals(snapshotId))
+        // Use paginated query (max 200) to prevent OOM, then filter in-memory
+        // TODO: Add targeted JPQL query for better performance
+        List<AuditLog> logs = auditLogRepository.findAllByOrderByCreatedAtDesc(
+                PageRequest.of(0, 200)).getContent().stream()
+                .filter(auditLog -> auditLog.getSnapshot() != null && auditLog.getSnapshot().getId().equals(snapshotId))
                 .limit(50)
                 .toList();
 

@@ -2,6 +2,7 @@ package com.chronovault.controller;
 
 import com.chronovault.entity.ServerGroup;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.ServerGroupService;
 import com.chronovault.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ public class ServerGroupController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<ServerGroup>>> getGroups(Authentication auth) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         return ResponseEntity.ok(ApiResponse.success(groupService.getGroups(userId)));
     }
 
@@ -29,7 +30,7 @@ public class ServerGroupController {
     public ResponseEntity<ApiResponse<ServerGroup>> createGroup(
             Authentication auth,
             @RequestBody ServerGroup group) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         return ResponseEntity.ok(ApiResponse.success(groupService.createGroup(userId, group)));
     }
 

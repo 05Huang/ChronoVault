@@ -1,6 +1,7 @@
 package com.chronovault.ai;
 
 import com.chronovault.cache.CacheService;
+import com.chronovault.cache.CacheKeyBuilder;
 import com.chronovault.entity.*;
 import com.chronovault.repository.*;
 import com.chronovault.ssh.SshConnection;
@@ -34,13 +35,9 @@ public class AiAnalysisService {
     private final AlertRepository alertRepository;
     private final SshConnectionManager sshManager;
 
-    private static final String CACHE_RISK_RADAR = "ai:risk_radar";
-    private static final String CACHE_STORAGE_PREDICTION = "ai:storage_prediction";
-    private static final Duration CACHE_TTL = Duration.ofMinutes(15);
-
     public Map<String, Double> getRiskRadar() {
         // Check cache
-        Map<String, Double> cached = cacheService.get(CACHE_RISK_RADAR,
+        Map<String, Double> cached = cacheService.get(CacheKeyBuilder.aiRiskRadar(),
                 new TypeReference<Map<String, Double>>() {});
         if (cached != null) return cached;
 
@@ -58,12 +55,12 @@ public class AiAnalysisService {
         scores.put("网络防护", networkProtection);
         scores.put("存储健康", storageHealth);
 
-        cacheService.put(CACHE_RISK_RADAR, scores, CACHE_TTL);
+        cacheService.put(CacheKeyBuilder.aiRiskRadar(), scores, CacheKeyBuilder.AI_CACHE_TTL);
         return scores;
     }
 
     public Map<String, Object> getStoragePrediction() {
-        Map<String, Object> cached = cacheService.get(CACHE_STORAGE_PREDICTION,
+        Map<String, Object> cached = cacheService.get(CacheKeyBuilder.aiStoragePrediction(),
                 new TypeReference<Map<String, Object>>() {});
         if (cached != null) return cached;
 
@@ -126,7 +123,7 @@ public class AiAnalysisService {
         result.put("actual", actualPadded);
         result.put("predicted", predicted);
 
-        cacheService.put(CACHE_STORAGE_PREDICTION, result, CACHE_TTL);
+        cacheService.put(CacheKeyBuilder.aiStoragePrediction(), result, CacheKeyBuilder.AI_CACHE_TTL);
         return result;
     }
 

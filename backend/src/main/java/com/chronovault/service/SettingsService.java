@@ -13,6 +13,7 @@ import com.chronovault.exception.ResourceNotFoundException;
 import com.chronovault.repository.ApiKeyRepository;
 import com.chronovault.repository.AuditLogRepository;
 import com.chronovault.repository.SystemSettingRepository;
+import com.chronovault.security.SensitiveDataMasker;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -89,7 +90,10 @@ public class SettingsService {
     }
 
     public List<AuditLogDTO> getAuditLogs() {
-        return auditLogRepository.findAllByOrderByCreatedAtDesc().stream()
+        // Use paginated query (max 100) to prevent OOM
+        return auditLogRepository.findAllByOrderByCreatedAtDesc(
+                org.springframework.data.domain.PageRequest.of(0, 100))
+                .stream()
                 .map(AuditLogDTO::from)
                 .toList();
     }
@@ -121,7 +125,7 @@ public class SettingsService {
         config.put("enabled", getSettingValue("ai.enabled", "true").equalsIgnoreCase("true"));
         config.put("baseUrl", getSettingValue("ai.base-url", "https://api.xiaomimimo.com/v1"));
         String apiKey = getSettingValue("ai.api-key", "");
-        config.put("apiKey", maskApiKey(apiKey));
+        config.put("apiKey", SensitiveDataMasker.maskApiKey(apiKey));
         config.put("model", getSettingValue("ai.model", "mimo-v2.5-pro"));
         config.put("maxTokens", Integer.parseInt(getSettingValue("ai.max-tokens", "4096")));
         config.put("temperature", Double.parseDouble(getSettingValue("ai.temperature", "0.7")));
@@ -167,12 +171,6 @@ public class SettingsService {
         setting.setKey(key);
         setting.setValue(value);
         systemSettingRepository.save(setting);
-    }
-
-    private String maskApiKey(String apiKey) {
-        if (apiKey == null || apiKey.isBlank()) return "";
-        if (apiKey.length() <= 8) return "****";
-        return apiKey.substring(0, 4) + "****" + apiKey.substring(apiKey.length() - 4);
     }
 
     private String getClientIp() {

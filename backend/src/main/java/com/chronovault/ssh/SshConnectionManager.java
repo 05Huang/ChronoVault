@@ -2,6 +2,7 @@ package com.chronovault.ssh;
 
 import com.chronovault.entity.Server;
 import com.chronovault.security.CredentialEncryptor;
+import com.chronovault.security.SensitiveDataMasker;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +63,11 @@ public class SshConnectionManager {
     private final ConcurrentHashMap<String, ReentrantLock> connectionLocks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> lastUsedTime = new ConcurrentHashMap<>();
     private ScheduledExecutorService scheduler;
+
+    // Connection pool metrics counters
+    private final java.util.concurrent.atomic.AtomicLong createdCount = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong reusedCount = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong destroyedCount = new java.util.concurrent.atomic.AtomicLong();
 
     @PostConstruct
     public void init() {
@@ -175,6 +181,7 @@ public class SshConnectionManager {
                 try {
                     SshConnection.CommandResult alive = existing.executeCommand("echo ok", java.time.Duration.ofSeconds(5));
                     if (alive.isSuccess() && "ok".equals(alive.stdout().trim())) {
+                        reusedCount.incrementAndGet();
                         lastUsedTime.put(poolKey, System.currentTimeMillis());
                         return existing;
                     }
@@ -194,6 +201,7 @@ public class SshConnectionManager {
 
             // Create new connection with retry
             SshConnection conn = createConnectionWithRetry(server);
+            createdCount.incrementAndGet();
             connectionPool.put(poolKey, conn);
             lastUsedTime.put(poolKey, System.currentTimeMillis());
             return conn;
@@ -238,7 +246,7 @@ public class SshConnectionManager {
 
             if ("KEY".equals(server.getSshAuthMethod()) && server.getSshKeyEncrypted() != null) {
                 String keyContent = encryptor.decrypt(server.getSshKeyEncrypted());
-                log.debug("Decrypted key content length: {} chars", keyContent != null ? keyContent.length() : 0);
+                log.debug("Decrypted SSH key: {}", SensitiveDataMasker.maskSshKey(keyContent));
                 KeyPair kp = loadKeyPairFromMemory(keyContent, null);
                 log.debug("Key pair loaded: algo={}, pubKeyLen={}", kp.getPublic().getAlgorithm(),
                         kp.getPublic().getEncoded().length);
@@ -319,9 +327,10 @@ public class SshConnectionManager {
                 keys = parser.loadKeyPairs(null, tempKey, passwordProvider);
             } catch (Exception e) {
                 log.error("Key parser failed for temp file {}: {} - {}", tempKey, e.getClass().getName(), e.getMessage());
-                // Log first 80 chars of key content for debugging (no sensitive data)
-                String preview = normalizedKey.length() > 80 ? normalizedKey.substring(0, 80) : normalizedKey;
-                log.error("Key content preview: {}", preview);
+                // SECURITY: Never log key content — only log key metadata for debugging
+                log.error("Key metadata: length={}, startsWith={}",
+                        normalizedKey.length(),
+                        normalizedKey.length() > 10 ? normalizedKey.substring(0, 10).replace("\n", "\\n") + "..." : "***");
                 throw new IOException("Failed to parse SSH key: " + e.getMessage(), e);
             }
 
@@ -342,12 +351,24 @@ public class SshConnectionManager {
 
     /**
      * Log connection pool metrics for monitoring.
+     * Logs every 60 seconds: active connections, idle count, and cumulative created/reused/destroyed counters.
      */
     private void logPoolMetrics() {
         int active = connectionPool.size();
         int locks = connectionLocks.size();
+        int idle = 0;
+        long now = System.currentTimeMillis();
+        for (long lastUsed : lastUsedTime.values()) {
+            if (now - lastUsed > idleEvictionMillis) {
+                idle++;
+            }
+        }
+        long created = createdCount.get();
+        long reused = reusedCount.get();
+        long destroyed = destroyedCount.get();
         if (active > 0 || locks > 0) {
-            log.info("[SSH_POOL] active={}, pool_size={}, locks={}", active, connectionPool.size(), locks);
+            log.info("[SSH_POOL] active={}, idle={}, pool_size={}, locks={}, created={}, reused={}, destroyed={}",
+                    active, idle, active, locks, created, reused, destroyed);
         }
     }
 
@@ -367,6 +388,7 @@ public class SshConnectionManager {
                         SshConnection conn = connectionPool.remove(poolKey);
                         if (conn != null) {
                             conn.close();
+                            destroyedCount.incrementAndGet();
                             evicted++;
                         }
                         lastUsedTime.remove(poolKey);
@@ -390,6 +412,7 @@ public class SshConnectionManager {
                 SshConnection conn = connectionPool.remove(poolKey);
                 lastUsedTime.remove(poolKey);
                 if (conn != null) {
+                    destroyedCount.incrementAndGet();
                     conn.close();
                 }
             } finally {
@@ -413,6 +436,7 @@ public class SshConnectionManager {
                             SshConnection conn = connectionPool.remove(poolKey);
                             lastUsedTime.remove(poolKey);
                             if (conn != null) {
+                                destroyedCount.incrementAndGet();
                                 conn.close();
                             }
                         } finally {

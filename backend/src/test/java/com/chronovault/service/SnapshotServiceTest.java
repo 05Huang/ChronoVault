@@ -119,7 +119,7 @@ class SnapshotServiceTest {
         when(snapshotRepository.findAll(any(org.springframework.data.domain.Pageable.class))).thenReturn(snapshotPage);
         when(tagRepository.findBySnapshotIdsIn(anyList())).thenReturn(List.of());
 
-        Page<SnapshotDTO> result = snapshotService.getSnapshotsPaged(0, 20);
+        Page<SnapshotDTO> result = snapshotService.getSnapshotsPaged(0, 20, "createdAt", "desc");
         assertNotNull(result);
         assertEquals(1, result.getContent().size());
         assertEquals("Test Snapshot", result.getContent().get(0).name());
@@ -191,7 +191,8 @@ class SnapshotServiceTest {
     void createSnapshot_noStorageTargets_throwsException() {
         CreateSnapshotRequest request = new CreateSnapshotRequest(1L, null, "FULL", "Test Snapshot", "test", null, null);
         when(serverRepository.findById(1L)).thenReturn(Optional.of(testServer));
-        when(storageTargetRepository.findAll()).thenReturn(List.of());
+        when(storageTargetRepository.findFirstNonLocal()).thenReturn(null);
+        when(storageTargetRepository.findFirst()).thenReturn(null);
         assertThrows(BadRequestException.class, () -> snapshotService.createSnapshot(request, 1L));
     }
 
@@ -278,7 +279,7 @@ class SnapshotServiceTest {
                 .hash("abc123").sizeBytes(1024000L).status(Snapshot.SnapshotStatus.STABLE)
                 .createdAt(LocalDateTime.now()).build();
         when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
-        when(storageTargetRepository.findAll()).thenReturn(List.of(testStorageTarget));
+        when(storageTargetRepository.findFirstNonLocal()).thenReturn(testStorageTarget);
 
         java.util.Map<String, Object> preview = snapshotService.rollbackPreview(1L);
 
@@ -296,7 +297,7 @@ class SnapshotServiceTest {
         Snapshot snapNoHash = Snapshot.builder().id(2L).server(testServer).title("No Backup")
                 .status(Snapshot.SnapshotStatus.STABLE).createdAt(LocalDateTime.now()).build();
         when(snapshotRepository.findById(2L)).thenReturn(Optional.of(snapNoHash));
-        when(storageTargetRepository.findAll()).thenReturn(List.of(testStorageTarget));
+        when(storageTargetRepository.findFirstNonLocal()).thenReturn(testStorageTarget);
 
         java.util.Map<String, Object> preview = snapshotService.rollbackPreview(2L);
 
@@ -430,7 +431,7 @@ class SnapshotServiceTest {
                 .hash("abc123").status(Snapshot.SnapshotStatus.STABLE)
                 .createdAt(LocalDateTime.now()).build();
         when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
-        when(storageTargetRepository.findAll()).thenReturn(List.of(testStorageTarget));
+        when(storageTargetRepository.findFirst()).thenReturn(testStorageTarget);
         when(sshManager.getConnection(testServer)).thenReturn(sshConnection);
         when(resticClient.ensureResticInstalled(sshConnection)).thenReturn(true);
         when(resticClient.buildRepoUrl(testStorageTarget)).thenReturn("/backup");
@@ -449,7 +450,7 @@ class SnapshotServiceTest {
                 .hash("abc123").status(Snapshot.SnapshotStatus.STABLE)
                 .createdAt(LocalDateTime.now()).build();
         when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
-        when(storageTargetRepository.findAll()).thenReturn(List.of(testStorageTarget));
+        when(storageTargetRepository.findFirst()).thenReturn(testStorageTarget);
         when(sshManager.getConnection(testServer)).thenReturn(sshConnection);
         when(resticClient.ensureResticInstalled(sshConnection)).thenReturn(true);
         when(resticClient.buildRepoUrl(testStorageTarget)).thenReturn("/backup");
@@ -466,7 +467,7 @@ class SnapshotServiceTest {
                 .hash("abc123").status(Snapshot.SnapshotStatus.STABLE)
                 .createdAt(LocalDateTime.now()).build();
         when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
-        when(storageTargetRepository.findAll()).thenReturn(List.of());
+        when(storageTargetRepository.findFirst()).thenReturn(null);
 
         assertThrows(BadRequestException.class, () -> snapshotService.rollback(1L, 1L));
     }
@@ -491,7 +492,7 @@ class SnapshotServiceTest {
                 .hash("abc123").status(Snapshot.SnapshotStatus.STABLE)
                 .createdAt(LocalDateTime.now()).build();
         when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
-        when(storageTargetRepository.findAll()).thenReturn(List.of(testStorageTarget));
+        when(storageTargetRepository.findFirst()).thenReturn(testStorageTarget);
         when(sshManager.getConnection(testServer)).thenReturn(sshConnection);
         when(resticClient.ensureResticInstalled(sshConnection)).thenReturn(true);
         when(resticClient.buildRepoUrl(testStorageTarget)).thenReturn("/backup");
@@ -517,7 +518,7 @@ class SnapshotServiceTest {
                 .hash("abc123").status(Snapshot.SnapshotStatus.STABLE)
                 .createdAt(LocalDateTime.now()).build();
         when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
-        when(storageTargetRepository.findAll()).thenReturn(List.of(testStorageTarget));
+        when(storageTargetRepository.findFirst()).thenReturn(testStorageTarget);
         when(sshManager.getConnection(testServer)).thenReturn(sshConnection);
         when(resticClient.ensureResticInstalled(sshConnection)).thenReturn(true);
         when(sshConnection.executeCommand(any(String.class), any())).thenReturn(
@@ -618,7 +619,7 @@ class SnapshotServiceTest {
                 .thenReturn(page);
         when(tagRepository.findBySnapshotIdOrderByCreatedAtDesc(anyLong())).thenReturn(List.of());
 
-        List<SnapshotDTO> result = snapshotService.getSnapshotsForTimeline(1L, 0, 2);
+        List<SnapshotDTO> result = snapshotService.getSnapshotsForTimeline(1L, 0, 2, "createdAt", "desc");
 
         assertEquals(2, result.size());
         assertEquals("S3", result.get(0).name());
@@ -918,7 +919,7 @@ class SnapshotServiceTest {
                 .changeSummaryJson("{\"packages_added\":1,\"configs_changed\":2}")
                 .build();
         when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
-        when(storageTargetRepository.findAll()).thenReturn(List.of(testStorageTarget));
+        when(storageTargetRepository.findFirstNonLocal()).thenReturn(testStorageTarget);
 
         // Get rollback preview
         Map<String, Object> preview = snapshotService.rollbackPreview(1L);
@@ -941,7 +942,7 @@ class SnapshotServiceTest {
                 .hash("abc123").status(Snapshot.SnapshotStatus.STABLE)
                 .createdAt(LocalDateTime.now()).build();
         when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
-        when(storageTargetRepository.findAll()).thenReturn(List.of(testStorageTarget));
+        when(storageTargetRepository.findFirst()).thenReturn(testStorageTarget);
         when(sshManager.getConnection(testServer)).thenReturn(sshConnection);
         when(resticClient.ensureResticInstalled(sshConnection)).thenReturn(true);
         when(resticClient.buildRepoUrl(testStorageTarget)).thenReturn("/backup");
@@ -1015,7 +1016,7 @@ class SnapshotServiceTest {
         Snapshot nullHashSnap = Snapshot.builder().id(1L).server(testServer).title("Null Hash")
                 .status(Snapshot.SnapshotStatus.STABLE).build();
         when(snapshotRepository.findNullHashSnapshots()).thenReturn(List.of(nullHashSnap));
-        when(storageTargetRepository.findAll()).thenReturn(List.of());
+        when(storageTargetRepository.findByType(StorageTarget.StorageType.LOCAL)).thenReturn(List.of());
 
         String result = snapshotService.cleanupLocalRepo();
 
@@ -1026,7 +1027,7 @@ class SnapshotServiceTest {
     @Test
     void cleanupLocalRepo_noNullHashSnapshots_returnsZero() {
         when(snapshotRepository.findNullHashSnapshots()).thenReturn(List.of());
-        when(storageTargetRepository.findAll()).thenReturn(List.of());
+        when(storageTargetRepository.findByType(StorageTarget.StorageType.LOCAL)).thenReturn(List.of());
 
         String result = snapshotService.cleanupLocalRepo();
 

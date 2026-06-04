@@ -18,4 +18,7 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
     long countToday();
 
     Page<Alert> findBySeverity(Alert.AlertSeverity severity, Pageable pageable);
+
+    /** Paged query to prevent OOM on high-alert systems */
+    Page<Alert> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }

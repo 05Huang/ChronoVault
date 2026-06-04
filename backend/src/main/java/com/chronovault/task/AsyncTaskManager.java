@@ -7,6 +7,7 @@ import com.chronovault.entity.Server;
 import com.chronovault.entity.User;
 import com.chronovault.repository.AsyncTaskRepository;
 import com.chronovault.websocket.EventWebSocketHandler;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,12 +30,14 @@ public class AsyncTaskManager {
 
     private final AsyncTaskRepository taskRepository;
     private final EventWebSocketHandler wsHandler;
+    private final MeterRegistry meterRegistry;
 
     @Autowired
     @Qualifier("taskExecutor")
     private ThreadPoolTaskExecutor taskExecutor;
 
     private final Map<Long, Boolean> cancellationFlags = new ConcurrentHashMap<>();
+    private final Map<Long, Long> creationTimestamps = new ConcurrentHashMap<>();
     private volatile boolean shuttingDown = false;
 
     public AsyncTask submit(TaskType type, Long serverId, Long userId, String message,
@@ -59,47 +62,62 @@ public class AsyncTaskManager {
         }
         task = taskRepository.save(task);
         final Long taskId = task.getId();
+        creationTimestamps.put(taskId, System.currentTimeMillis());
+        log.info("[TASK_CREATE] [task={}] [type={}] [server={}] {}",
+                taskId, type, serverId, message);
 
         taskExecutor.submit(() -> executeTask(taskId, taskBody));
         return task;
     }
 
     private void executeTask(Long taskId, Consumer<AsyncTask> taskBody) {
-        log.info("Async task {} starting execution", taskId);
+        Long createdMs = creationTimestamps.get(taskId);
+        long queueDelayMs = createdMs != null ? System.currentTimeMillis() - createdMs : 0;
+
+        log.info("[TASK_START] [task={}] Queue wait: {}ms, executing...", taskId, queueDelayMs);
         AsyncTask task = taskRepository.findById(taskId).orElse(null);
         if (task == null) {
-            log.warn("Async task {} not found in database", taskId);
+            log.warn("[TASK_START] [task={}] Not found in database, skipping", taskId);
             return;
         }
 
+        long executionStartMs = System.currentTimeMillis();
         try {
             task.setStatus(TaskStatus.RUNNING);
             task.setStartedAt(LocalDateTime.now());
             taskRepository.save(task);
 
             broadcastTaskEvent(task, "任务开始: " + task.getMessage());
-            log.info("Async task {} status set to RUNNING, executing task body...", taskId);
+            log.info("[TASK_RUNNING] [task={}] [type={}] [server={}] Execution started (queue delay={}ms)",
+                    taskId, task.getType(), task.getServer() != null ? task.getServer().getId() : "-", queueDelayMs);
 
             taskBody.accept(task);
 
             if (!isCancelled(taskId)) {
+                long durationMs = System.currentTimeMillis() - executionStartMs;
                 task.setStatus(TaskStatus.COMPLETED);
                 task.setProgress(100);
                 task.setCompletedAt(LocalDateTime.now());
                 taskRepository.save(task);
                 broadcastTaskEvent(task, "任务完成: " + task.getMessage());
-                log.info("Async task {} completed successfully", taskId);
+                log.info("[TASK_COMPLETE] [task={}] [type={}] Completed in {}ms", taskId, task.getType(), durationMs);
+                meterRegistry.timer("async.task.duration", "type", task.getType().name(), "result", "success")
+                        .record(durationMs, TimeUnit.MILLISECONDS);
             }
         } catch (Exception e) {
-            log.error("Task {} failed: {}", taskId, e.getMessage(), e);
+            long durationMs = System.currentTimeMillis() - executionStartMs;
+            log.error("[TASK_FAILED] [task={}] [type={}] Failed after {}ms: {}", taskId,
+                    task.getType(), durationMs, e.getMessage(), e);
             try {
                 task.setStatus(TaskStatus.FAILED);
                 task.setError(e.getMessage());
                 task.setCompletedAt(LocalDateTime.now());
                 taskRepository.save(task);
                 broadcastTaskEvent(task, "任务失败: " + e.getMessage());
+                meterRegistry.timer("async.task.duration", "type", task.getType().name(), "result", "failed")
+                        .record(durationMs, TimeUnit.MILLISECONDS);
             } catch (Exception saveErr) {
-                log.error("Failed to save task error status for task {}: {}", taskId, saveErr.getMessage());
+                log.error("[TASK_FAILED] [task={}] Failed to save error status: {}", taskId, saveErr.getMessage());
             }
         } finally {
             cancellationFlags.remove(taskId);
@@ -109,6 +127,12 @@ public class AsyncTaskManager {
     public void updateProgress(Long taskId, int progress, String message) {
         AsyncTask task = taskRepository.findById(taskId).orElse(null);
         if (task == null) return;
+
+        Long createdMs = creationTimestamps.get(taskId);
+        long elapsedMs = createdMs != null ? System.currentTimeMillis() - createdMs : 0;
+
+        log.info("[TASK_PROGRESS] [task={}] [type={}] {}% {} (elapsed={}ms)",
+                taskId, task.getType(), progress, message, elapsedMs);
 
         task.setProgress(progress);
         task.setMessage(message);

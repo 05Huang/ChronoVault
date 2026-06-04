@@ -100,7 +100,7 @@ public class AlertService {
                     }
                 }
             } catch (Exception e) {
-                log.warn("Failed to restart container for alert {}: {}", alertId, e.getMessage());
+                log.warn("[ALERT_ACTION] [alert={}] Failed to restart container: {}", alertId, e.getMessage());
             }
         }
 
@@ -120,9 +120,9 @@ public class AlertService {
                 conn.executeCommand("journalctl --vacuum-time=7d");
                 conn.executeCommand("docker system prune -f --volumes 2>/dev/null || true");
                 conn.executeCommand("apt-get clean 2>/dev/null || yum clean all 2>/dev/null || true");
-                log.info("Storage cleanup executed on {}", alert.getServer().getIp());
+                log.info("[ALERT_ACTION] [alert={}] Storage cleanup executed on {}", alertId, alert.getServer().getIp());
             } catch (Exception e) {
-                log.warn("Failed to expand storage for alert {}: {}", alertId, e.getMessage());
+                log.warn("[ALERT_ACTION] [alert={}] Failed to expand storage: {}", alertId, e.getMessage());
             }
         }
 
@@ -141,9 +141,9 @@ public class AlertService {
                 // Restart common services to restore default config state
                 conn.executeCommand("systemctl restart nginx 2>/dev/null || true");
                 conn.executeCommand("systemctl restart docker 2>/dev/null || true");
-                log.info("Config rollback executed on {}", alert.getServer().getIp());
+                log.info("[ALERT_ACTION] [alert={}] Config rollback executed on {}", alertId, alert.getServer().getIp());
             } catch (Exception e) {
-                log.warn("Failed to rollback config for alert {}: {}", alertId, e.getMessage());
+                log.warn("[ALERT_ACTION] [alert={}] Failed to rollback config: {}", alertId, e.getMessage());
             }
         }
 
@@ -238,7 +238,7 @@ public class AlertService {
             try {
                 sendToChannel(integration, alert);
             } catch (Exception e) {
-                log.error("Failed to send notification via {}: {}", integration.getType(), e.getMessage());
+                log.error("[ALERT_NOTIFY] [alert={}] Failed to send notification via {}: {}", alert.getId(), integration.getType(), e.getMessage());
             }
         }
     }
@@ -251,7 +251,7 @@ public class AlertService {
             case DINGTALK -> sendDingTalkWebhook(integration.getUrl(), message);
             case WEBHOOK -> sendGenericWebhook(integration.getUrl(), alert);
             case EMAIL -> sendEmail(integration.getUrl(), alert);
-            default -> log.warn("Unsupported integration type: {}", integration.getType());
+            default -> log.warn("[ALERT_NOTIFY] Unsupported integration type: {}", integration.getType());
         }
     }
 
@@ -267,10 +267,10 @@ public class AlertService {
                     .build();
             java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
-                log.error("Slack webhook failed: {}", response.statusCode());
+                log.error("[ALERT_NOTIFY] Slack webhook failed: status={}", response.statusCode());
             }
         } catch (Exception e) {
-            log.error("Slack webhook error: {}", e.getMessage());
+            log.error("[ALERT_NOTIFY] Slack webhook error: {}", e.getMessage());
         }
     }
 
@@ -286,7 +286,7 @@ public class AlertService {
                     .build();
             client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
         } catch (Exception e) {
-            log.error("DingTalk webhook error: {}", e.getMessage());
+            log.error("[ALERT_NOTIFY] DingTalk webhook error: {}", e.getMessage());
         }
     }
 
@@ -304,13 +304,13 @@ public class AlertService {
                     .build();
             client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
         } catch (Exception e) {
-            log.error("Webhook error: {}", e.getMessage());
+            log.error("[ALERT_NOTIFY] Webhook error: {}", e.getMessage());
         }
     }
 
     private void sendEmail(String emailAddress, Alert alert) {
         // Email sending requires SMTP configuration — log for now
-        log.info("Email notification to {}: [{}] {}", emailAddress, alert.getSeverity(), alert.getTitle());
+        log.info("[ALERT_NOTIFY] [alert={}] Email notification to {}: [{}] {}", alert.getId(), emailAddress, alert.getSeverity(), alert.getTitle());
     }
 
     private String escapeJson(String s) {

@@ -1,5 +1,6 @@
 package com.chronovault.service;
 
+import com.chronovault.cache.CacheService;
 import com.chronovault.docker.DockerOperationService;
 import com.chronovault.dto.server.CreateContainerRequest;
 import com.chronovault.entity.*;
@@ -33,6 +34,7 @@ class ServerServiceTest {
     @Mock private DockerOperationService dockerService;
     @Mock private SshConnectionManager sshManager;
     @Mock private CredentialEncryptor credentialEncryptor;
+    @Mock private CacheService cacheService;
     @Mock private SshConnection sshConnection;
 
     @InjectMocks

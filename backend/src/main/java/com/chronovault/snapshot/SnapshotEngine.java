@@ -78,50 +78,84 @@ public class SnapshotEngine {
         return snapshot;
     }
 
+    /** Warn threshold for individual snapshot phases (ms) */
+    private static final long STEP_WARN_THRESHOLD_MS = 60_000;
+    /** Warn threshold for the backup phase specifically (ms) — backup can be long */
+    private static final long BACKUP_WARN_THRESHOLD_MS = 300_000;
+
     private void executeSnapshot(Long taskId, Snapshot snapshot, Server server,
                                   StorageTarget storageTarget, Snapshot.SnapshotType type,
                                   List<String> customPaths, List<String> customExcludes) {
         String currentStep = "初始化";
+        long snapshotStartMs = System.currentTimeMillis();
         try {
+            // Step 1: Connect to server
             currentStep = "连接服务器";
+            long stepStart = System.currentTimeMillis();
             taskManager.updateProgress(taskId, 10, "连接服务器...");
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 1/10: Connecting to server...",
+                    snapshot.getId(), server.getId());
             SshConnection conn = sshManager.getConnection(server);
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 1/10: Connected in {}ms",
+                    snapshot.getId(), server.getId(), System.currentTimeMillis() - stepStart);
 
-            // Ensure restic is installed on the target server
+            // Step 2: Ensure restic is installed
             currentStep = "检查备份工具";
+            stepStart = System.currentTimeMillis();
             taskManager.updateProgress(taskId, 15, "检查备份工具...");
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 2/10: Checking backup tool...",
+                    snapshot.getId(), server.getId());
             if (!resticClient.ensureResticInstalled(conn)) {
                 throw new SnapshotStepException("备份工具安装", "无法在目标服务器上安装 restic 备份工具，请检查 sudo 权限");
             }
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 2/10: Backup tool ready in {}ms",
+                    snapshot.getId(), server.getId(), System.currentTimeMillis() - stepStart);
 
-            // Pre-flight disk space check
+            // Step 3: Pre-flight disk space check
             currentStep = "检查磁盘空间";
+            stepStart = System.currentTimeMillis();
             taskManager.updateProgress(taskId, 17, "检查磁盘空间...");
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 3/10: Checking disk space...",
+                    snapshot.getId(), server.getId());
             checkDiskSpace(conn, server);
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 3/10: Disk check passed in {}ms",
+                    snapshot.getId(), server.getId(), System.currentTimeMillis() - stepStart);
 
             String repoUrl = resticClient.buildRepoUrl(storageTarget);
-            log.info("Restic repo URL: {}", repoUrl);
 
-            // Ensure repo directory exists for local storage
+            // Step 4: Prepare storage directory (for local storage)
             if (storageTarget.getType() == StorageTarget.StorageType.LOCAL) {
                 currentStep = "准备存储目录";
+                stepStart = System.currentTimeMillis();
                 String mkdirResult = conn.executeCommand(
                         "sudo mkdir -p " + repoUrl + " && sudo chown $(whoami) " + repoUrl + " 2>&1").stdout();
-                log.info("mkdir result: {}", mkdirResult);
+                log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 4/10: Storage directory prepared in {}ms",
+                        snapshot.getId(), server.getId(), System.currentTimeMillis() - stepStart);
             }
 
-            // Initialize repo if needed
+            // Step 5: Initialize repo if needed
             currentStep = "初始化存储仓库";
+            stepStart = System.currentTimeMillis();
             taskManager.updateProgress(taskId, 20, "初始化存储仓库...");
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 5/10: Initializing restic repo...",
+                    snapshot.getId(), server.getId());
             boolean initOk = resticClient.init(conn, repoUrl, resticPassword);
             if (!initOk) {
-                log.warn("Restic init returned false (repo may already exist), continuing...");
+                log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 5/10: Repo init returned false (may already exist)",
+                        snapshot.getId(), server.getId());
             }
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 5/10: Repo ready in {}ms",
+                    snapshot.getId(), server.getId(), System.currentTimeMillis() - stepStart);
 
-            // Pre-snapshot hooks
+            // Step 6: Pre-snapshot hooks
             currentStep = "执行预快照钩子";
+            stepStart = System.currentTimeMillis();
             taskManager.updateProgress(taskId, 30, "执行预快照钩子...");
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 6/10: Running pre-snapshot hooks...",
+                    snapshot.getId(), server.getId());
             runPreSnapshotHooks(conn, server.getId());
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 6/10: Pre-snapshot hooks done in {}ms",
+                    snapshot.getId(), server.getId(), System.currentTimeMillis() - stepStart);
 
             // Find parent for incremental
             String parentId = null;
@@ -135,9 +169,12 @@ public class SnapshotEngine {
                 }
             }
 
-            // Execute backup
+            // Step 7: Execute backup (the longest phase)
             currentStep = "执行备份";
+            stepStart = System.currentTimeMillis();
             taskManager.updateProgress(taskId, 50, "执行快照备份...");
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 7/10: Starting restic backup...",
+                    snapshot.getId(), server.getId());
             List<String> paths = customPaths != null && !customPaths.isEmpty()
                     ? customPaths
                     : List.of("/");
@@ -152,78 +189,104 @@ public class SnapshotEngine {
                 throw new SnapshotStepException("备份执行", "Restic backup 命令执行失败，请检查服务器连接和存储配置");
             }
 
-            // Post-snapshot hooks
+            long backupDurationMs = System.currentTimeMillis() - stepStart;
+            if (backupDurationMs > BACKUP_WARN_THRESHOLD_MS) {
+                log.warn("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 7/10: Backup took {}ms (>{}/{}ms threshold)",
+                        snapshot.getId(), server.getId(), backupDurationMs, backupDurationMs, BACKUP_WARN_THRESHOLD_MS);
+            }
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 7/10: Backup completed in {}ms ({} bytes)",
+                    snapshot.getId(), server.getId(), backupDurationMs, resticSnapshot.totalBytesProcessed());
+
+            // Step 8: Post-snapshot hooks + container state
             currentStep = "执行后置钩子";
+            stepStart = System.currentTimeMillis();
             taskManager.updateProgress(taskId, 80, "执行后置钩子...");
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 8/10: Running post-snapshot hooks...",
+                    snapshot.getId(), server.getId());
             runPostSnapshotHooks(conn, server.getId());
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 8/10: Post-snapshot hooks done in {}ms",
+                    snapshot.getId(), server.getId(), System.currentTimeMillis() - stepStart);
 
-            // Capture Docker container state
+            // Step 9: Capture system state (Docker + state.json)
+            currentStep = "采集系统状态";
+            stepStart = System.currentTimeMillis();
             taskManager.updateProgress(taskId, 85, "捕获容器状态...");
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 9/10: Capturing container and system state...",
+                    snapshot.getId(), server.getId());
             captureContainerState(conn, snapshot);
-
-            // Capture system state.json (the core differentiator)
-            taskManager.updateProgress(taskId, 88, "采集系统状态...");
             try {
                 String stateJson = stateCollectionService.collectStateViaSsh(conn);
                 if (stateJson != null && !stateJson.isBlank()) {
-                    // P3-2: Optimize large state.json to prevent DB bloat
-                    // If state_json exceeds 1MB, truncate the packages array
-                    // to keep storage under control while preserving diff capability
                     if (stateJson.length() > 1_048_576) {
-                        log.warn("Large state.json detected ({} bytes) for snapshot {}, truncating packages array",
-                                stateJson.length(), snapshot.getId());
+                        log.warn("[SNAPSHOT_STEP] [snapshot={}] [server={}] Large state.json ({} bytes), truncating packages array",
+                                snapshot.getId(), server.getId(), stateJson.length());
                         stateJson = optimizeLargeStateJson(stateJson);
                     }
                     snapshot.setStateJson(stateJson);
                     snapshot.setStateCollectedAt(LocalDateTime.now());
-                    log.info("Captured state.json for snapshot {} ({} bytes)",
-                            snapshot.getId(), stateJson.length());
                 }
             } catch (Exception e) {
-                log.warn("State collection failed for snapshot {}: {}", snapshot.getId(), e.getMessage());
-                // Continue — state collection is not critical for backup success
+                log.warn("[SNAPSHOT_STEP] [snapshot={}] [server={}] State collection failed (non-fatal): {}",
+                        snapshot.getId(), server.getId(), e.getMessage());
             }
+            long stateDurationMs = System.currentTimeMillis() - stepStart;
+            if (stateDurationMs > STEP_WARN_THRESHOLD_MS) {
+                log.warn("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 9/10: State capture took {}ms (>{}/{}ms threshold)",
+                        snapshot.getId(), server.getId(), stateDurationMs, stateDurationMs, STEP_WARN_THRESHOLD_MS);
+            }
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 9/10: State captured in {}ms ({} bytes)",
+                    snapshot.getId(), server.getId(), stateDurationMs,
+                    snapshot.getStateJson() != null ? snapshot.getStateJson().length() : 0);
 
-            // Update snapshot record
+            // Step 10: Save snapshot record + manifest
+            currentStep = "保存快照记录";
+            stepStart = System.currentTimeMillis();
             snapshot.setHash(resticSnapshot.snapshotId());
             snapshot.setSizeBytes(resticSnapshot.totalBytesProcessed());
             snapshot.setStatus(Snapshot.SnapshotStatus.STABLE);
             snapshotRepository.save(snapshot);
-            log.info("Snapshot {} saved with hash={}, size={}", snapshot.getId(),
-                    resticSnapshot.snapshotId(), resticSnapshot.totalBytesProcessed());
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 10/10: Snapshot record saved (hash={}, size={})",
+                    snapshot.getId(), server.getId(), resticSnapshot.snapshotId(), resticSnapshot.totalBytesProcessed());
 
-            // Compute change summary and detect high-risk changes (P1-4)
+            // Record manifest
+            taskManager.updateProgress(taskId, 95, "记录文件清单...");
+            recordManifest(conn, snapshot, repoUrl);
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 10/10: Manifest recorded in {}ms",
+                    snapshot.getId(), server.getId(), System.currentTimeMillis() - stepStart);
+
+            // Compute change summary and detect high-risk changes
             taskManager.updateProgress(taskId, 92, "分析变更...");
             try {
-                // Find the previous snapshot for this server
                 List<Snapshot> previousSnapshots = snapshotRepository
                         .findByServerIdAndCreatedAtBeforeOrderByCreatedAtAsc(
                                 server.getId(), snapshot.getCreatedAt());
                 if (!previousSnapshots.isEmpty() && snapshot.getStateJson() != null) {
                     Snapshot previous = previousSnapshots.get(previousSnapshots.size() - 1);
-                    // Compute and cache change summary
                     snapshotServiceRef.computeAndCacheChangeSummary(snapshot);
-                    // Detect high-risk changes and create alerts
                     snapshotServiceRef.detectAndAlertHighRiskChanges(previous, snapshot);
                 }
             } catch (Exception e) {
-                log.warn("Change analysis failed for snapshot {}: {}", snapshot.getId(), e.getMessage());
-                // Continue — analysis is not critical
+                log.warn("[SNAPSHOT_STEP] [snapshot={}] [server={}] Change analysis failed (non-fatal): {}",
+                        snapshot.getId(), server.getId(), e.getMessage());
             }
-
-            // Record manifest
-            taskManager.updateProgress(taskId, 95, "记录文件清单...");
-            recordManifest(conn, snapshot, repoUrl);
 
             taskManager.updateProgress(taskId, 100, "快照创建完成");
 
+            long totalDurationMs = System.currentTimeMillis() - snapshotStartMs;
+            log.info("[SNAPSHOT_COMPLETE] [snapshot={}] [server={}] Snapshot completed successfully in {}ms",
+                    snapshot.getId(), server.getId(), totalDurationMs);
+
         } catch (SnapshotStepException e) {
-            log.error("Snapshot failed at step '{}' for server {}: {}", currentStep, server.getIp(), e.getMessage(), e);
+            long durationMs = System.currentTimeMillis() - snapshotStartMs;
+            log.error("[SNAPSHOT_FAILED] [snapshot={}] [server={}] Failed at '{}' after {}ms: {}",
+                    snapshot.getId(), server.getId(), currentStep, durationMs, e.getMessage(), e);
             snapshot.setStatus(Snapshot.SnapshotStatus.WARNING);
             snapshotRepository.save(snapshot);
             throw new RuntimeException("快照创建失败 [" + currentStep + "]: " + e.getMessage(), e);
         } catch (Exception e) {
-            log.error("Snapshot failed at step '{}' for server {}: {}", currentStep, server.getIp(), e.getMessage(), e);
+            long durationMs = System.currentTimeMillis() - snapshotStartMs;
+            log.error("[SNAPSHOT_FAILED] [snapshot={}] [server={}] Failed at '{}' after {}ms: {}",
+                    snapshot.getId(), server.getId(), currentStep, durationMs, e.getMessage(), e);
             snapshot.setStatus(Snapshot.SnapshotStatus.WARNING);
             snapshotRepository.save(snapshot);
             throw new RuntimeException("快照创建失败 [" + currentStep + "]: " + e.getMessage(), e);

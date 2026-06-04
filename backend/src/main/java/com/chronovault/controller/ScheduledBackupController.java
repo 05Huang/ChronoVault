@@ -3,6 +3,7 @@ package com.chronovault.controller;
 import com.chronovault.dto.scheduledbackup.CreateScheduledBackupRequest;
 import com.chronovault.dto.scheduledbackup.ScheduledBackupDTO;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.ScheduledBackupService;
 import com.chronovault.service.UserService;
 import jakarta.validation.Valid;
@@ -23,7 +24,7 @@ public class ScheduledBackupController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<ScheduledBackupDTO>>> getAll(Authentication auth) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         return ResponseEntity.ok(ApiResponse.success(scheduledBackupService.getAll(userId)));
     }
 
@@ -36,7 +37,7 @@ public class ScheduledBackupController {
     public ResponseEntity<ApiResponse<ScheduledBackupDTO>> create(
             Authentication auth,
             @Valid @RequestBody CreateScheduledBackupRequest request) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         return ResponseEntity.ok(ApiResponse.success(scheduledBackupService.create(request, userId)));
     }
 

@@ -4,6 +4,7 @@ import com.chronovault.dto.team.InviteRequest;
 import com.chronovault.dto.team.TeamMemberDTO;
 import com.chronovault.dto.team.UpdateMemberRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.TeamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,12 +26,12 @@ public class TeamController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<TeamMemberDTO>>> getMembers(Authentication auth) {
-        return ResponseEntity.ok(ApiResponse.success(teamService.getMembers(auth.getName())));
+        return ResponseEntity.ok(ApiResponse.success(teamService.getMembers(SecurityUtils.getCurrentUsername(auth))));
     }
 
     @PostMapping("/invite")
     public ResponseEntity<ApiResponse<TeamMemberDTO>> invite(Authentication auth, @Valid @RequestBody InviteRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(teamService.invite(auth.getName(), request)));
+        return ResponseEntity.ok(ApiResponse.success(teamService.invite(SecurityUtils.getCurrentUsername(auth), request)));
     }
 
     @PutMapping("/{id}")

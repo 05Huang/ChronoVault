@@ -66,9 +66,9 @@ class SnapshotControllerTest {
         var page = new org.springframework.data.domain.PageImpl<>(
                 List.of(createTestSnapshot(1L, "Snap 1"), createTestSnapshot(2L, "Snap 2")),
                 org.springframework.data.domain.PageRequest.of(0, 20), 2);
-        when(snapshotService.getSnapshotsPaged(0, 20)).thenReturn(page);
+        when(snapshotService.getSnapshotsPaged(0, 20, "createdAt", "desc")).thenReturn(page);
 
-        var response = controller.getSnapshots(0, 20, null);
+        var response = controller.getSnapshots(0, 20, null, "createdAt", "desc");
         assertNotNull(response);
     }
 
@@ -77,7 +77,7 @@ class SnapshotControllerTest {
         when(snapshotService.getSnapshotsByTag("production"))
                 .thenReturn(List.of(createTestSnapshot(1L, "Prod Snap")));
 
-        var response = controller.getSnapshots(0, 20, "production");
+        var response = controller.getSnapshots(0, 20, "production", "createdAt", "desc");
         assertNotNull(response);
     }
 
@@ -185,29 +185,29 @@ class SnapshotControllerTest {
         var snapshots = List.of(
                 createTestSnapshot(3L, "Snap 3"),
                 createTestSnapshot(2L, "Snap 2"));
-        when(snapshotService.getSnapshotsForTimeline(1L, 0, 50)).thenReturn(snapshots);
+        when(snapshotService.getSnapshotsForTimeline(1L, 0, 50, "createdAt", "desc")).thenReturn(snapshots);
 
-        var response = controller.getTimeline(1L, 0, 50);
+        var response = controller.getTimeline(1L, 0, 50, "createdAt", "desc");
         assertEquals(200, response.getStatusCode().value());
         assertEquals(2, response.getBody().data().size());
     }
 
     @Test
     void getTimeline_emptyServer_returnsEmptyList() {
-        when(snapshotService.getSnapshotsForTimeline(1L, 0, 50)).thenReturn(List.of());
+        when(snapshotService.getSnapshotsForTimeline(1L, 0, 50, "createdAt", "desc")).thenReturn(List.of());
 
-        var response = controller.getTimeline(1L, 0, 50);
+        var response = controller.getTimeline(1L, 0, 50, "createdAt", "desc");
         assertEquals(200, response.getStatusCode().value());
         assertTrue(response.getBody().data().isEmpty());
     }
 
     @Test
     void getTimeline_withCustomPagination_passesParams() {
-        when(snapshotService.getSnapshotsForTimeline(1L, 2, 10)).thenReturn(List.of());
+        when(snapshotService.getSnapshotsForTimeline(1L, 2, 10, "createdAt", "desc")).thenReturn(List.of());
 
-        var response = controller.getTimeline(1L, 2, 10);
+        var response = controller.getTimeline(1L, 2, 10, "createdAt", "desc");
         assertNotNull(response);
-        verify(snapshotService).getSnapshotsForTimeline(1L, 2, 10);
+        verify(snapshotService).getSnapshotsForTimeline(1L, 2, 10, "createdAt", "desc");
     }
 
     // ===== Rollback preview test =====

@@ -3,6 +3,7 @@ package com.chronovault.controller;
 import com.chronovault.dto.snapshot.CreateTagRequest;
 import com.chronovault.dto.snapshot.SnapshotTagDTO;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.SnapshotTagService;
 import com.chronovault.service.UserService;
 import jakarta.validation.Valid;
@@ -31,7 +32,7 @@ public class SnapshotTagController {
             @PathVariable Long snapshotId,
             Authentication auth,
             @Valid @RequestBody CreateTagRequest request) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         return ResponseEntity.ok(ApiResponse.success(tagService.addTag(snapshotId, request, userId)));
     }
 

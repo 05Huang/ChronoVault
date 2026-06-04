@@ -5,6 +5,7 @@ import com.chronovault.entity.WebhookEndpoint;
 import com.chronovault.exception.ResourceNotFoundException;
 import com.chronovault.repository.WebhookDeliveryLogRepository;
 import com.chronovault.repository.WebhookEndpointRepository;
+import com.chronovault.security.SensitiveDataMasker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -69,13 +70,19 @@ public class WebhookService {
      */
     @Async
     public void deliverEvent(String eventType, String payload) {
+        log.info("[WEBHOOK_DELIVER] [eventType={}] Starting delivery to all enabled endpoints (payload={})",
+                eventType, SensitiveDataMasker.maskSensitiveFields(payload));
         List<WebhookEndpoint> endpoints = endpointRepository.findByEnabledTrue();
+        log.info("[WEBHOOK_DELIVER] [eventType={}] Found {} matching endpoints", eventType, endpoints.size());
 
+        int delivered = 0;
         for (WebhookEndpoint endpoint : endpoints) {
             if (!shouldDeliver(endpoint, eventType)) continue;
-
+            delivered++;
             deliverWithRetry(endpoint, eventType, payload, 1);
         }
+
+        log.info("[WEBHOOK_DELIVER] [eventType={}] Delivery attempted to {} endpoints", eventType, delivered);
     }
 
     private boolean shouldDeliver(WebhookEndpoint endpoint, String eventType) {

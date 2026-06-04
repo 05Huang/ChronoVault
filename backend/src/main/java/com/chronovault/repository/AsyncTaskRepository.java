@@ -2,6 +2,8 @@ package com.chronovault.repository;
 
 import com.chronovault.entity.AsyncTask;
 import com.chronovault.entity.AsyncTask.TaskStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,6 +13,9 @@ import java.util.List;
 public interface AsyncTaskRepository extends JpaRepository<AsyncTask, Long> {
 
     List<AsyncTask> findAllByOrderByCreatedAtDesc();
+
+    /** Paged query to prevent OOM on high-task-volume systems */
+    Page<AsyncTask> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     List<AsyncTask> findByUserIdOrderByCreatedAtDesc(Long userId);
 

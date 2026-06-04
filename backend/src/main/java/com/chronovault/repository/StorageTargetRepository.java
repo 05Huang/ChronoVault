@@ -14,4 +14,17 @@ public interface StorageTargetRepository extends JpaRepository<StorageTarget, Lo
 
     @Query("SELECT COALESCE(SUM(s.totalBytes), 0) FROM StorageTarget s")
     Long sumTotalBytes();
+
+    /**
+     * Find the preferred storage target: first non-LOCAL target, or any target if none exist.
+     * Avoids loading all targets just to pick one.
+     */
+    @Query("SELECT s FROM StorageTarget s WHERE s.type <> com.chronovault.entity.StorageTarget$StorageType.LOCAL ORDER BY s.id ASC LIMIT 1")
+    StorageTarget findFirstNonLocal();
+
+    /**
+     * Find any storage target (first by ID).
+     */
+    @Query("SELECT s FROM StorageTarget s ORDER BY s.id ASC LIMIT 1")
+    StorageTarget findFirst();
 }

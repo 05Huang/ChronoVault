@@ -2,9 +2,9 @@ package com.chronovault.websocket;
 
 import com.chronovault.entity.Event;
 import com.chronovault.repository.EventRepository;
-import com.chronovault.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -57,7 +57,9 @@ public class EventWebSocketHandler {
     @Scheduled(fixedRate = 30000)
     public void sendHeartbeat() {
         try {
-            List<Event> recentEvents = eventRepository.findAllByOrderByCreatedAtDesc();
+            // Use paginated query (size=1) to avoid loading all events
+            List<Event> recentEvents = eventRepository.findAllByOrderByCreatedAtDesc(
+                    PageRequest.of(0, 1)).getContent();
             if (!recentEvents.isEmpty()) {
                 Event latest = recentEvents.get(0);
                 Map<String, Object> heartbeat = new HashMap<>();

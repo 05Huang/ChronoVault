@@ -18,6 +18,10 @@ public interface SnapshotRepository extends JpaRepository<Snapshot, Long> {
     Page<Snapshot> findByServerIdOrderByCreatedAtDesc(Long serverId, Pageable pageable);
 
     List<Snapshot> findAllByOrderByCreatedAtDesc();
+
+    /** Paged query to prevent OOM */
+    Page<Snapshot> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
     long countByStatus(Snapshot.SnapshotStatus status);
 
     @Query("SELECT COUNT(s) FROM Snapshot s WHERE s.createdAt >= CURRENT_DATE")
@@ -80,4 +84,13 @@ public interface SnapshotRepository extends JpaRepository<Snapshot, Long> {
      */
     @Query("SELECT s FROM Snapshot s WHERE s.hash IS NULL OR s.hash = ''")
     List<Snapshot> findNullHashSnapshots();
+
+    /**
+     * Find paginated snapshots with tags loaded via batch query.
+     * The service layer uses tagRepository.findBySnapshotIdsIn() for batch tag loading,
+     * which avoids N+1 while keeping the snapshot query clean.
+     * This method is a convenience alias for the standard paged query.
+     */
+    @Query("SELECT s FROM Snapshot s ORDER BY s.createdAt DESC")
+    Page<Snapshot> findPageWithTags(Pageable pageable);
 }

@@ -5,6 +5,7 @@ import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.repository.AsyncTaskRepository;
 import com.chronovault.task.AsyncTaskManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,9 +21,14 @@ public class TaskController {
     private final AsyncTaskManager taskManager;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<AsyncTask>>> getTasks() {
-        return ResponseEntity.ok(ApiResponse.success(
-                taskRepository.findAllByOrderByCreatedAtDesc()));
+    public ResponseEntity<?> getTasks(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        // Use paginated query to prevent OOM
+        var result = taskRepository.findAllByOrderByCreatedAtDesc(
+                PageRequest.of(page, Math.min(size, 100)));
+        return ResponseEntity.ok(ApiResponse.successPage(
+                result.getContent(), page, size, result.getTotalElements()));
     }
 
     @GetMapping("/{id}")

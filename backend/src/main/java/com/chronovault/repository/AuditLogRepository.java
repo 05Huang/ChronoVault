@@ -11,6 +11,13 @@ import java.util.List;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findAllByOrderByCreatedAtDesc();
+
+    /** Paged query to prevent OOM */
+    Page<AuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    /** Paged query for audit logs within a time range — replaces full-table scans */
+    Page<AuditLog> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
+
     List<AuditLog> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     @Query("SELECT a FROM AuditLog a WHERE " +

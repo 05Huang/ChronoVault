@@ -6,11 +6,14 @@ import com.chronovault.ssh.SshConnectionManager;
 import com.chronovault.util.LogSanitizer;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -19,6 +22,7 @@ public class ResticClient {
 
     private final SshConnectionManager sshManager;
     private final ObjectMapper objectMapper;
+    private final MeterRegistry meterRegistry;
 
     /**
      * Check if restic is installed on the remote server, install it if not.
@@ -101,19 +105,26 @@ public class ResticClient {
     public boolean init(SshConnection conn, String repoUrl, String password) {
         String restic = getResticPath(conn);
         String cmd = String.format("RESTIC_PASSWORD=%s %s init --repo %s 2>&1", shellEscape(password), restic, shellEscape(repoUrl));
-        log.debug("Restic init command: {}", LogSanitizer.sanitize(cmd));
+        log.debug("[RESTIC_INIT] command: {}", LogSanitizer.sanitize(cmd));
+        long startMs = System.currentTimeMillis();
         SshConnection.CommandResult result = conn.executeCommand(cmd);
+        long durationMs = System.currentTimeMillis() - startMs;
 
         // Restic returns exit code 1 with "already initialized" message when repo exists — this is OK
         String output = result.stdout() != null ? result.stdout() : "";
         if (!result.isSuccess() && output.contains("already initialized")) {
-            log.info("Restic repository already initialized at {}", repoUrl);
+            log.info("[RESTIC_INIT] Repository already initialized at {} ({}ms)", repoUrl, durationMs);
+            meterRegistry.timer("restic.operation", "operation", "init", "result", "already_init").record(durationMs, TimeUnit.MILLISECONDS);
             return true;
         }
 
         if (!result.isSuccess()) {
-            log.warn("Restic init failed (exit={}): {}", result.exitCode(),
+            log.warn("[RESTIC_INIT] Failed (exit={}, {}ms): {}", result.exitCode(), durationMs,
                     output.substring(0, Math.min(300, output.length())));
+            meterRegistry.timer("restic.operation", "operation", "init", "result", "failed").record(durationMs, TimeUnit.MILLISECONDS);
+        } else {
+            log.info("[RESTIC_INIT] Success at {} ({}ms)", repoUrl, durationMs);
+            meterRegistry.timer("restic.operation", "operation", "init", "result", "success").record(durationMs, TimeUnit.MILLISECONDS);
         }
         return result.isSuccess();
     }
@@ -137,21 +148,27 @@ public class ResticClient {
         cmd.append("--json 2>&1");
 
         String fullCmd = cmd.toString();
-        log.info("Restic backup command: {}", LogSanitizer.sanitize(fullCmd));
+        log.info("[RESTIC_BACKUP] command: {}", LogSanitizer.sanitize(fullCmd));
+        long startMs = System.currentTimeMillis();
         SshConnection.CommandResult result = conn.executeCommand(fullCmd, java.time.Duration.ofHours(2));
-        log.info("Restic backup exitCode={}", result.exitCode());
+        long durationMs = System.currentTimeMillis() - startMs;
 
         // Exit code 0 = success, 3 = partial success (some files unreadable)
         if (result.exitCode() != 0 && result.exitCode() != 3) {
-            log.error("Restic backup failed (exit={}): stdout=[{}] stderr=[{}]",
-                    result.exitCode(),
+            log.error("[RESTIC_BACKUP] Failed (exit={}, {}ms): stdout=[{}] stderr=[{}]",
+                    result.exitCode(), durationMs,
                     result.stdout() != null ? result.stdout().substring(0, Math.min(1000, result.stdout().length())) : "",
                     result.stderr() != null ? result.stderr().substring(0, Math.min(1000, result.stderr().length())) : "");
+            meterRegistry.timer("restic.operation", "operation", "backup", "result", "failed").record(durationMs, TimeUnit.MILLISECONDS);
             return null;
         }
 
         if (result.exitCode() == 3) {
-            log.warn("Restic backup completed with warnings (some files unreadable)");
+            log.warn("[RESTIC_BACKUP] Partial success (some files unreadable, {}ms)", durationMs);
+            meterRegistry.timer("restic.operation", "operation", "backup", "result", "partial").record(durationMs, TimeUnit.MILLISECONDS);
+        } else {
+            log.info("[RESTIC_BACKUP] Success (exit=0, {}ms)", durationMs);
+            meterRegistry.timer("restic.operation", "operation", "backup", "result", "success").record(durationMs, TimeUnit.MILLISECONDS);
         }
 
         try {
@@ -209,18 +226,27 @@ public class ResticClient {
 
     public List<ResticSnapshotInfo> snapshots(SshConnection conn, String repoUrl, String password) {
         String restic = getResticPath(conn);
+        log.info("[RESTIC_SNAPSHOTS] listing snapshots");
+        long startMs = System.currentTimeMillis();
         SshConnection.CommandResult result = conn.executeCommand(
                 String.format("RESTIC_PASSWORD=%s %s snapshots --repo %s --json 2>&1",
                         shellEscape(password), restic, shellEscape(repoUrl)));
+        long durationMs = System.currentTimeMillis() - startMs;
 
         if (!result.isSuccess()) {
+            log.warn("[RESTIC_SNAPSHOTS] Failed (exit={}, {}ms)", result.exitCode(), durationMs);
+            meterRegistry.timer("restic.operation", "operation", "snapshots", "result", "failed").record(durationMs, TimeUnit.MILLISECONDS);
             return Collections.emptyList();
         }
 
         try {
-            return objectMapper.readValue(result.stdout(), new TypeReference<>() {});
+            List<ResticSnapshotInfo> list = objectMapper.readValue(result.stdout(), new TypeReference<>() {});
+            log.info("[RESTIC_SNAPSHOTS] Found {} snapshots ({}ms)", list.size(), durationMs);
+            meterRegistry.timer("restic.operation", "operation", "snapshots", "result", "success").record(durationMs, TimeUnit.MILLISECONDS);
+            return list;
         } catch (Exception e) {
-            log.warn("Failed to parse restic snapshots: {}", e.getMessage());
+            log.warn("[RESTIC_SNAPSHOTS] Failed to parse output ({}ms): {}", durationMs, e.getMessage());
+            meterRegistry.timer("restic.operation", "operation", "snapshots", "result", "parse_error").record(durationMs, TimeUnit.MILLISECONDS);
             return Collections.emptyList();
         }
     }
@@ -228,11 +254,20 @@ public class ResticClient {
     public boolean restore(SshConnection conn, String repoUrl, String password,
                            String snapshotId, String targetPath) {
         String restic = getResticPath(conn);
-        SshConnection.CommandResult result = conn.executeCommand(
-                String.format("RESTIC_PASSWORD=%s %s restore %s --target %s --repo %s 2>&1",
-                        shellEscape(password), restic, shellEscape(snapshotId),
-                        shellEscape(targetPath), shellEscape(repoUrl)),
-                java.time.Duration.ofHours(2));
+        String cmd = String.format("RESTIC_PASSWORD=%s %s restore %s --target %s --repo %s 2>&1",
+                shellEscape(password), restic, shellEscape(snapshotId),
+                shellEscape(targetPath), shellEscape(repoUrl));
+        log.info("[RESTIC_RESTORE] command: {}", LogSanitizer.sanitize(cmd));
+        long startMs = System.currentTimeMillis();
+        SshConnection.CommandResult result = conn.executeCommand(cmd, java.time.Duration.ofHours(2));
+        long durationMs = System.currentTimeMillis() - startMs;
+        if (result.isSuccess()) {
+            log.info("[RESTIC_RESTORE] Success ({}ms)", durationMs);
+            meterRegistry.timer("restic.operation", "operation", "restore", "result", "success").record(durationMs, TimeUnit.MILLISECONDS);
+        } else {
+            log.warn("[RESTIC_RESTORE] Failed (exit={}, {}ms)", result.exitCode(), durationMs);
+            meterRegistry.timer("restic.operation", "operation", "restore", "result", "failed").record(durationMs, TimeUnit.MILLISECONDS);
+        }
         return result.isSuccess();
     }
 
@@ -253,14 +288,19 @@ public class ResticClient {
         cmd.append("--repo ").append(shellEscape(repoUrl)).append(" 2>&1");
 
         String fullCmd = cmd.toString();
-        log.info("Restic selective restore command: {}", fullCmd);
+        log.info("[RESTIC_RESTORE_SELECTIVE] command: {}", fullCmd);
+        long startMs = System.currentTimeMillis();
         SshConnection.CommandResult result = conn.executeCommand(fullCmd, java.time.Duration.ofHours(2));
-        log.info("Restic selective restore exitCode={}", result.exitCode());
-        if (!result.isSuccess()) {
-            log.error("Restic selective restore failed (exit={}): stdout=[{}] stderr=[{}]",
-                    result.exitCode(),
+        long durationMs = System.currentTimeMillis() - startMs;
+        if (result.isSuccess()) {
+            log.info("[RESTIC_RESTORE_SELECTIVE] Success ({}ms)", durationMs);
+            meterRegistry.timer("restic.operation", "operation", "restore_selective", "result", "success").record(durationMs, TimeUnit.MILLISECONDS);
+        } else {
+            log.error("[RESTIC_RESTORE_SELECTIVE] Failed (exit={}, {}ms): stdout=[{}] stderr=[{}]",
+                    result.exitCode(), durationMs,
                     result.stdout() != null ? result.stdout().substring(0, Math.min(1000, result.stdout().length())) : "",
                     result.stderr() != null ? result.stderr().substring(0, Math.min(1000, result.stderr().length())) : "");
+            meterRegistry.timer("restic.operation", "operation", "restore_selective", "result", "failed").record(durationMs, TimeUnit.MILLISECONDS);
         }
         return result.isSuccess();
     }
@@ -313,10 +353,20 @@ public class ResticClient {
     public String diff(SshConnection conn, String repoUrl, String password,
                        String snapshot1, String snapshot2) {
         String restic = getResticPath(conn);
+        log.info("[RESTIC_DIFF] diff {} vs {}", snapshot1, snapshot2);
+        long startMs = System.currentTimeMillis();
         SshConnection.CommandResult result = conn.executeCommand(
                 String.format("RESTIC_PASSWORD=%s %s diff %s %s --repo %s 2>&1",
                         shellEscape(password), restic, shellEscape(snapshot1),
                         shellEscape(snapshot2), shellEscape(repoUrl)));
+        long durationMs = System.currentTimeMillis() - startMs;
+        if (result.isSuccess()) {
+            log.info("[RESTIC_DIFF] Success ({}ms)", durationMs);
+            meterRegistry.timer("restic.operation", "operation", "diff", "result", "success").record(durationMs, TimeUnit.MILLISECONDS);
+        } else {
+            log.warn("[RESTIC_DIFF] Failed (exit={}, {}ms)", result.exitCode(), durationMs);
+            meterRegistry.timer("restic.operation", "operation", "diff", "result", "failed").record(durationMs, TimeUnit.MILLISECONDS);
+        }
         return result.isSuccess() ? result.stdout() : "";
     }
 
@@ -370,9 +420,19 @@ public class ResticClient {
 
     public boolean check(SshConnection conn, String repoUrl, String password) {
         String restic = getResticPath(conn);
+        log.info("[RESTIC_CHECK] checking repository integrity");
+        long startMs = System.currentTimeMillis();
         SshConnection.CommandResult result = conn.executeCommand(
                 String.format("RESTIC_PASSWORD=%s %s check --repo %s 2>&1",
                         shellEscape(password), restic, shellEscape(repoUrl)));
+        long durationMs = System.currentTimeMillis() - startMs;
+        if (result.isSuccess()) {
+            log.info("[RESTIC_CHECK] Integrity OK ({}ms)", durationMs);
+            meterRegistry.timer("restic.operation", "operation", "check", "result", "success").record(durationMs, TimeUnit.MILLISECONDS);
+        } else {
+            log.warn("[RESTIC_CHECK] Failed (exit={}, {}ms)", result.exitCode(), durationMs);
+            meterRegistry.timer("restic.operation", "operation", "check", "result", "failed").record(durationMs, TimeUnit.MILLISECONDS);
+        }
         return result.isSuccess();
     }
 
@@ -387,14 +447,19 @@ public class ResticClient {
                 "RESTIC_PASSWORD=%s %s copy --repo %s --repo2 %s --password-command 'echo %s' %s 2>&1",
                 shellEscape(sourcePassword), restic, shellEscape(sourceRepoUrl),
                 shellEscape(targetRepoUrl), shellEscape(targetPassword), shellEscape(snapshotId));
-        log.info("Restic copy command: {}", cmd);
+        log.info("[RESTIC_COPY] snapshot {} to {}", snapshotId, targetRepoUrl);
+        long startMs = System.currentTimeMillis();
         SshConnection.CommandResult result = conn.executeCommand(cmd, java.time.Duration.ofHours(2));
-        log.info("Restic copy exitCode={}", result.exitCode());
-        if (!result.isSuccess()) {
-            log.error("Restic copy failed (exit={}): stdout=[{}] stderr=[{}]",
-                    result.exitCode(),
+        long durationMs = System.currentTimeMillis() - startMs;
+        if (result.isSuccess()) {
+            log.info("[RESTIC_COPY] Success ({}ms)", durationMs);
+            meterRegistry.timer("restic.operation", "operation", "copy", "result", "success").record(durationMs, TimeUnit.MILLISECONDS);
+        } else {
+            log.error("[RESTIC_COPY] Failed (exit={}, {}ms): stdout=[{}] stderr=[{}]",
+                    result.exitCode(), durationMs,
                     result.stdout() != null ? result.stdout().substring(0, Math.min(1000, result.stdout().length())) : "",
                     result.stderr() != null ? result.stderr().substring(0, Math.min(1000, result.stderr().length())) : "");
+            meterRegistry.timer("restic.operation", "operation", "copy", "result", "failed").record(durationMs, TimeUnit.MILLISECONDS);
         }
         return result.isSuccess();
     }

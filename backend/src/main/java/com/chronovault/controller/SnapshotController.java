@@ -25,6 +25,7 @@ import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.SnapshotBisectService;
 import com.chronovault.service.SnapshotService;
 import com.chronovault.service.SnapshotTagService;
@@ -58,15 +59,17 @@ public class SnapshotController {
     private final BatchSnapshotService batchService;
 
     @GetMapping
-    @Operation(summary = "获取快照列表（分页）", description = "返回分页快照列表，支持按标签过滤。默认 page=0, size=20")
+    @Operation(summary = "获取快照列表（分页）", description = "返回分页快照列表，支持按标签过滤。默认 page=0, size=20, sort=createdAt, direction=desc")
     public ResponseEntity<?> getSnapshots(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String tagName) {
+            @RequestParam(required = false) String tagName,
+            @RequestParam(defaultValue = "createdAt") String sort,
+            @RequestParam(defaultValue = "desc") String direction) {
         if (tagName != null && !tagName.isBlank()) {
             return ResponseEntity.ok(ApiResponse.success(snapshotService.getSnapshotsByTag(tagName)));
         }
-        Page<SnapshotDTO> result = snapshotService.getSnapshotsPaged(page, size);
+        Page<SnapshotDTO> result = snapshotService.getSnapshotsPaged(page, size, sort, direction);
         return ResponseEntity.ok(ApiResponse.successPage(
                 result.getContent(), page, size, result.getTotalElements()));
     }
@@ -85,7 +88,7 @@ public class SnapshotController {
     @Auditable(action = "创建快照", changeType = "SNAPSHOT_CREATED")
     @PostMapping
     public ResponseEntity<ApiResponse<SnapshotDTO>> createSnapshot(Authentication auth, @Valid @RequestBody CreateSnapshotRequest request) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         return ResponseEntity.ok(ApiResponse.success(snapshotService.createSnapshot(request, userId)));
     }
 
@@ -129,19 +132,21 @@ public class SnapshotController {
     }
 
     @GetMapping("/timeline")
-    @Operation(summary = "获取快照时间线", description = "返回指定服务器的快照时间线（含变更摘要）")
+    @Operation(summary = "获取快照时间线", description = "返回指定服务器的快照时间线（含变更摘要）。默认 sort=createdAt, direction=desc")
     public ResponseEntity<ApiResponse<List<SnapshotDTO>>> getTimeline(
             @RequestParam Long serverId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        List<SnapshotDTO> snapshots = snapshotService.getSnapshotsForTimeline(serverId, page, size);
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(defaultValue = "createdAt") String sort,
+            @RequestParam(defaultValue = "desc") String direction) {
+        List<SnapshotDTO> snapshots = snapshotService.getSnapshotsForTimeline(serverId, page, size, sort, direction);
         return ResponseEntity.ok(ApiResponse.success(snapshots));
     }
 
     @Auditable(action = "回滚快照", changeType = "SNAPSHOT_RESTORED")
     @PostMapping("/{id}/rollback")
     public ResponseEntity<ApiResponse<Void>> rollback(Authentication auth, @PathVariable Long id) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         snapshotService.rollback(id, userId);
         return ResponseEntity.ok(ApiResponse.successMsg("回滚成功"));
     }
@@ -159,7 +164,7 @@ public class SnapshotController {
             Authentication auth,
             @PathVariable Long id,
             @Valid @RequestBody SelectiveRollbackRequest request) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         String result = snapshotService.selectiveRollback(id, request.items(), userId);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
@@ -167,7 +172,7 @@ public class SnapshotController {
     @Auditable(action = "撤销快照", changeType = "SNAPSHOT_REVERTED")
     @PostMapping("/{id}/revert")
     public ResponseEntity<ApiResponse<String>> revert(Authentication auth, @PathVariable Long id) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         String result = snapshotService.revert(id, userId);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
@@ -177,7 +182,7 @@ public class SnapshotController {
             Authentication auth,
             @PathVariable Long id,
             @Valid @RequestBody CherryPickRequest request) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         String result = snapshotService.cherryPick(id, request, userId);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
@@ -250,7 +255,7 @@ public class SnapshotController {
     public ResponseEntity<ApiResponse<String>> batchTag(
             Authentication auth,
             @Valid @RequestBody BatchTagRequest body) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         int count = tagService.bulkTag(body.snapshotIds(), body.tagName(), body.color(), userId);
         return ResponseEntity.ok(ApiResponse.success("已为 " + count + " 个快照添加标签"));
     }
@@ -294,7 +299,7 @@ public class SnapshotController {
     public ResponseEntity<ApiResponse<String>> startBatch(
             Authentication auth,
             @Valid @RequestBody StartBatchRequest body) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         String batchId = batchService.startBatch(body.serverIds(), body.storageTargetId(), body.name(), userId);
         return ResponseEntity.ok(ApiResponse.success(batchId));
     }

@@ -6,6 +6,7 @@ import com.chronovault.dto.storage.StorageDistributionDTO;
 import com.chronovault.dto.storage.StorageHealthDTO;
 import com.chronovault.dto.storage.StorageOverviewDTO;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.StorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,7 +46,7 @@ public class StorageController {
     @PostMapping
     public ResponseEntity<ApiResponse<StorageOverviewDTO>> addTarget(Authentication auth, @Valid @RequestBody CreateStorageRequest request) {
         StorageOverviewDTO target = storageService.addTarget(
-                auth.getName(),
+                SecurityUtils.getCurrentUsername(auth),
                 request.type(),
                 request.name(),
                 request.endpoint(),

@@ -4,6 +4,8 @@ import com.chronovault.entity.AsyncTask;
 import com.chronovault.entity.AsyncTask.TaskStatus;
 import com.chronovault.repository.AsyncTaskRepository;
 import com.chronovault.websocket.EventWebSocketHandler;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +37,9 @@ class AsyncTaskManagerTest {
     @Mock
     private ThreadPoolTaskExecutor taskExecutor;
 
+    @Mock
+    private MeterRegistry meterRegistry;
+
     @InjectMocks
     private AsyncTaskManager taskManager;
 
@@ -43,6 +48,9 @@ class AsyncTaskManagerTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(taskManager, "taskExecutor", taskExecutor);
+        // Stub MeterRegistry.timer() to return a mock Timer (lenient: not all tests trigger metrics)
+        Timer mockTimer = mock(Timer.class);
+        lenient().when(meterRegistry.timer(anyString(), any(String[].class))).thenReturn(mockTimer);
         testTask = AsyncTask.builder()
                 .id(1L)
                 .type(TaskType.SNAPSHOT)

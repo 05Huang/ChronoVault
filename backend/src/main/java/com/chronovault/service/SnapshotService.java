@@ -68,6 +68,29 @@ public class SnapshotService {
     @Value("${chronovault.restic-password}")
     private String resticPassword;
 
+    /**
+     * Get the preferred storage target: first non-LOCAL, or any target if none exist.
+     * Avoids loading all targets from DB every time.
+     */
+    private StorageTarget getPreferredStorageTarget() {
+        StorageTarget target = storageTargetRepository.findFirstNonLocal();
+        if (target == null) {
+            target = storageTargetRepository.findFirst();
+        }
+        return target;
+    }
+
+    /**
+     * Get any storage target, throwing if none exist.
+     */
+    private StorageTarget getAnyStorageTarget() {
+        StorageTarget target = storageTargetRepository.findFirst();
+        if (target == null) {
+            throw new BadRequestException("没有可用的存储目标，请先在存储管理中添加");
+        }
+        return target;
+    }
+
     @Transactional(readOnly = true)
     public List<SnapshotDTO> getSnapshots() {
         List<Snapshot> snapshots = snapshotRepository.findAll();
@@ -100,8 +123,10 @@ public class SnapshotService {
     }
 
     @Transactional(readOnly = true)
-    public Page<SnapshotDTO> getSnapshotsPaged(int page, int size) {
-        var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), Sort.by(Sort.Direction.DESC, "createdAt"));
+    public Page<SnapshotDTO> getSnapshotsPaged(int page, int size, String sort, String direction) {
+        Sort.Direction dir = "ASC".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String sortField = (sort != null && !sort.isBlank()) ? sort : "createdAt";
+        var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), Sort.by(dir, sortField));
         Page<Snapshot> snapshotPage = snapshotRepository.findAll(pageable);
 
         // Batch load tags to avoid N+1 queries
@@ -129,12 +154,12 @@ public class SnapshotService {
 
     @Transactional
     public SnapshotDTO createSnapshot(CreateSnapshotRequest request, Long userId) {
-        log.info("createSnapshot called: serverId={}, storageTargetId={}, type={}, note={}, userId={}",
-                request.serverId(), request.storageTargetId(), request.type(), request.note(), userId);
+        log.info("[SNAPSHOT_CREATE] [server={}] Initiating snapshot (type={}, storage={})",
+                request.serverId(), request.type(), request.storageTargetId());
 
         Server server = serverRepository.findById(request.serverId())
                 .orElseThrow(() -> new ResourceNotFoundException("服务器不存在: " + request.serverId()));
-        log.info("Found server: {} ({})", server.getName(), server.getIp());
+        log.debug("[SNAPSHOT_CREATE] [server={}] Resolved server: {} ({})", request.serverId(), server.getName(), server.getIp());
 
         // Use specified storage target, or find an active one
         StorageTarget storageTarget;
@@ -142,24 +167,19 @@ public class SnapshotService {
             storageTarget = storageTargetRepository.findById(request.storageTargetId())
                     .orElseThrow(() -> new ResourceNotFoundException("存储目标不存在: " + request.storageTargetId()));
         } else {
-            List<StorageTarget> targets = storageTargetRepository.findAll();
-            if (targets.isEmpty()) {
+            storageTarget = getPreferredStorageTarget();
+            if (storageTarget == null) {
                 throw new BadRequestException("没有可用的存储目标，请先在存储管理中添加");
             }
-            // Prefer non-LOCAL storage targets (S3, OSS, WebDAV) over LOCAL
-            storageTarget = targets.stream()
-                    .filter(t -> t.getType() != StorageTarget.StorageType.LOCAL)
-                    .findFirst()
-                    .orElse(targets.get(0));
-            log.info("Auto-selected storage target: id={}, type={}", storageTarget.getId(), storageTarget.getType());
+            log.debug("[SNAPSHOT_CREATE] [server={}] Auto-selected storage target: id={}, type={}", request.serverId(), storageTarget.getId(), storageTarget.getType());
         }
-        log.info("Using storage target: id={}, type={}, endpoint={}",
-                storageTarget.getId(), storageTarget.getType(), storageTarget.getEndpoint());
+        log.debug("[SNAPSHOT_CREATE] [server={}] Using storage target: id={}, type={}, endpoint={}",
+                request.serverId(), storageTarget.getId(), storageTarget.getType(), storageTarget.getEndpoint());
 
         Snapshot.SnapshotType type = request.type() != null
                 ? Snapshot.SnapshotType.valueOf(request.type())
                 : Snapshot.SnapshotType.FULL;
-        log.info("Snapshot type: {}", type);
+        log.debug("[SNAPSHOT_CREATE] [server={}] Snapshot type: {}", request.serverId(), type);
 
         try {
             // Use user-provided title if available, otherwise generate default
@@ -170,7 +190,7 @@ public class SnapshotService {
                     title,
                     request.note(), type, userId,
                     request.paths(), request.excludes());
-            log.info("Snapshot created: id={}", snapshot.getId());
+            log.info("[SNAPSHOT_CREATE] [server={}] [snapshot={}] Snapshot created successfully", request.serverId(), snapshot.getId());
             backupMetrics.recordSnapshot();
 
             // Record blame
@@ -184,7 +204,7 @@ public class SnapshotService {
             throw e;
         } catch (Exception e) {
             // Log detailed error for debugging but don't expose internals to the client
-            log.error("SnapshotEngine.createSnapshot failed for server {}: {}", request.serverId(), e.getMessage(), e);
+            log.error("[SNAPSHOT_CREATE] [server={}] Snapshot engine failed: {}", request.serverId(), e.getMessage(), e);
             throw new BadRequestException("快照创建失败，请检查服务器连接和存储目标配置");
         }
     }
@@ -204,9 +224,9 @@ public class SnapshotService {
 
                 if (previous.getHash() != null) {
                     SshConnection conn = sshManager.getConnection(snapshot.getServer());
-                    List<StorageTarget> targets = storageTargetRepository.findAll();
-                    if (!targets.isEmpty()) {
-                        String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+                    StorageTarget target = getPreferredStorageTarget();
+                    if (target != null) {
+                        String repoUrl = resticClient.buildRepoUrl(target);
                         String diffOutput = resticClient.diff(conn, repoUrl, resticPassword,
                                 previous.getHash(), snapshot.getHash());
                         // Parse diff output and convert to SnapshotDiffDTO
@@ -214,7 +234,7 @@ public class SnapshotService {
                     }
                 }
             } catch (Exception e) {
-                log.warn("Failed to get real diff, falling back to DB: {}", e.getMessage());
+                log.warn("[SNAPSHOT_DIFF] [snapshot={}] Failed to get real diff, falling back to DB: {}", snapshotId, e.getMessage());
             }
         }
 
@@ -239,15 +259,15 @@ public class SnapshotService {
                 && from.getServer().getId().equals(to.getServer().getId())) {
             try {
                 SshConnection conn = sshManager.getConnection(from.getServer());
-                List<StorageTarget> targets = storageTargetRepository.findAll();
-                if (!targets.isEmpty()) {
-                    String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+                StorageTarget target = getPreferredStorageTarget();
+                if (target != null) {
+                    String repoUrl = resticClient.buildRepoUrl(target);
                     String diffOutput = resticClient.diff(conn, repoUrl, resticPassword,
                             from.getHash(), to.getHash());
                     diffs = parseDiffOutput(to, diffOutput);
                 }
             } catch (Exception e) {
-                log.warn("Failed to compare snapshots: {}", e.getMessage());
+                log.warn("[SNAPSHOT_DIFF] [snapshot={}] Failed to compare snapshots {}→{}: {}", toId, fromId, toId, e.getMessage());
             }
         }
 
@@ -267,10 +287,7 @@ public class SnapshotService {
         Snapshot snapshot = snapshotRepository.findById(snapshotId)
                 .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
 
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
+        StorageTarget storageTarget = getAnyStorageTarget();
 
         // Non-transactional: SSH operations (can take minutes)
         boolean success;
@@ -281,11 +298,11 @@ public class SnapshotService {
                 throw new BadRequestException("无法在目标服务器上安装 restic 备份工具");
             }
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
             success = resticClient.restore(conn, repoUrl, resticPassword,
                     snapshot.getHash(), "/");
         } catch (Exception e) {
-            log.error("Rollback SSH operation failed: {}", e.getMessage());
+            log.error("[SNAPSHOT_ROLLBACK] [snapshot={}] SSH operation failed: {}", snapshotId, e.getMessage());
             updateRollbackStatus(snapshotId, Snapshot.SnapshotStatus.WARNING);
             throw new BadRequestException("回滚失败: " + e.getMessage());
         }
@@ -347,10 +364,10 @@ public class SnapshotService {
         }
 
         // Find the server's storage target
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        preview.put("storageAvailable", !targets.isEmpty());
-        if (!targets.isEmpty()) {
-            preview.put("storageType", targets.get(0).getType().name());
+        StorageTarget target = getPreferredStorageTarget();
+        preview.put("storageAvailable", target != null);
+        if (target != null) {
+            preview.put("storageType", target.getType().name());
         }
 
         // Estimate restore time (rough: 1GB per minute)
@@ -377,10 +394,7 @@ public class SnapshotService {
             throw new BadRequestException("请选择要回滚的项目");
         }
 
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
+        StorageTarget storageTarget = getAnyStorageTarget();
 
         try {
             SshConnection conn = sshManager.getConnection(snapshot.getServer());
@@ -388,7 +402,7 @@ public class SnapshotService {
                 throw new BadRequestException("无法在目标服务器上安装 restic 备份工具");
             }
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
             int restoredCount = 0;
             StringBuilder resultLog = new StringBuilder();
 
@@ -451,7 +465,7 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("[ROLLBACK_FAILED] [snapshot={}] Selective rollback failed: {}", snapshotId, e.getMessage(), e);
+            log.error("[SNAPSHOT_ROLLBACK] [snapshot={}] Selective rollback failed: {}", snapshotId, e.getMessage(), e);
             throw new RollbackFailedException("选择性回滚失败，请检查服务器连接状态和备份数据完整性", e);
         }
     }
@@ -480,10 +494,7 @@ public class SnapshotService {
             throw new BadRequestException("没有找到此快照之前的快照，无法执行撤销操作");
         }
 
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
+        StorageTarget storageTarget = getAnyStorageTarget();
 
         try {
             SshConnection conn = sshManager.getConnection(target.getServer());
@@ -491,11 +502,11 @@ public class SnapshotService {
                 throw new BadRequestException("无法在目标服务器上安装 restic 备份工具");
             }
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
 
             // Step 1: Create a "pre-revert" safety snapshot
-            log.info("Creating pre-revert safety snapshot before reverting snapshot {}", snapshotId);
-            Snapshot safetySnapshot = snapshotEngine.createSnapshot(target.getServer(), targets.get(0),
+            log.info("[SNAPSHOT_REVERT] [snapshot={}] Creating pre-revert safety snapshot", snapshotId);
+            Snapshot safetySnapshot = snapshotEngine.createSnapshot(target.getServer(), storageTarget,
                     "撤销前安全快照 " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("MM-dd HH:mm")),
                     "在撤销快照 #" + snapshotId + " 之前自动创建", Snapshot.SnapshotType.FULL, userId,
                     null, null);
@@ -510,8 +521,8 @@ public class SnapshotService {
             }
 
             // Step 3: Restore parent snapshot's files to server (undoing target's changes)
-            log.info("Restoring {} files from parent snapshot {} to undo changes from snapshot {}",
-                    changedPaths.size(), parent.getId(), snapshotId);
+            log.info("[SNAPSHOT_REVERT] [snapshot={}] Restoring {} files from parent snapshot {}",
+                    snapshotId, changedPaths.size(), parent.getId());
             boolean success = resticClient.restoreToServer(conn, repoUrl, resticPassword,
                     parent.getHash(), changedPaths);
 
@@ -520,7 +531,7 @@ public class SnapshotService {
             }
 
             // Step 4: Create a new snapshot capturing the reverted state
-            Snapshot revertedSnapshot = snapshotEngine.createSnapshot(target.getServer(), targets.get(0),
+            Snapshot revertedSnapshot = snapshotEngine.createSnapshot(target.getServer(), storageTarget,
                     "撤销快照 " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("MM-dd HH:mm")),
                     "已撤销快照 #" + snapshotId + " 的变更（" + changedPaths.size() + " 个文件）",
                     Snapshot.SnapshotType.FULL, userId, null, null);
@@ -531,7 +542,7 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("[ROLLBACK_FAILED] [snapshot={}] Revert failed: {}", snapshotId, e.getMessage(), e);
+            log.error("[SNAPSHOT_REVERT] [snapshot={}] Revert failed: {}", snapshotId, e.getMessage(), e);
             throw new RollbackFailedException("撤销操作失败，请检查服务器连接状态和备份数据完整性", e);
         }
     }
@@ -569,10 +580,7 @@ public class SnapshotService {
             throw new BadRequestException("快照没有有效的备份数据（hash 为空），无法恢复文件");
         }
 
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
+        StorageTarget storageTarget = getAnyStorageTarget();
 
         String targetPath = request.targetPath() != null && !request.targetPath().isBlank()
                 ? request.targetPath()
@@ -588,7 +596,7 @@ public class SnapshotService {
             // Ensure target directory exists
             conn.executeCommand("sudo mkdir -p " + targetPath + " && sudo chown $(whoami) " + targetPath + " 2>/dev/null");
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
             boolean success = resticClient.restoreSelective(conn, repoUrl, resticPassword,
                     snapshot.getHash(), request.paths(), targetPath);
 
@@ -600,7 +608,7 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("[RESTORE_FAILED] [snapshot={}] File restore failed: {}", snapshotId, e.getMessage(), e);
+            log.error("[SNAPSHOT_RESTORE] [snapshot={}] File restore failed: {}", snapshotId, e.getMessage(), e);
             throw new RollbackFailedException("文件恢复失败，请检查快照数据和服务器连接状态", e);
         }
     }
@@ -617,10 +625,7 @@ public class SnapshotService {
         Server targetServer = serverRepository.findById(request.targetServerId())
                 .orElseThrow(() -> new ResourceNotFoundException("目标服务器不存在: " + request.targetServerId()));
 
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
+        StorageTarget storageTarget = getAnyStorageTarget();
 
         try {
             // Step 1: Extract files from snapshot to temp dir on source server
@@ -629,10 +634,10 @@ public class SnapshotService {
                 throw new BadRequestException("无法安装 restic 备份工具");
             }
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
             String tempDir = "/var/chronovault/cherry-pick-" + snapshotId + "-" + System.currentTimeMillis() + "/";
 
-            log.info("Extracting {} files from snapshot {} to temp dir {}", request.files().size(), snapshotId, tempDir);
+            log.info("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Extracting {} files to temp dir", snapshotId, request.files().size());
             boolean dumpOk = resticClient.dumpFiles(sourceConn, repoUrl, resticPassword,
                     snapshot.getHash(), request.files(), tempDir);
 
@@ -641,7 +646,7 @@ public class SnapshotService {
             }
 
             // Step 2: Copy files to target server
-            log.info("Copying files to target server {}", targetServer.getIp());
+            log.info("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Copying files to target server {}", snapshotId, targetServer.getIp());
             SshConnection targetConn = sshManager.getConnection(targetServer);
             if (!resticClient.ensureResticInstalled(targetConn)) {
                 throw new BadRequestException("目标服务器无法安装 restic");
@@ -660,7 +665,7 @@ public class SnapshotService {
                 SshConnection.CommandResult restoreResult = targetConn.executeCommand(restoreCmd,
                         java.time.Duration.ofMinutes(30));
                 if (!restoreResult.isSuccess()) {
-                    log.warn("Failed to restore {} on target: {}", file,
+                    log.warn("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Failed to restore {} on target: {}", snapshotId, file,
                             restoreResult.stderr() != null ? restoreResult.stderr().substring(0, Math.min(200, restoreResult.stderr().length())) : "");
                 }
             }
@@ -669,7 +674,7 @@ public class SnapshotService {
             try {
                 sourceConn.executeCommand("sudo rm -rf " + tempDir + " 2>/dev/null");
             } catch (Exception e) {
-                log.warn("Failed to cleanup temp dir: {}", e.getMessage());
+                log.warn("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Failed to cleanup temp dir: {}", snapshotId, e.getMessage());
             }
 
             // Record blame
@@ -684,7 +689,7 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("[CHERRY_PICK_FAILED] [snapshot={}] Cherry-pick failed: {}", snapshotId, e.getMessage(), e);
+            log.error("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Cherry-pick failed: {}", snapshotId, e.getMessage(), e);
             throw new RollbackFailedException("Cherry-pick 操作失败，请检查服务器连接状态和备份数据完整性", e);
         }
     }
@@ -698,10 +703,7 @@ public class SnapshotService {
             throw new BadRequestException("快照没有有效的备份数据");
         }
 
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
+        StorageTarget storageTarget = getAnyStorageTarget();
 
         try {
             SshConnection conn = sshManager.getConnection(snapshot.getServer());
@@ -709,7 +711,7 @@ public class SnapshotService {
                 throw new BadRequestException("无法安装 restic");
             }
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
             String lsOutput = resticClient.listFiles(conn, repoUrl, resticPassword,
                     snapshot.getHash(), path);
 
@@ -717,7 +719,7 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("[LIST_FAILED] [snapshot={}] Failed to list files: {}", snapshotId, e.getMessage(), e);
+            log.error("[SNAPSHOT_LIST] [snapshot={}] Failed to list files: {}", snapshotId, e.getMessage(), e);
             throw new BadRequestException("文件列表获取失败，请检查快照数据完整性");
         }
     }
@@ -731,10 +733,7 @@ public class SnapshotService {
             throw new BadRequestException("快照没有有效的备份数据");
         }
 
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
+        StorageTarget storageTarget = getAnyStorageTarget();
 
         try {
             SshConnection conn = sshManager.getConnection(snapshot.getServer());
@@ -742,13 +741,13 @@ public class SnapshotService {
                 throw new BadRequestException("无法安装 restic");
             }
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
             return resticClient.dumpFile(conn, repoUrl, resticPassword,
                     snapshot.getHash(), filePath);
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("[DUMP_FAILED] [snapshot={}] Failed to dump file {}: {}", snapshotId, filePath, e.getMessage(), e);
+            log.error("[SNAPSHOT_DUMP] [snapshot={}] Failed to dump file {}: {}", snapshotId, filePath, e.getMessage(), e);
             throw new BadRequestException("文件内容获取失败，请检查快照数据完整性");
         }
     }
@@ -800,10 +799,7 @@ public class SnapshotService {
             throw new BadRequestException("快照没有有效的备份数据");
         }
 
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
+        StorageTarget storageTarget = getAnyStorageTarget();
 
         long startTime = System.currentTimeMillis();
         try {
@@ -812,7 +808,7 @@ public class SnapshotService {
                 throw new BadRequestException("无法安装 restic");
             }
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
             boolean ok = resticClient.check(conn, repoUrl, resticPassword);
             long duration = System.currentTimeMillis() - startTime;
 
@@ -828,7 +824,7 @@ public class SnapshotService {
             throw e;
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
-            log.error("Verification failed for snapshot {}: {}", snapshotId, e.getMessage());
+            log.error("[SNAPSHOT_VERIFY] [snapshot={}] Verification failed: {}", snapshotId, e.getMessage());
             return new SnapshotVerifyResult(snapshotId, false, e.getMessage(), duration);
         }
     }
@@ -844,12 +840,12 @@ public class SnapshotService {
         PageRequest pageRequest = PageRequest.of(0, 5, Sort.by(Sort.Direction.ASC, "createdAt"));
         List<Snapshot> unverified = snapshotRepository.findUnverifiedUnstashed(pageRequest);
 
-        log.info("[SCHEDULED_VERIFY] Verifying {} unverified snapshots", unverified.size());
+        log.info("[SNAPSHOT_VERIFY] [scheduled] Verifying {} unverified snapshots", unverified.size());
         for (Snapshot snapshot : unverified) {
             try {
                 verifySnapshot(snapshot.getId());
             } catch (Exception e) {
-                log.warn("Scheduled verification failed for snapshot {}: {}", snapshot.getId(), e.getMessage());
+                log.warn("[SNAPSHOT_VERIFY] [snapshot={}] Scheduled verification failed: {}", snapshot.getId(), e.getMessage());
             }
         }
     }
@@ -897,12 +893,10 @@ public class SnapshotService {
         List<Snapshot> nullHashSnapshots = snapshotRepository.findNullHashSnapshots();
         int deletedCount = nullHashSnapshots.size();
         snapshotRepository.deleteAll(nullHashSnapshots);
-        log.info("Deleted {} null-hash snapshot records from DB", deletedCount);
+        log.info("[SNAPSHOT_CLEANUP] Deleted {} null-hash snapshot records from DB", deletedCount);
 
         // 2. Delete restic repository on remote server
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        StorageTarget localTarget = targets.stream()
-                .filter(t -> t.getType() == StorageTarget.StorageType.LOCAL)
+        StorageTarget localTarget = storageTargetRepository.findByType(StorageTarget.StorageType.LOCAL).stream()
                 .findFirst().orElse(null);
 
         String result = "已清理 " + deletedCount + " 条无效快照记录";
@@ -926,14 +920,14 @@ public class SnapshotService {
 
                     if (deleteResult.isSuccess()) {
                         result += "，已删除本地仓库 " + repoPath + "（释放约 " + sizeBefore + "）";
-                        log.info("Deleted local restic repo at {} (was {})", repoPath, sizeBefore);
+                        log.info("[SNAPSHOT_CLEANUP] Deleted local restic repo at {} (was {})", repoPath, sizeBefore);
                     } else {
                         result += "，删除本地仓库失败: " + deleteResult.stderr();
-                        log.warn("Failed to delete local repo: {}", deleteResult.stderr());
+                        log.warn("[SNAPSHOT_CLEANUP] Failed to delete local repo: {}", deleteResult.stderr());
                     }
                 }
             } catch (Exception e) {
-                log.error("Failed to cleanup local repo: {}", e.getMessage());
+                log.error("[SNAPSHOT_CLEANUP] Failed to cleanup local repo: {}", e.getMessage());
                 result += "，清理本地仓库时出错: " + e.getMessage();
             }
         }
@@ -948,9 +942,11 @@ public class SnapshotService {
      * Uses database-level pagination via Pageable instead of loading all and filtering in Java.
      */
     @Transactional(readOnly = true)
-    public List<SnapshotDTO> getSnapshotsForTimeline(Long serverId, int page, int size) {
+    public List<SnapshotDTO> getSnapshotsForTimeline(Long serverId, int page, int size, String sort, String direction) {
+        Sort.Direction dir = "ASC".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String sortField = (sort != null && !sort.isBlank()) ? sort : "createdAt";
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
-                Sort.by(Sort.Direction.DESC, "createdAt"));
+                Sort.by(dir, sortField));
         return snapshotRepository.findByServerIdOrderByCreatedAtDesc(serverId, pageable).stream()
                 .map(s -> {
                     List<SnapshotTagDTO> tags = tagRepository.findBySnapshotIdOrderByCreatedAtDesc(s.getId())
@@ -1104,7 +1100,7 @@ public class SnapshotService {
             snapshot.setPreviousSnapshot(previous);
             snapshotRepository.save(snapshot);
         } catch (Exception e) {
-            log.warn("Failed to cache change summary for snapshot {}: {}", snapshot.getId(), e.getMessage());
+            log.warn("[SNAPSHOT_SUMMARY] [snapshot={}] Failed to cache change summary: {}", snapshot.getId(), e.getMessage());
         }
     }
 
@@ -1175,7 +1171,7 @@ public class SnapshotService {
                         .status(Alert.AlertStatus.OPEN)
                         .build();
                 alertRepository.save(alert);
-                log.warn("Created high-risk alert for snapshot {}: {} reasons",
+                log.warn("[SNAPSHOT_ALERT] [snapshot={}] Created high-risk alert: {} reasons",
                         currentSnapshot.getId(), riskReasons.size());
 
                 // Send notification to configured channels
@@ -1185,11 +1181,11 @@ public class SnapshotService {
                         notificationService.sendAlertNotification(alert, owner.getId());
                     }
                 } catch (Exception notifEx) {
-                    log.warn("Failed to send alert notification: {}", notifEx.getMessage());
+                    log.warn("[SNAPSHOT_ALERT] [snapshot={}] Failed to send alert notification: {}", currentSnapshot.getId(), notifEx.getMessage());
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to detect high-risk changes for snapshot {}: {}",
+            log.warn("[SNAPSHOT_ALERT] [snapshot={}] Failed to detect high-risk changes: {}",
                     currentSnapshot.getId(), e.getMessage());
         }
     }

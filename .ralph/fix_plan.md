@@ -27,9 +27,9 @@
 - [x] `CredentialEncryptor` 验证 master key 长度校验，短于 32 字节时拒绝启动
 - [x] `RateLimitFilter` 确认限流策略是否生效（检查 Redis key 过期逻辑），添加 IP + 用户维度限流
 - [x] `ApiKeyAuthenticationFilter` 中 API key 的查询不应每次都查库，添加 Redis 缓存（TTL 5 分钟）
-- [ ] 所有 Controller 中 `Authentication auth` 获取的 `auth.getName()` 应添加 null 检查，防止认证信息缺失时 NPE
-- [ ] 审查所有 `log.info()` 中是否意外打印了密码、密钥、token 等敏感信息，创建 `SensitiveDataMasker` 工具类
-- [ ] 检查 `application-dev.yml` 和 `application-prod.yml` 中密码是否在日志中明文输出（`show-sql: true` 在 dev 中可能泄露数据）
+- [x] 所有 Controller 中 `Authentication auth` 获取的 `auth.getName()` 应添加 null 检查，防止认证信息缺失时 NPE
+- [x] 审查所有 `log.info()` 中是否意外打印了密码、密钥、token 等敏感信息，创建 `SensitiveDataMasker` 工具类
+- [x] 检查 `application-dev.yml` 和 `application-prod.yml` 中密码是否在日志中明文输出（`show-sql: true` 在 dev 中可能泄露数据）
 
 ### P0-3: 数据库事务与并发安全
 - [x] `SnapshotService.getSnapshotsByTag()` 中 `findAll()` 全量加载所有快照再过滤，改为 JPQL 联表查询 `JOIN tags WHERE tag.name = ?`
@@ -37,9 +37,9 @@
 - [x] `SnapshotService.rollback()` 方法标注了 `@Transactional` 但内部 SSH 操作在事务外执行，拆分为事务内（更新状态）和事务外（SSH 操作）两个方法
 - [x] `AutoSnapshotService` 中 `serverRepository.findAll()` + `stream().filter()`，改为 `findAllByAutoSnapshotEnabled(true)` 查询
 - [x] `AiService` 中多处 `findAll()` 全量加载，添加分页或限制查询范围
-- [ ] `DashboardService` 检查所有查询是否都有分页保护，防止数据增长后 OOM
+- [x] `DashboardService` 检查所有查询是否都有分页保护，防止数据增长后 OOM
 - [x] `AlertService.getAlerts()` 调用 `findAllByOrderByCreatedAtDesc()`，改为分页查询
-- [ ] `AsyncTaskRepository.findAllByOrderByCreatedAtDesc()` 和 `EventRepository.findAllByOrderByCreatedAtDesc()` 都需要添加分页
+- [x] `AsyncTaskRepository.findAllByOrderByCreatedAtDesc()` 和 `EventRepository.findAllByOrderByCreatedAtDesc()` 都需要添加分页
 
 ### P0-4: 异常处理完善
 - [x] `SnapshotService.rollback()` catch 块中抛出 `RuntimeException`，改为抛出自定义 `RollbackFailedException` 并包含失败原因枚举
@@ -56,30 +56,30 @@
 ## 🟠 P1 — 后端代码质量与性能
 
 ### P1-1: 结构化日志体系
-- [ ] 为所有 Service 类统一 `log.info/warn/error` 格式：`[操作类型] [目标对象ID] 结果描述`，例如 `[SNAPSHOT_CREATE] [server=12] 快照创建成功`
+- [x] 为所有 Service 类统一 `log.info/warn/error` 格式：`[操作类型] [目标对象ID] 结果描述`，例如 `[SNAPSHOT_CREATE] [server=12] 快照创建成功`
 - [x] 创建 `LogContextFilter`（Web Filter），为每个请求注入 `requestId`、`userId`、`clientIp` 到 MDC，日志自动携带请求上下文
-- [ ] `SnapshotEngine.executeSnapshot()` 中每个步骤（连接→检查工具→初始化仓库→备份→采集状态→保存）都要有 `log.info` 标记步骤开始和结束，耗时超过阈值时输出 `log.warn`
-- [ ] `SshConnectionManager` 添加连接池指标日志：创建连接数、复用连接数、销毁连接数、空闲连接数（每 60 秒输出一次）
-- [ ] `ResticClient` 每个操作记录执行耗时（init/backup/restore/diff/stats/forget），输出到日志和 Micrometer 指标
-- [ ] `AsyncTaskManager` 记录任务生命周期：创建→排队→开始执行→进度更新→完成/失败，包含耗时
-- [ ] 创建 `logback-spring.xml` 生产配置：JSON 格式输出、按天滚动、保留 30 天、压缩 7 天以上日志
-- [ ] 为所有 `@Async` 方法添加方法级别的 `log.info` 记录入参和出参（脱敏后）
+- [x] `SnapshotEngine.executeSnapshot()` 中每个步骤（连接→检查工具→初始化仓库→备份→采集状态→保存）都要有 `log.info` 标记步骤开始和结束，耗时超过阈值时输出 `log.warn`
+- [x] `SshConnectionManager` 添加连接池指标日志：创建连接数、复用连接数、销毁连接数、空闲连接数（每 60 秒输出一次）
+- [x] `ResticClient` 每个操作记录执行耗时（init/backup/restore/diff/stats/forget），输出到日志和 Micrometer 指标
+- [x] `AsyncTaskManager` 记录任务生命周期：创建→排队→开始执行→进度更新→完成/失败，包含耗时
+- [x] 创建 `logback-spring.xml` 生产配置：JSON 格式输出、按天滚动、保留 30 天、压缩 7 天以上日志
+- [x] 为所有 `@Async` 方法添加方法级别的 `log.info` 记录入参和出参（脱敏后）
 
 ### P1-2: 性能优化 — 查询与缓存
-- [ ] 创建 `SnapshotRepository` 自定义查询方法 `findPageWithTags(int page, int size)` 使用 `@Query` 联表查询避免 N+1
-- [ ] `SnapshotService.getSnapshotsPaged()` 中每个 Snapshot 都单独查 tags，改为 JOIN FETCH 或 `@BatchSize`
-- [ ] `ServerController.getServers()` 或列表接口添加服务器状态缓存（Redis TTL 30 秒）
-- [ ] `DashboardService.getOverview()` 结果缓存 60 秒，服务器列表变更时主动失效
-- [ ] `StorageTargetRepository.findAll()` 在 `SnapshotService.rollback()` 和 `createSnapshot()` 中每次调用，改为按 ID 查询或缓存
-- [ ] `SnapshotRepository` 添加复合索引：`(server_id, created_at DESC)` — 验证已有的 V39 索引是否覆盖时间线查询
-- [ ] `EventRepository` 和 `AuditLogRepository` 添加分页方法 `findByCreatedAtBetween(Pageable, start, end)`，替代全量查询
-- [ ] `AiInsightRepository` 和 `AiRecommendationRepository` 添加分页方法，限制返回条数
-- [ ] `ContainerStateRepository` 查询优化：`findBySnapshotIdOrderByContainerNameAsc` 已有，确认是否有 DB 索引
-- [ ] Redis 缓存策略统一化：创建 `CacheKeyBuilder` 工具类，统一 key 前缀和 TTL 管理
+- [x] 创建 `SnapshotRepository` 自定义查询方法 `findPageWithTags(int page, int size)` 使用 `@Query` 联表查询避免 N+1
+- [x] `SnapshotService.getSnapshotsPaged()` 中每个 Snapshot 都单独查 tags，改为 JOIN FETCH 或 `@BatchSize`
+- [x] `ServerController.getServers()` 或列表接口添加服务器状态缓存（Redis TTL 30 秒）
+- [x] `DashboardService.getOverview()` 结果缓存 60 秒，服务器列表变更时主动失效
+- [x] `StorageTargetRepository.findAll()` 在 `SnapshotService.rollback()` 和 `createSnapshot()` 中每次调用，改为按 ID 查询或缓存
+- [x] `SnapshotRepository` 添加复合索引：`(server_id, created_at DESC)` — 验证已有的 V39 索引是否覆盖时间线查询
+- [x] `EventRepository` 和 `AuditLogRepository` 添加分页方法 `findByCreatedAtBetween(Pageable, start, end)`，替代全量查询
+- [x] `AiInsightRepository` 和 `AiRecommendationRepository` 添加分页方法，限制返回条数
+- [x] `ContainerStateRepository` 查询优化：`findBySnapshotIdOrderByContainerNameAsc` 已有，确认是否有 DB 索引
+- [x] Redis 缓存策略统一化：创建 `CacheKeyBuilder` 工具类，统一 key 前缀和 TTL 管理
 
 ### P1-3: API 设计规范化
-- [ ] 所有列表 API 统一分页参数：`page`（从 0 开始）、`size`（默认 20，最大 100）、`sort`、`direction`
-- [ ] 所有列表 API 返回统一的 `PageResponse<T>` 结构（已定义在 `GlobalExceptionHandler.PageResponse`，需要所有端点都使用）
+- [x] 所有列表 API 统一分页参数：`page`（从 0 开始）、`size`（默认 20，最大 100）、`sort`、`direction`
+- [x] 所有列表 API 返回统一的 `PageResponse<T>` 结构（已定义在 `GlobalExceptionHandler.PageResponse`，需要所有端点都使用）
 - [ ] `SnapshotController.getSnapshots()` 中混合了分页和非分页逻辑，拆分为两个端点：`GET /api/snapshots`（分页）和 `GET /api/snapshots/all`（全量，仅限小数据量）
 - [ ] 为所有 POST/PUT 端点的 Response 添加 `Location` 头：`ResponseEntity.created(URI).body()`
 - [ ] `SnapshotController.exportSnapshots()` 改为异步导出（大数据量时先返回任务 ID，完成后通知下载），避免长时间 HTTP 连接

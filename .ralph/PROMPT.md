@@ -23,6 +23,38 @@ ChronoVault 的差异化：**多服务器集中管理 + 状态感知快照（不
 
 ---
 
+## ⚠️ 最高优先级工作流程（必须严格遵守）
+
+**每一轮循环开始时，你必须执行以下步骤：**
+
+1. **读取 `.ralph/fix_plan.md`**，找到第一个 `- [ ]` 未完成的任务
+2. **实现该任务的代码修改**
+3. **运行验证**（`mvnw.cmd test -f backend/pom.xml` 或 `cd frontend && npx vue-tsc --noEmit`）
+4. **将完成的任务标记为 `- [x]`**
+5. **Git commit**
+6. **输出 RALPH_STATUS，其中 COMPLETED_THIS_LOOP 必须是本次实现的具体代码改动**
+
+### 🚫 严格禁止以下行为（违反即视为无进展）
+
+- **禁止** "运行测试确认全部通过" 作为唯一输出 — 这不算进展
+- **禁止** "验证了 XX 组件实现良好" 作为完成项 — 代码审查不算进展
+- **禁止** 在 COMPLETED_THIS_LOOP 中写 "Verified that..." — 必须写 "Implemented..." 或 "Fixed..."
+- **禁止** 跳过 fix_plan.md 中的任务去做"下一步计划"
+- **禁止** 在没有实现任何代码改动的情况下结束循环
+- **禁止** NEXT_LOOP_FOCUS 中写模糊的"考虑添加..."或"验证..."，必须写具体要修改哪个文件的哪个方法
+
+### ✅ 合格的 COMPLETED_THIS_LOOP 示例
+
+```
+COMPLETED_THIS_LOOP:
+    - P0-2.5: Added null check for auth.getName() in all 12 Controllers, preventing NPE when auth is missing
+    - P0-2.6: Created SensitiveDataMasker utility class, applied to SnapshotService and AuditLogAspect log statements
+NEXT_LOOP_FOCUS:
+    - P0-2.7: Review application-dev.yml and application-prod.yml for show-sql and password logging issues
+```
+
+---
+
 ## 技术栈（不可随意更换）
 
 | 组件 | 技术 | 说明 |
@@ -251,7 +283,9 @@ RALPH_STATUS:
 RALPH_STATUS:
   STATUS: IN_PROGRESS
   EXIT_SIGNAL: false
-  COMPLETED_THIS_LOOP: [具体完成的任务]
-  NEXT_LOOP_FOCUS: [下一轮要做的事]
+  COMPLETED_THIS_LOOP: [本次实现的具体代码改动，必须引用 fix_plan.md 中的任务编号]
+  NEXT_LOOP_FOCUS: [下一个要实现的 fix_plan.md 任务编号和具体修改内容]
   BLOCKERS: [如果有阻塞问题]
 ```
+
+**注意：COMPLETED_THIS_LOOP 必须包含具体的代码改动（如"添加了 XX 方法"、"修复了 XX bug"），不能是"验证了"、"检查了"、"确认了"。如果本轮循环没有实现任何代码改动，则视为无进展。**

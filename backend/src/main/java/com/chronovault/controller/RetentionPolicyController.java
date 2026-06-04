@@ -6,6 +6,7 @@ import com.chronovault.entity.User;
 import com.chronovault.exception.ResourceNotFoundException;
 import com.chronovault.repository.ServerRepository;
 import com.chronovault.repository.UserRepository;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.SnapshotRetentionService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -48,7 +49,7 @@ public class RetentionPolicyController {
     @PostMapping
     public ResponseEntity<ApiResponse<SnapshotRetentionPolicy>> create(
             @Valid @RequestBody CreateRetentionPolicyRequest request, Authentication auth) {
-        User user = userRepository.findByEmail(auth.getName())
+        User user = userRepository.findByEmail(SecurityUtils.getCurrentUsername(auth))
                 .orElseThrow(() -> new ResourceNotFoundException("用户不存在"));
 
         SnapshotRetentionPolicy policy = SnapshotRetentionPolicy.builder()

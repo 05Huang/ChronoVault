@@ -10,20 +10,21 @@
         </encoder>
     </appender>
 
-    <!-- File appender: JSON for production log aggregation -->
+    <!-- File appender: human-readable text with daily rolling, 30-day retention, GZIP compression after 7 days -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/${APP_NAME}.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/${APP_NAME}.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <fileNamePattern>logs/${APP_NAME}.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
             <maxHistory>30</maxHistory>
-            <totalSizeCap>1GB</totalSizeCap>
+            <totalSizeCap>2GB</totalSizeCap>
+            <cleanHistoryOnStart>false</cleanHistoryOnStart>
         </rollingPolicy>
         <encoder>
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{requestId:-}] [%X{userId:-}] [%X{clientIp:-}] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
-    <!-- Async appender to reduce I/O overhead -->
+    <!-- Async file appender to reduce I/O overhead -->
     <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
         <queueSize>1024</queueSize>
         <discardingThreshold>50</discardingThreshold>
@@ -31,10 +32,47 @@
         <appender-ref ref="FILE"/>
     </appender>
 
+    <!-- Production JSON appender: structured JSON for log aggregation (ELK, Loki, etc.) -->
+    <springProfile name="prod">
+        <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>logs/${APP_NAME}-json.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <fileNamePattern>logs/${APP_NAME}-json.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                <maxHistory>30</maxHistory>
+                <totalSizeCap>2GB</totalSizeCap>
+                <cleanHistoryOnStart>false</cleanHistoryOnStart>
+            </rollingPolicy>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"app":"${APP_NAME}","env":"prod"}</customFields>
+                <fieldNames>
+                    <timestamp>[ignore]</timestamp>
+                    <version>[ignore]</version>
+                </fieldNames>
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>userId</includeMdcKeyName>
+                <includeMdcKeyName>clientIp</includeMdcKeyName>
+                <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                    <maxDepthPerThrowable>15</maxDepthPerThrowable>
+                    <maxLength>2048</maxLength>
+                    <shortenedClassNameLength>20</shortenedClassNameLength>
+                    <rootCauseFirst>true</rootCauseFirst>
+                </throwableConverter>
+            </encoder>
+        </appender>
+        <appender name="ASYNC_JSON" class="ch.qos.logback.classic.AsyncAppender">
+            <queueSize>1024</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>true</neverBlock>
+            <appender-ref ref="JSON_FILE"/>
+        </appender>
+    </springProfile>
+
     <!-- Reduce noise from noisy libraries -->
     <logger name="org.apache.sshd" level="WARN"/>
     <logger name="org.springframework.data.redis" level="WARN"/>
     <logger name="org.hibernate.SQL" level="WARN"/>
+    <!-- SECURITY: Prevent Hibernate from logging actual SQL parameter values (passwords, tokens, etc.) -->
+    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="WARN"/>
     <logger name="io.netty" level="WARN"/>
     <logger name="org.apache.http" level="WARN"/>
 
@@ -43,8 +81,13 @@
         <appender-ref ref="ASYNC_FILE"/>
     </root>
 
-    <!-- Production profile: more verbose logging for key packages -->
+    <!-- Production profile: add JSON appender to root -->
     <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
+            <appender-ref ref="ASYNC_JSON"/>
+        </root>
         <logger name="com.chronovault" level="INFO"/>
         <logger name="com.chronovault.snapshot" level="INFO"/>
         <logger name="com.chronovault.ssh" level="INFO"/>

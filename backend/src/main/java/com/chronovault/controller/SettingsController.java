@@ -6,6 +6,7 @@ import com.chronovault.dto.settings.CreateApiKeyResponse;
 import com.chronovault.dto.settings.GenerateKeyRequest;
 import com.chronovault.dto.settings.UpdateAiConfigRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.SettingsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,12 +32,12 @@ public class SettingsController {
 
     @GetMapping("/api-keys")
     public ResponseEntity<ApiResponse<List<ApiKeyDTO>>> getApiKeys(Authentication auth) {
-        return ResponseEntity.ok(ApiResponse.success(settingsService.getApiKeys(auth.getName())));
+        return ResponseEntity.ok(ApiResponse.success(settingsService.getApiKeys(SecurityUtils.getCurrentUsername(auth))));
     }
 
     @PostMapping("/api-keys")
     public ResponseEntity<ApiResponse<CreateApiKeyResponse>> generateKey(Authentication auth, @Valid @RequestBody GenerateKeyRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(settingsService.generateKey(auth.getName(), request)));
+        return ResponseEntity.ok(ApiResponse.success(settingsService.generateKey(SecurityUtils.getCurrentUsername(auth), request)));
     }
 
     @DeleteMapping("/api-keys/{id}")
@@ -62,13 +63,15 @@ public class SettingsController {
     }
 
     @GetMapping("/audit-logs/search")
-    public ResponseEntity<ApiResponse<Page<AuditLogDTO>>> searchAuditLogs(
+    public ResponseEntity<?> searchAuditLogs(
             @RequestParam(required = false) String action,
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime since,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime until,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(ApiResponse.success(settingsService.searchAuditLogs(action, userId, since, until, page, size)));
+        Page<AuditLogDTO> result = settingsService.searchAuditLogs(action, userId, since, until, page, size);
+        return ResponseEntity.ok(ApiResponse.successPage(
+                result.getContent(), page, size, result.getTotalElements()));
     }
 }

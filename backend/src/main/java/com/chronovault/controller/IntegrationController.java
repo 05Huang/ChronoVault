@@ -4,6 +4,7 @@ import com.chronovault.dto.integration.CreateIntegrationRequest;
 import com.chronovault.dto.integration.IntegrationDTO;
 import com.chronovault.dto.integration.UpdateIntegrationRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.AlertService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,13 +24,13 @@ public class IntegrationController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<IntegrationDTO>>> getIntegrations(Authentication auth) {
-        return ResponseEntity.ok(ApiResponse.success(alertService.getIntegrations(auth.getName())));
+        return ResponseEntity.ok(ApiResponse.success(alertService.getIntegrations(SecurityUtils.getCurrentUsername(auth))));
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<IntegrationDTO>> createIntegration(Authentication auth, @Valid @RequestBody CreateIntegrationRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
-                alertService.createIntegration(auth.getName(), request.type(), request.name(), request.url())));
+                alertService.createIntegration(SecurityUtils.getCurrentUsername(auth), request.type(), request.name(), request.url())));
     }
 
     @PutMapping("/{id}")

@@ -5,6 +5,7 @@ import com.chronovault.dto.integration.IntegrationDTO;
 import com.chronovault.dto.integration.CreateIntegrationRequest;
 import com.chronovault.dto.integration.UpdateIntegrationRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.AlertService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -67,24 +68,24 @@ public class AlertController {
 
     @GetMapping("/rules")
     public ResponseEntity<ApiResponse<List<AlertRuleDTO>>> getRules(Authentication auth) {
-        return ResponseEntity.ok(ApiResponse.success(alertService.getRules(auth.getName())));
+        return ResponseEntity.ok(ApiResponse.success(alertService.getRules(SecurityUtils.getCurrentUsername(auth))));
     }
 
     @PostMapping("/rules")
     public ResponseEntity<ApiResponse<AlertRuleDTO>> createRule(Authentication auth, @Valid @RequestBody CreateAlertRuleRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(alertService.createRule(auth.getName(), request)));
+        return ResponseEntity.ok(ApiResponse.success(alertService.createRule(SecurityUtils.getCurrentUsername(auth), request)));
     }
 
     // Integration endpoints
     @GetMapping("/integrations")
     public ResponseEntity<ApiResponse<List<IntegrationDTO>>> getIntegrations(Authentication auth) {
-        return ResponseEntity.ok(ApiResponse.success(alertService.getIntegrations(auth.getName())));
+        return ResponseEntity.ok(ApiResponse.success(alertService.getIntegrations(SecurityUtils.getCurrentUsername(auth))));
     }
 
     @PostMapping("/integrations")
     public ResponseEntity<ApiResponse<IntegrationDTO>> createIntegration(Authentication auth, @Valid @RequestBody CreateIntegrationRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
-                alertService.createIntegration(auth.getName(), request.type(), request.name(), request.url())));
+                alertService.createIntegration(SecurityUtils.getCurrentUsername(auth), request.type(), request.name(), request.url())));
     }
 
     @PutMapping("/integrations/{id}")

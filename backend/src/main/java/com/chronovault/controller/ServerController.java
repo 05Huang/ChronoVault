@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import com.chronovault.ai.AiAnalysisService;
 import com.chronovault.dto.server.*;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.AgentInstallService;
 import com.chronovault.service.AutoSnapshotService;
 import com.chronovault.service.ServerCloneService;
@@ -38,7 +39,7 @@ public class ServerController {
     @GetMapping
     @Operation(summary = "获取服务器列表", description = "返回当前用户可见的所有服务器")
     public ResponseEntity<ApiResponse<List<ServerDTO>>> getServers(Authentication auth) {
-        return ResponseEntity.ok(ApiResponse.success(serverService.getServers(auth.getName())));
+        return ResponseEntity.ok(ApiResponse.success(serverService.getServers(SecurityUtils.getCurrentUsername(auth))));
     }
 
     @GetMapping("/{id}")
@@ -49,7 +50,7 @@ public class ServerController {
     @Auditable(action = "添加服务器", changeType = "SERVER_ADDED")
     @PostMapping
     public ResponseEntity<ApiResponse<ServerDTO>> createServer(Authentication auth, @Valid @RequestBody CreateServerRequest request) {
-        ServerDTO server = serverService.createServer(auth.getName(), request.name(), request.ip(), request.os());
+        ServerDTO server = serverService.createServer(SecurityUtils.getCurrentUsername(auth), request.name(), request.ip(), request.os());
         return ResponseEntity.ok(ApiResponse.success(server));
     }
 
@@ -57,7 +58,7 @@ public class ServerController {
     public ResponseEntity<ApiResponse<String>> cloneServer(
             Authentication auth,
             @Valid @RequestBody CloneServerRequest request) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         cloneService.cloneServer(request, userId);
         return ResponseEntity.ok(ApiResponse.success("克隆任务已提交，正在后台执行"));
     }
@@ -226,7 +227,7 @@ public class ServerController {
             @PathVariable Long id, Authentication auth,
             jakarta.servlet.http.HttpServletRequest request) {
         String requestUrl = request.getRequestURL().toString();
-        Map<String, Object> result = agentInstallService.installAgent(id, auth.getName(), requestUrl);
+        Map<String, Object> result = agentInstallService.installAgent(id, SecurityUtils.getCurrentUsername(auth), requestUrl);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 

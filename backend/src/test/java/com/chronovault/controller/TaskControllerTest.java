@@ -8,6 +8,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 
@@ -25,8 +27,9 @@ class TaskControllerTest {
 
     @Test
     void getTasks_returnsList() {
-        when(taskRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
-        var response = controller.getTasks();
+        when(taskRepository.findAllByOrderByCreatedAtDesc(any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+        var response = controller.getTasks(0, 20);
         assertEquals(200, response.getStatusCode().value());
     }
 

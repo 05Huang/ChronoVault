@@ -3,6 +3,7 @@ package com.chronovault.controller;
 import com.chronovault.dto.snapshot.SnapshotDTO;
 import com.chronovault.dto.stash.CreateStashRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.SnapshotStashService;
 import com.chronovault.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ public class ServerStashController {
             Authentication auth,
             @PathVariable Long serverId,
             @RequestBody(required = false) CreateStashRequest body) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         String note = body != null ? body.note() : null;
         return ResponseEntity.ok(ApiResponse.success(stashService.createStash(serverId, note, userId)));
     }
@@ -39,7 +40,7 @@ public class ServerStashController {
     public ResponseEntity<ApiResponse<String>> popStash(
             Authentication auth,
             @PathVariable Long serverId) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         String result = stashService.popStash(serverId, userId);
         return ResponseEntity.ok(ApiResponse.success(result));
     }

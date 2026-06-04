@@ -1,6 +1,7 @@
 package com.chronovault.storage;
 
 import com.chronovault.cache.CacheService;
+import com.chronovault.cache.CacheKeyBuilder;
 import com.chronovault.entity.StorageTarget;
 import com.chronovault.repository.StorageTargetRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,16 +21,13 @@ public class StorageHealthChecker {
     private final StorageRouter storageRouter;
     private final CacheService cacheService;
 
-    private static final String CACHE_PREFIX = "storage:health:";
-    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
-
     @Scheduled(fixedRate = 300000) // every 5 minutes
     public void checkAllStorages() {
         List<StorageTarget> targets = storageTargetRepository.findAll();
         for (StorageTarget target : targets) {
             try {
                 StorageProvider.StorageHealthInfo health = storageRouter.getHealth(target);
-                cacheService.put(CACHE_PREFIX + target.getId(), health, CACHE_TTL);
+                cacheService.put(CacheKeyBuilder.storageHealth(target.getId()), health, CacheKeyBuilder.STORAGE_HEALTH_TTL);
 
                 // Also update used/total bytes in DB
                 try {
@@ -45,14 +43,14 @@ public class StorageHealthChecker {
                 }
             } catch (Exception e) {
                 log.warn("Health check failed for storage {}: {}", target.getName(), e.getMessage());
-                cacheService.put(CACHE_PREFIX + target.getId(),
-                        new StorageProvider.StorageHealthInfo("ERROR", "0", "0ms", "0 MB/s", 1), CACHE_TTL);
+                cacheService.put(CacheKeyBuilder.storageHealth(target.getId()),
+                        new StorageProvider.StorageHealthInfo("ERROR", "0", "0ms", "0 MB/s", 1), CacheKeyBuilder.STORAGE_HEALTH_TTL);
             }
         }
     }
 
     public StorageProvider.StorageHealthInfo getHealth(Long storageId) {
-        StorageProvider.StorageHealthInfo cached = cacheService.get(CACHE_PREFIX + storageId,
+        StorageProvider.StorageHealthInfo cached = cacheService.get(CacheKeyBuilder.storageHealth(storageId),
                 StorageProvider.StorageHealthInfo.class);
         if (cached != null) return cached;
 
@@ -63,7 +61,7 @@ public class StorageHealthChecker {
 
         try {
             StorageProvider.StorageHealthInfo health = storageRouter.getHealth(target);
-            cacheService.put(CACHE_PREFIX + storageId, health, CACHE_TTL);
+            cacheService.put(CacheKeyBuilder.storageHealth(storageId), health, CacheKeyBuilder.STORAGE_HEALTH_TTL);
             return health;
         } catch (Exception e) {
             return new StorageProvider.StorageHealthInfo("ERROR", "0", "0ms", "0 MB/s", 1);

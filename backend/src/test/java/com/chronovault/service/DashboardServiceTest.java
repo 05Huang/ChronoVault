@@ -10,6 +10,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 
@@ -62,7 +64,8 @@ class DashboardServiceTest {
         com.chronovault.entity.Alert alert = com.chronovault.entity.Alert.builder()
                 .id(1L).title("CPU High").severity(com.chronovault.entity.Alert.AlertSeverity.CRITICAL)
                 .source("nginx").createdAt(java.time.LocalDateTime.now()).build();
-        when(alertRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(alert));
+        when(alertRepository.findAllByOrderByCreatedAtDesc(any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(alert)));
 
         var result = dashboardService.getAnomalies();
 

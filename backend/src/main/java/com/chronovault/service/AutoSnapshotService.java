@@ -77,7 +77,7 @@ public class AutoSnapshotService {
                 .orElseThrow(() -> new com.chronovault.exception.ResourceNotFoundException("服务器不存在: " + serverId));
         server.setAutoSnapshotEnabled(enabled);
         serverRepository.save(server);
-        log.info("Auto-snapshot {} for server {}", enabled ? "enabled" : "disabled", server.getName());
+        log.info("[AUTO_SNAPSHOT] [server={}] Auto-snapshot {} by user", serverId, enabled ? "enabled" : "disabled");
     }
 
     private void checkServerForDrift(Server server) {
@@ -102,8 +102,8 @@ public class AutoSnapshotService {
         // Detect drift: compare current server state vs latest snapshot
         int changes = detectDrift(server, latestSnapshot);
         if (changes >= DRIFT_THRESHOLD) {
-            log.info("Server {} has {} changes detected (threshold: {}), creating auto-snapshot",
-                    server.getName(), changes, DRIFT_THRESHOLD);
+            log.info("[AUTO_SNAPSHOT] [server={}] {} changes detected (threshold: {}), creating auto-snapshot",
+                    server.getId(), changes, DRIFT_THRESHOLD);
             createAutoSnapshot(server, changes);
         }
     }
@@ -151,7 +151,7 @@ public class AutoSnapshotService {
 
             return changes;
         } catch (Exception e) {
-            log.warn("Drift detection failed for server {}: {}", server.getName(), e.getMessage());
+            log.warn("[DRIFT_CHECK] [server={}] Drift detection failed: {}", server.getId(), e.getMessage());
             return 0;
         }
     }
@@ -174,7 +174,7 @@ public class AutoSnapshotService {
     private void createAutoSnapshot(Server server, int changeCount) {
         List<StorageTarget> targets = storageTargetRepository.findAll();
         if (targets.isEmpty()) {
-            log.warn("No storage target available for auto-snapshot on server {}", server.getName());
+            log.warn("[AUTO_SNAPSHOT] [server={}] No storage target available", server.getId());
             return;
         }
 
@@ -192,9 +192,9 @@ public class AutoSnapshotService {
 
             server.setLastAutoSnapshotAt(LocalDateTime.now());
             serverRepository.save(server);
-            log.info("Auto-snapshot created for server {} ({} changes)", server.getName(), changeCount);
+            log.info("[AUTO_SNAPSHOT] [server={}] Auto-snapshot created ({} changes)", server.getId(), changeCount);
         } catch (Exception e) {
-            log.error("Failed to create auto-snapshot for server {}: {}", server.getName(), e.getMessage());
+            log.error("[AUTO_SNAPSHOT] [server={}] Failed to create auto-snapshot: {}", server.getId(), e.getMessage());
         }
     }
 }

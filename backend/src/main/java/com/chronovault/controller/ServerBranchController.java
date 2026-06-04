@@ -5,6 +5,7 @@ import com.chronovault.dto.branch.MergeBranchRequest;
 import com.chronovault.dto.branch.RenameBranchRequest;
 import com.chronovault.dto.branch.ServerBranchDTO;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.ServerBranchService;
 import com.chronovault.service.UserService;
 import jakarta.validation.Valid;
@@ -33,7 +34,7 @@ public class ServerBranchController {
             Authentication auth,
             @PathVariable Long serverId,
             @Valid @RequestBody CreateBranchRequest request) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         return ResponseEntity.ok(ApiResponse.success(branchService.createBranch(serverId, request, userId)));
     }
 
@@ -50,7 +51,7 @@ public class ServerBranchController {
             Authentication auth,
             @PathVariable Long serverId,
             @PathVariable Long branchId) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         return ResponseEntity.ok(ApiResponse.success(branchService.switchBranch(serverId, branchId, userId)));
     }
 
@@ -59,7 +60,7 @@ public class ServerBranchController {
             Authentication auth,
             @PathVariable Long serverId,
             @Valid @RequestBody MergeBranchRequest request) {
-        Long userId = userService.getByEmail(auth.getName()).getId();
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
         return ResponseEntity.ok(ApiResponse.success(branchService.mergeBranches(serverId, request, userId)));
     }
 

@@ -1,6 +1,8 @@
 package com.chronovault.service;
 
 import com.chronovault.dto.server.*;
+import com.chronovault.cache.CacheService;
+import com.chronovault.cache.CacheKeyBuilder;
 import com.chronovault.docker.DockerOperationService;
 import com.chronovault.entity.*;
 import com.chronovault.exception.ResourceNotFoundException;
@@ -8,11 +10,13 @@ import com.chronovault.repository.*;
 import com.chronovault.security.CredentialEncryptor;
 import com.chronovault.ssh.SshConnection;
 import com.chronovault.ssh.SshConnectionManager;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,12 +35,23 @@ public class ServerService {
     private final DockerOperationService dockerService;
     private final SshConnectionManager sshManager;
     private final CredentialEncryptor credentialEncryptor;
+    private final CacheService cacheService;
 
     public List<ServerDTO> getServers(String email) {
+        String cacheKey = CacheKeyBuilder.servers(email);
+        List<ServerDTO> cached = cacheService.get(cacheKey, new TypeReference<>() {});
+        if (cached != null) {
+            log.debug("[SERVER_LIST] Cache hit for user={}", email);
+            return cached;
+        }
+
         User user = userService.getByEmail(email);
-        return serverRepository.findByUserId(user.getId()).stream()
+        List<ServerDTO> servers = serverRepository.findByUserId(user.getId()).stream()
                 .map(ServerDTO::from)
                 .toList();
+        cacheService.put(cacheKey, servers, CacheKeyBuilder.SERVERS_TTL);
+        log.debug("[SERVER_LIST] Cached {} servers for user={} (TTL=30s)", servers.size(), email);
+        return servers;
     }
 
     public ServerDTO getServer(Long id) {
@@ -83,7 +98,7 @@ public class ServerService {
                 serverRepository.save(server);
             }
         } catch (Exception e) {
-            log.warn("SSH probe failed for {}: {}", ip, e.getMessage());
+            log.warn("[SERVER_CONNECT] [server={}] SSH probe failed: {}", server.getId(), e.getMessage());
         }
 
         // Trigger async container/volume scan
@@ -91,9 +106,11 @@ public class ServerService {
             refreshContainers(server);
             refreshVolumes(server);
         } catch (Exception e) {
-            log.warn("Initial scan failed for {}: {}", ip, e.getMessage());
+            log.warn("[SERVER_CONNECT] [server={}] Initial scan failed: {}", server.getId(), e.getMessage());
         }
 
+        cacheService.evict(CacheKeyBuilder.servers(email));
+        cacheService.evict(CacheKeyBuilder.dashboardOverview());
         return ServerDTO.from(server);
     }
 
@@ -106,7 +123,7 @@ public class ServerService {
         try {
             refreshContainers(server);
         } catch (Exception e) {
-            log.warn("Failed to refresh containers: {}", e.getMessage());
+            log.warn("[SERVER_CONTAINER] [server={}] Failed to refresh containers: {}", serverId, e.getMessage());
         }
 
         List<Container> containers = containerRepository.findByServerId(serverId);
@@ -124,7 +141,7 @@ public class ServerService {
                 refreshVolumes(server);
                 volumes = volumeRepository.findByServerId(serverId);
             } catch (Exception e) {
-                log.warn("Failed to refresh volumes: {}", e.getMessage());
+                log.warn("[SERVER_VOLUME] [server={}] Failed to refresh volumes: {}", serverId, e.getMessage());
             }
         }
 
@@ -174,7 +191,7 @@ public class ServerService {
             return allLogs;
 
         } catch (Exception e) {
-            log.warn("Failed to get real logs: {}", e.getMessage());
+            log.warn("[SERVER_LOG] [server={}] Failed to get real logs: {}", server.getId(), e.getMessage());
             return generateFallbackLogs();
         }
     }
@@ -186,7 +203,7 @@ public class ServerService {
             containerRepository.deleteByServerId(server.getId());
             containerRepository.saveAll(containers);
         } catch (Exception e) {
-            log.warn("Failed to refresh containers for {}: {}", server.getIp(), e.getMessage());
+            log.warn("[SERVER_CONTAINER] [server={}] Failed to refresh containers: {}", server.getId(), e.getMessage());
         }
     }
 
@@ -197,7 +214,7 @@ public class ServerService {
             volumeRepository.deleteByServerId(server.getId());
             volumeRepository.saveAll(volumes);
         } catch (Exception e) {
-            log.warn("Failed to refresh volumes for {}: {}", server.getIp(), e.getMessage());
+            log.warn("[SERVER_VOLUME] [server={}] Failed to refresh volumes: {}", server.getId(), e.getMessage());
         }
     }
 
@@ -307,9 +324,9 @@ public class ServerService {
             SshConnection conn = sshManager.getConnection(server);
             // Truncate all container log files
             conn.executeCommand("find /var/lib/docker/containers/ -name '*-json.log' -exec truncate -s 0 {} \\; 2>/dev/null || true");
-            log.info("Cleared Docker container logs on {}", server.getIp());
+            log.info("[SERVER_LOG] [server={}] Cleared Docker container logs", serverId);
         } catch (Exception e) {
-            log.warn("Failed to clear logs on {}: {}", server.getIp(), e.getMessage());
+            log.warn("[SERVER_LOG] [server={}] Failed to clear logs: {}", serverId, e.getMessage());
         }
     }
 
@@ -328,12 +345,17 @@ public class ServerService {
     public void deleteServer(Long id) {
         Server server = serverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("服务器不存在: " + id));
+        String ownerEmail = server.getUser() != null ? server.getUser().getEmail() : null;
         // Clean up SSH connections
         sshManager.removeConnection(server.getIp(), server.getSshPort() != null ? server.getSshPort() : 22);
         // Delete related containers and volumes
         containerRepository.deleteByServerId(id);
         volumeRepository.deleteByServerId(id);
         serverRepository.delete(server);
+        if (ownerEmail != null) {
+            cacheService.evict(CacheKeyBuilder.servers(ownerEmail));
+        }
+        cacheService.evict(CacheKeyBuilder.dashboardOverview());
     }
 
     // --- Docker Lifecycle ---
@@ -409,7 +431,7 @@ public class ServerService {
         try {
             return dockerService.listImages(server);
         } catch (Exception e) {
-            log.warn("Failed to list images on {}: {}", server.getIp(), e.getMessage());
+            log.warn("[SERVER_IMAGE] [server={}] Failed to list images: {}", serverId, e.getMessage());
             return List.of();
         }
     }
@@ -440,7 +462,7 @@ public class ServerService {
         try {
             return dockerService.getTopologyEdges(server);
         } catch (Exception e) {
-            log.warn("Failed to get topology edges: {}", e.getMessage());
+            log.warn("[SERVER_TOPOLOGY] [server={}] Failed to get topology edges: {}", serverId, e.getMessage());
             return List.of();
         }
     }
@@ -450,7 +472,7 @@ public class ServerService {
         try {
             return dockerService.listNetworks(server);
         } catch (Exception e) {
-            log.warn("Failed to list networks on {}: {}", server.getIp(), e.getMessage());
+            log.warn("[SERVER_NETWORK] [server={}] Failed to list networks: {}", serverId, e.getMessage());
             return List.of();
         }
     }
@@ -564,7 +586,7 @@ public class ServerService {
             try {
                 refreshContainers(server);
             } catch (Exception e) {
-                log.error("Batch scan failed for server {}: {}", server.getId(), e.getMessage());
+                log.error("[SERVER_BATCH_SCAN] [server={}] Batch scan failed: {}", server.getId(), e.getMessage());
             }
         }
         return servers.size();
@@ -609,7 +631,7 @@ public class ServerService {
             sshManager.removeConnection(server.getIp(),
                     server.getSshPort() != null ? server.getSshPort() : 22);
 
-            log.info("SSH key rotated for server {} ({}). New key type: Ed25519", server.getName(), server.getIp());
+            log.info("[SSH_KEY_ROTATE] [server={}] SSH key rotated. New key type: Ed25519", serverId);
 
             return Map.of(
                     "success", true,
@@ -620,7 +642,7 @@ public class ServerService {
                             .digest(publicKey.getEncoded()).length + " bytes"
             );
         } catch (Exception e) {
-            log.error("Failed to rotate SSH key for server {}: {}", serverId, e.getMessage(), e);
+            log.error("[SSH_KEY_ROTATE] [server={}] SSH key rotation failed: {}", serverId, e.getMessage(), e);
             throw new RuntimeException("SSH 密钥轮换失败: " + e.getMessage(), e);
         }
     }

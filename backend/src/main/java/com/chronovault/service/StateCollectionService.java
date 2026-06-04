@@ -89,10 +89,10 @@ public class StateCollectionService {
             state.put("collection_duration_ms", totalDuration);
             state.put("module_durations_ms", durations);
 
-            log.info("State collection completed in {}ms (modules: {})", totalDuration, durations);
+            log.info("[STATE_COLLECT] State collection completed in {}ms (modules: {})", totalDuration, durations);
             return objectMapper.writeValueAsString(state);
         } catch (Exception e) {
-            log.error("Failed to collect state via SSH: {}", e.getMessage());
+            log.error("[STATE_COLLECT] Failed to collect state via SSH: {}", e.getMessage());
             return null;
         }
     }
@@ -122,7 +122,7 @@ public class StateCollectionService {
             r = conn.executeCommand("uptime -p 2>/dev/null || uptime 2>/dev/null");
             sys.put("uptime", r.isSuccess() ? r.stdout().trim() : "unknown");
         } catch (Exception e) {
-            log.warn("Failed to collect system info: {}", e.getMessage());
+            log.warn("[STATE_COLLECT] Failed to collect system info: {}", e.getMessage());
         }
         return sys;
     }
@@ -144,7 +144,7 @@ public class StateCollectionService {
             result = conn.executeCommand("uname -m");
             os.put("arch", result.isSuccess() ? result.stdout().trim() : "Unknown");
         } catch (Exception e) {
-            log.warn("Failed to collect OS info: {}", e.getMessage());
+            log.warn("[STATE_COLLECT] Failed to collect OS info: {}", e.getMessage());
         }
         return os;
     }
@@ -207,7 +207,7 @@ public class StateCollectionService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to collect packages: {}", e.getMessage());
+            log.warn("[STATE_COLLECT] Failed to collect packages: {}", e.getMessage());
         }
         return packages;
     }
@@ -249,7 +249,7 @@ public class StateCollectionService {
                 services.add(svc);
             }
         } catch (Exception e) {
-            log.warn("Failed to collect services: {}", e.getMessage());
+            log.warn("[STATE_COLLECT] Failed to collect services: {}", e.getMessage());
         }
         return services;
     }
@@ -319,7 +319,7 @@ public class StateCollectionService {
                 ports.add(portInfo);
             }
         } catch (Exception e) {
-            log.warn("Failed to collect ports: {}", e.getMessage());
+            log.warn("[STATE_COLLECT] Failed to collect ports: {}", e.getMessage());
         }
         return ports;
     }
@@ -373,7 +373,7 @@ public class StateCollectionService {
                 docker.put("compose_files", composeFiles);
             }
         } catch (Exception e) {
-            log.warn("Failed to collect Docker state: {}", e.getMessage());
+            log.warn("[STATE_COLLECT] Failed to collect Docker state: {}", e.getMessage());
         }
         return docker;
     }
@@ -433,7 +433,7 @@ public class StateCollectionService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to collect crontab: {}", e.getMessage());
+            log.warn("[STATE_COLLECT] Failed to collect crontab: {}", e.getMessage());
         }
         return entries;
     }

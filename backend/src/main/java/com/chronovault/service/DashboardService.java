@@ -7,6 +7,7 @@ import com.chronovault.entity.Event;
 import com.chronovault.entity.Server;
 import com.chronovault.repository.*;
 import com.chronovault.repository.ContainerRepository;
+import com.chronovault.cache.CacheKeyBuilder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -34,7 +35,7 @@ public class DashboardService {
 
     public DashboardStatsDTO getStats() {
         // Check cache first
-        DashboardStatsDTO cached = cacheService.get("dashboard:stats", DashboardStatsDTO.class);
+        DashboardStatsDTO cached = cacheService.get(CacheKeyBuilder.dashboardStats(), DashboardStatsDTO.class);
         if (cached != null) return cached;
         long totalServers = serverRepository.count();
         long activeServers = serverRepository.countByStatus(Server.ServerStatus.RUNNING);
@@ -65,13 +66,15 @@ public class DashboardService {
                 uptimePercent
         );
 
-        cacheService.put("dashboard:stats", stats, java.time.Duration.ofMinutes(5));
+        cacheService.put(CacheKeyBuilder.dashboardStats(), stats, CacheKeyBuilder.DASHBOARD_STATS_TTL);
         return stats;
     }
 
     public List<AnomalyDTO> getAnomalies() {
-        return alertRepository.findAllByOrderByCreatedAtDesc().stream()
-                .limit(5)
+        // Use paginated query to prevent OOM (max 5 alerts for dashboard)
+        return alertRepository.findAllByOrderByCreatedAtDesc(
+                org.springframework.data.domain.PageRequest.of(0, 5))
+                .stream()
                 .map(a -> new AnomalyDTO(a.getId(), a.getSeverity().name(), a.getTitle(),
                         a.getSource(), a.getCreatedAt().toString()))
                 .toList();
@@ -106,7 +109,7 @@ public class DashboardService {
 
     public TopologyDTO getTopology() {
         // Check cache first (30 second TTL)
-        TopologyDTO cached = cacheService.get("dashboard:topology", TopologyDTO.class);
+        TopologyDTO cached = cacheService.get(CacheKeyBuilder.dashboardTopology(), TopologyDTO.class);
         if (cached != null) return cached;
 
         List<Server> servers = serverRepository.findAll();
@@ -133,7 +136,7 @@ public class DashboardService {
         }
 
         TopologyDTO result = new TopologyDTO(nodes, edges);
-        cacheService.put("dashboard:topology", result, java.time.Duration.ofSeconds(30));
+        cacheService.put(CacheKeyBuilder.dashboardTopology(), result, CacheKeyBuilder.DASHBOARD_TOPOLOGY_TTL);
         return result;
     }
 
@@ -188,7 +191,7 @@ public class DashboardService {
      */
     public DashboardOverviewDTO getOverview() {
         // Check cache first (30 second TTL for dashboard data)
-        DashboardOverviewDTO cached = cacheService.get("dashboard:overview", DashboardOverviewDTO.class);
+        DashboardOverviewDTO cached = cacheService.get(CacheKeyBuilder.dashboardOverview(), DashboardOverviewDTO.class);
         if (cached != null) return cached;
 
         // 1. Server snapshot statuses — use findLatestPerServer() to avoid N+1
@@ -264,10 +267,18 @@ public class DashboardService {
 
         DashboardOverviewDTO result = new DashboardOverviewDTO(serverStatuses, recentChanges, pendingAlerts, recentRollback);
 
-        // Cache for 30 seconds to reduce database load
-        cacheService.put("dashboard:overview", result, java.time.Duration.ofSeconds(30));
+        // Cache for 60 seconds to reduce database load
+        cacheService.put(CacheKeyBuilder.dashboardOverview(), result, CacheKeyBuilder.DASHBOARD_OVERVIEW_TTL);
 
         return result;
+    }
+
+    /**
+     * Invalidate dashboard overview cache.
+     * Called when server list changes (create/delete) to ensure fresh data.
+     */
+    public void invalidateOverviewCache() {
+        cacheService.evict(CacheKeyBuilder.dashboardOverview());
     }
 
     private int getIntOrDefault(java.util.Map<String, Object> map, String key) {

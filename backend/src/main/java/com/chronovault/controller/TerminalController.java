@@ -2,6 +2,7 @@ package com.chronovault.controller;
 
 import com.chronovault.dto.terminal.TerminalExecRequest;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
+import com.chronovault.security.SecurityUtils;
 import com.chronovault.service.TerminalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ public class TerminalController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> createSession(
             Authentication auth,
             @RequestParam Long serverId) {
-        String sessionId = terminalService.createSession(serverId, auth.getName());
+        String sessionId = terminalService.createSession(serverId, SecurityUtils.getCurrentUsername(auth));
         return ResponseEntity.ok(ApiResponse.success(Map.of("sessionId", sessionId)));
     }
 
