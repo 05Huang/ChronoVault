@@ -74,4 +74,10 @@ public interface SnapshotRepository extends JpaRepository<Snapshot, Long> {
      */
     @Query("SELECT s FROM Snapshot s WHERE s.type = 'STASH' AND s.createdAt < :threshold")
     List<Snapshot> findExpiredStashes(@Param("threshold") java.time.LocalDateTime threshold);
+
+    /**
+     * Find snapshots with null or blank hash — for cleanup of invalid records.
+     */
+    @Query("SELECT s FROM Snapshot s WHERE s.hash IS NULL OR s.hash = ''")
+    List<Snapshot> findNullHashSnapshots();
 }

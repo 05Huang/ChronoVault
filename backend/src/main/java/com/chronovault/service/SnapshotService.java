@@ -467,13 +467,10 @@ public class SnapshotService {
             throw new BadRequestException("快照没有有效的备份数据（hash 为空），无法撤销");
         }
 
-        // Find the snapshot created just before this one (the "parent")
-        List<Snapshot> allSnapshots = snapshotRepository.findByServerIdOrderByCreatedAtDesc(
-                target.getServer().getId());
-        Snapshot parent = allSnapshots.stream()
-                .filter(s -> s.getCreatedAt().isBefore(target.getCreatedAt()) && s.getHash() != null)
-                .findFirst()
-                .orElse(null);
+        // Find the snapshot created just before this one (the "parent") — use paginated query
+        List<Snapshot> previousSnapshots = snapshotRepository.findPreviousSnapshots(
+                target.getServer().getId(), snapshotId, PageRequest.of(0, 1));
+        Snapshot parent = previousSnapshots.isEmpty() ? null : previousSnapshots.get(0);
 
         if (parent == null) {
             throw new BadRequestException("没有找到此快照之前的快照，无法执行撤销操作");
@@ -892,10 +889,8 @@ public class SnapshotService {
      * Clean up local restic repository on the server and remove invalid snapshot records.
      */
     public String cleanupLocalRepo() {
-        // 1. Delete all null-hash snapshots from DB (useless records)
-        List<Snapshot> nullHashSnapshots = snapshotRepository.findAll().stream()
-                .filter(s -> s.getHash() == null || s.getHash().isBlank())
-                .toList();
+        // 1. Delete all null-hash snapshots from DB (useless records) — use targeted query
+        List<Snapshot> nullHashSnapshots = snapshotRepository.findNullHashSnapshots();
         int deletedCount = nullHashSnapshots.size();
         snapshotRepository.deleteAll(nullHashSnapshots);
         log.info("Deleted {} null-hash snapshot records from DB", deletedCount);
