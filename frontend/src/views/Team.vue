@@ -62,6 +62,7 @@
 import { ref, onMounted } from 'vue'
 import { useModalStore } from '@/stores/modal'
 import { teamApi } from '@/api/team'
+import type { TeamMember } from '@/types/team'
 import InviteMemberModal from '@/components/modals/InviteMemberModal.vue'
 import EditMemberModal from '@/components/modals/EditMemberModal.vue'
 
@@ -71,7 +72,7 @@ function openInvite() {
   modal.open({ component: InviteMemberModal, title: '邀请新成员' })
 }
 
-function openEditMember(member: any) {
+function openEditMember(member: TeamMember) {
   modal.open({
     component: EditMemberModal,
     title: `编辑成员 — ${member.name}`,

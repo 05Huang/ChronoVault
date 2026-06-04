@@ -430,6 +430,13 @@ public class SshConnectionManager {
     }
 
     /**
+     * Get total tracked connections (active + pending).
+     */
+    public int getConnectionCount() {
+        return connectionLocks.size();
+    }
+
+    /**
      * Normalize SSH key content to ensure proper line format.
      * Handles cases where newlines were lost during copy-paste or storage.
      */

@@ -154,7 +154,7 @@ async function applyRecommendation(id: number) {
   }
 }
 
-function showInsightDetail(insight: any) {
+function showInsightDetail(insight: AiInsight) {
   modal.open({
     component: ConfirmModal,
     title: insight.title,

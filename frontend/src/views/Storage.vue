@@ -110,6 +110,7 @@ import { useToastStore } from '@/stores/toast'
 import { useModalStore } from '@/stores/modal'
 import { storageApi } from '@/api/storage'
 import { formatBytes } from '@/utils/format'
+import type { StorageOverview } from '@/types/storage'
 import AddStorageModal from '@/components/modals/AddStorageModal.vue'
 
 const toast = useToastStore()
@@ -131,8 +132,9 @@ async function handleReplicate() {
     toast.success('复制任务已提交，正在后台执行')
     replicateSnapshotId.value = 0
     replicateTargetId.value = 0
-  } catch (e: any) {
-    toast.error(e?.message || '复制任务提交失败')
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '复制任务提交失败'
+    toast.error(msg)
   } finally {
     replicating.value = false
   }
@@ -144,7 +146,7 @@ function openAddStorage() {
 
 function exportReport() {
   const csv = ['类型,已使用,总计,使用率']
-  storageCards.value.forEach((card: any) => {
+  storageCards.value.forEach((card) => {
     csv.push(`${card.label},${card.used},${card.total},${card.percent}%`)
   })
   const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8' })
@@ -177,7 +179,7 @@ const storageCards = computed(() => {
   if (!overview.value.length) {
     return []
   }
-  return overview.value.map((item: any) => {
+  return overview.value.map((item: StorageOverview) => {
     const cfg = typeConfig[item.type] || typeConfig.BLOCK
     const used = item.usedBytes || 0
     const total = item.totalBytes || 1
