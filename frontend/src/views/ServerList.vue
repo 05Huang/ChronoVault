@@ -234,6 +234,13 @@ import { serversApi } from '@/api/servers'
 import { groupsApi } from '@/api/groups'
 import type { Server, ServerGroup } from '@/types'
 
+/** Extract a safe error message from an unknown catch value */
+function getErrorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'message' in e) return (e as { message: string }).message
+  if (typeof e === 'string') return e
+  return fallback
+}
+
 const router = useRouter()
 const toast = useToastStore()
 const loading = ref(true)
@@ -279,8 +286,8 @@ async function saveGroup() {
     editingGroup.value = null
     groupForm.value = { name: '', description: '', environmentType: 'DEVELOPMENT', color: '#0058BE' }
     await loadGroups()
-  } catch (e: any) {
-    toast.error(e?.message || '保存失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '保存失败'))
   }
 }
 
@@ -298,8 +305,8 @@ async function deleteGroup(id: number) {
     const res = await serversApi.getAll()
     servers.value = res || []
     toast.success('分组已删除')
-  } catch (e: any) {
-    toast.error(e?.message || '删除失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '删除失败'))
   }
 }
 
@@ -332,8 +339,8 @@ async function handleClone() {
     toast.success('克隆任务已提交，正在后台执行')
     showCloneWizard.value = false
     cloneForm.value = { sourceServerId: 0, targetServerIp: '', targetName: '' }
-  } catch (e: any) {
-    toast.error(e?.message || '克隆任务提交失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '克隆任务提交失败'))
   } finally {
     cloning.value = false
   }

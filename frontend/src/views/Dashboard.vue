@@ -396,7 +396,7 @@ function updateChart() {
       type: 'bar',
       data: yData,
       itemStyle: {
-        color: (params: any) => {
+        color: (params: { value: number }) => {
           const val = params.value
           if (val > 50) return 'rgba(0, 88, 190, 0.6)'
           if (val > 35) return 'rgba(0, 88, 190, 0.4)'

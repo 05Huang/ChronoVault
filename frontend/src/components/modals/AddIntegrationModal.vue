@@ -56,8 +56,11 @@ async function handleAdd() {
     await integrationsApi.create({ type: form.value.type, name: typeLabels[form.value.type] || form.value.type, url: form.value.url })
     toast.success(`${typeLabels[form.value.type]} 集成已添加`)
     emit('close')
-  } catch (e: any) {
-    toast.error(e?.response?.data?.message || '添加集成失败')
+  } catch (e: unknown) {
+    const msg = (e && typeof e === 'object' && 'response' in e)
+      ? ((e as { response?: { data?: { message?: string } } }).response?.data?.message)
+      : undefined
+    toast.error(msg || '添加集成失败')
   } finally {
     loading.value = false
   }

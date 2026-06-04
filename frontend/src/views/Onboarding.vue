@@ -568,6 +568,13 @@ import { serversApi } from '@/api/servers'
 import { settingsApi } from '@/api/settings'
 import type { EnvironmentScanResult, AiConfig } from '@/types'
 
+/** Extract a safe error message from an unknown catch value */
+function getErrorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'message' in e) return (e as { message: string }).message
+  if (typeof e === 'string') return e
+  return fallback
+}
+
 const router = useRouter()
 const toast = useToastStore()
 
@@ -684,9 +691,12 @@ async function handleConnect() {
       connectionStatus.value = 'error'
       connectionMessage.value = result.message || '连接失败'
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     connectionStatus.value = 'error'
-    connectionMessage.value = e?.response?.data?.message || e?.message || '操作失败，请检查输入信息'
+    const apiMsg = (e && typeof e === 'object' && 'response' in e)
+      ? ((e as { response?: { data?: { message?: string } } }).response?.data?.message)
+      : undefined
+    connectionMessage.value = apiMsg || getErrorMessage(e, '操作失败，请检查输入信息')
   } finally {
     connecting.value = false
   }
@@ -709,8 +719,11 @@ async function installAgent() {
     } else {
       agentInstallError.value = result.message || '安装失败'
     }
-  } catch (e: any) {
-    agentInstallError.value = e?.response?.data?.message || e?.message || 'Agent 安装失败，请检查 SSH 连接'
+  } catch (e: unknown) {
+    const apiMsg = (e && typeof e === 'object' && 'response' in e)
+      ? ((e as { response?: { data?: { message?: string } } }).response?.data?.message)
+      : undefined
+    agentInstallError.value = apiMsg || getErrorMessage(e, 'Agent 安装失败，请检查 SSH 连接')
   } finally {
     agentInstalling.value = false
   }
@@ -826,8 +839,11 @@ async function saveAiConfigAndAnalyze() {
     toast.success('AI 配置已保存')
     // Proceed to AI analysis
     handleAiAnalyze()
-  } catch (e: any) {
-    toast.error(e?.response?.data?.message || '保存失败')
+  } catch (e: unknown) {
+    const apiMsg = (e && typeof e === 'object' && 'response' in e)
+      ? ((e as { response?: { data?: { message?: string } } }).response?.data?.message)
+      : undefined
+    toast.error(apiMsg || getErrorMessage(e, '保存失败'))
   } finally {
     aiConfigSaving.value = false
   }

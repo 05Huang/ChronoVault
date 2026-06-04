@@ -96,8 +96,8 @@ async function initTerminal() {
   terminal.writeln('\x1b[33m正在连接到服务器...\x1b[0m')
 
   try {
-    const res: any = await apiClient.post(`/terminal/sessions?serverId=${props.serverId}`)
-    sessionId = res?.sessionId
+    const res = await apiClient.post<{ sessionId?: string }>(`/terminal/sessions?serverId=${props.serverId}`)
+    sessionId = res?.data?.sessionId
     connected.value = true
     terminal.writeln(`\x1b[32m已连接到 ${props.serverName || '服务器'}\x1b[0m`)
     terminal.writeln('\x1b[90m输入命令并按 Enter 执行，支持所有 Shell 命令\x1b[0m')
@@ -147,8 +147,11 @@ async function initTerminal() {
       }
     })
 
-  } catch (e: any) {
-    terminal.writeln(`\x1b[31m连接失败: ${e?.response?.data?.message || e.message || '未知错误'}\x1b[0m`)
+  } catch (e: unknown) {
+    const msg = (e && typeof e === 'object' && 'response' in e)
+      ? ((e as { response?: { data?: { message?: string } } }).response?.data?.message)
+      : undefined
+    terminal.writeln(`\x1b[31m连接失败: ${msg || (e instanceof Error ? e.message : '未知错误')}\x1b[0m`)
   }
 
   // Handle resize
@@ -165,7 +168,8 @@ async function executeCommand(cmd: string) {
   terminal?.write('\r\n')
 
   try {
-    const data: any = await apiClient.post(`/terminal/sessions/${sessionId}/exec`, { command: cmd })
+    const resp = await apiClient.post<{ error?: string; stdout?: string; stderr?: string }>(`/terminal/sessions/${sessionId}/exec`, { command: cmd })
+    const data = resp?.data || {}
 
     if (data.error) {
       terminal?.writeln(`\x1b[31m错误: ${data.error}\x1b[0m`)
@@ -182,8 +186,8 @@ async function executeCommand(cmd: string) {
         lines.forEach((line: string) => terminal?.writeln(`\x1b[31m${line}\x1b[0m`))
       }
     }
-  } catch (e: any) {
-    terminal?.writeln(`\x1b[31m请求失败: ${e?.message || '网络错误'}\x1b[0m`)
+  } catch (e: unknown) {
+    terminal?.writeln(`\x1b[31m请求失败: ${(e instanceof Error ? e.message : null) || '网络错误'}\x1b[0m`)
   } finally {
     executing = false
     writePrompt()

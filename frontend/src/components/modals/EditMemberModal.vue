@@ -70,8 +70,8 @@ async function handleSave() {
     await teamApi.updateMember(props.id, { role: role.value, permissions: enabledPerms })
     toast.success(`${props.name} 的权限已更新`)
     modal.close()
-  } catch (e: any) {
-    toast.error(e.message || '更新失败')
+  } catch (e: unknown) {
+    toast.error((e instanceof Error ? e.message : null) || '更新失败')
   } finally {
     loading.value = false
   }

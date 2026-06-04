@@ -155,6 +155,7 @@ import { useToastStore } from '@/stores/toast'
 import { snapshotsApi } from '@/api/snapshots'
 import { serversApi } from '@/api/servers'
 import { storageApi } from '@/api/storage'
+import type { StorageOverview } from '@/types'
 
 const emit = defineEmits<{ close: [] }>()
 const toast = useToastStore()
@@ -165,7 +166,7 @@ const backupTypes = [
 ]
 
 const servers = ref<any[]>([])
-const storageTargets = ref<any[]>([])
+const storageTargets = ref<StorageOverview[]>([])
 const form = ref({ server: null as number | null, serverIds: [] as number[], storageTarget: null as number | null, type: 'FULL', note: '', paths: [] as string[], excludes: [] as string[] })
 const loading = ref(false)
 const loadError = ref('')
@@ -252,10 +253,10 @@ onMounted(async () => {
     }
     // Auto-select first non-LOCAL target, or first target
     if (storageTargets.value.length > 0) {
-      const nonLocal = storageTargets.value.find((t: any) => t.type !== 'LOCAL')
+      const nonLocal = storageTargets.value.find((t) => t.type !== 'LOCAL')
       form.value.storageTarget = (nonLocal || storageTargets.value[0]).id
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Failed to load data', e)
     loadError.value = '加载数据失败'
   }
@@ -299,9 +300,9 @@ async function handleCreate() {
       toast.success('备份任务已创建')
     }
     emit('close')
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Snapshot creation failed:', e)
-    const msg = e?.message || '创建失败，请检查服务器连接和存储配置'
+    const msg = (e instanceof Error ? e.message : null) || '创建失败，请检查服务器连接和存储配置'
     submitError.value = msg
     toast.error(msg)
   } finally {

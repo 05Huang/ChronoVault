@@ -401,6 +401,13 @@ import { drApi } from '@/api/disasterRecovery'
 import ConfirmModal from '@/components/modals/ConfirmModal.vue'
 import type { DisasterRecoveryPlan } from '@/types'
 
+/** Extract a safe error message from an unknown catch value */
+function getErrorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'message' in e) return (e as { message: string }).message
+  if (typeof e === 'string') return e
+  return fallback
+}
+
 const toast = useToastStore()
 const modal = useModalStore()
 
@@ -449,8 +456,8 @@ async function saveDrPlan() {
     showDrForm.value = false
     drForm.value = { name: '', description: '', steps: '', estimatedRto: 30, estimatedRpo: 15, status: 'DRAFT' }
     await loadDrPlans()
-  } catch (e: any) {
-    toast.error(e?.message || '保存失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '保存失败'))
   }
 }
 
@@ -465,8 +472,8 @@ async function executeDrPlan(id: number) {
     await drApi.execute(id)
     toast.success('恢复计划已执行')
     await loadDrPlans()
-  } catch (e: any) {
-    toast.error(e?.message || '执行失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '执行失败'))
   }
 }
 
@@ -475,8 +482,8 @@ async function deleteDrPlan(id: number) {
     await drApi.delete(id)
     drPlans.value = drPlans.value.filter(p => p.id !== id)
     toast.success('恢复计划已删除')
-  } catch (e: any) {
-    toast.error(e?.message || '删除失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '删除失败'))
   }
 }
 
@@ -569,8 +576,8 @@ async function executeRecovery() {
               targetPath: restoreTargetPath.value || undefined,
             })
             toast.success(result || '文件恢复完成')
-          } catch (e: any) {
-            const msg = e?.message || '文件恢复失败'
+          } catch (e: unknown) {
+            const msg = getErrorMessage(e, '文件恢复失败')
             toast.error(msg)
           } finally {
             executing.value = false
@@ -600,8 +607,8 @@ async function executeRecovery() {
             mode: recoveryMode.value,
           })
           toast.success('恢复任务已提交，预计 2-5 分钟完成')
-        } catch (e: any) {
-          const msg = e?.message || '恢复执行失败'
+        } catch (e: unknown) {
+          const msg = getErrorMessage(e, '恢复执行失败')
           toast.error(msg)
         } finally {
           executing.value = false

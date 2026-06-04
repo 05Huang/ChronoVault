@@ -93,8 +93,8 @@ async function handleConfirm() {
     })
     toast.success(`告警规则「${name.value}」已创建`)
     modal.close()
-  } catch (e: any) {
-    toast.error(e.message || '创建失败')
+  } catch (e: unknown) {
+    toast.error((e instanceof Error ? e.message : null) || '创建失败')
   } finally {
     loading.value = false
   }

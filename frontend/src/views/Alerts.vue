@@ -249,8 +249,11 @@ async function generateAiReport() {
         confirmClass: 'bg-surface-container-highest text-on-surface',
       },
     })
-  } catch (e: any) {
-    toast.error(e?.response?.data?.message || '生成报告失败')
+  } catch (e: unknown) {
+    const msg = (e && typeof e === 'object' && 'response' in e)
+      ? ((e as { response?: { data?: { message?: string } } }).response?.data?.message)
+      : undefined
+    toast.error(msg || (e instanceof Error ? e.message : '生成报告失败'))
   }
 }
 

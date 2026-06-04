@@ -68,8 +68,8 @@ async function handleGenerate() {
     generatedKey.value = res?.key || ''
     generated.value = true
     toast.success(`密钥 ${keyName.value} 已生成`)
-  } catch (e: any) {
-    toast.error(e.message || '生成失败')
+  } catch (e: unknown) {
+    toast.error((e instanceof Error ? e.message : null) || '生成失败')
   } finally {
     loading.value = false
   }

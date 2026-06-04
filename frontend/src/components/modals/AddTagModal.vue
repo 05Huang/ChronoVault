@@ -116,8 +116,8 @@ async function handleAdd() {
     toast.success(`标签 "${name}" 已添加`)
     props.onAdded?.()
     emit('close')
-  } catch (e: any) {
-    error.value = e?.message || '添加标签失败'
+  } catch (e: unknown) {
+    error.value = (e instanceof Error ? e.message : null) || '添加标签失败'
   } finally {
     loading.value = false
   }

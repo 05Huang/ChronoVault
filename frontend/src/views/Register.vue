@@ -337,8 +337,8 @@ async function handleSubmit() {
     await auth.register(form.value.name, form.value.email, form.value.password)
     toast.success('注册成功！')
     router.push('/onboarding')
-  } catch (e: any) {
-    toast.error(e?.message || '注册失败')
+  } catch (e: unknown) {
+    toast.error((e instanceof Error ? e.message : null) || '注册失败')
   } finally {
     loading.value = false
   }

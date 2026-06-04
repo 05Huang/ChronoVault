@@ -151,8 +151,8 @@ async function handleLogin() {
   try {
     await auth.login(email.value, password.value)
     router.push('/dashboard')
-  } catch (e: any) {
-    error.value = e?.message || '邮箱或密码错误'
+  } catch (e: unknown) {
+    error.value = (e instanceof Error ? e.message : null) || '邮箱或密码错误'
     toast.error(error.value)
   } finally {
     loading.value = false

@@ -46,8 +46,8 @@ async function handleInvite() {
     await teamApi.invite({ name: form.value.email.split('@')[0], email: form.value.email, role: form.value.role })
     toast.success(`邀请已发送至 ${form.value.email}`)
     emit('close')
-  } catch (e: any) {
-    toast.error(e.message || '邀请失败')
+  } catch (e: unknown) {
+    toast.error((e instanceof Error ? e.message : null) || '邀请失败')
   } finally {
     loading.value = false
   }

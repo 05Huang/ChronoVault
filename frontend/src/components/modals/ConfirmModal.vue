@@ -33,8 +33,8 @@ async function handleConfirm() {
       await props.onConfirm()
       if (props.successMessage) toast.success(props.successMessage)
       emit('close')
-    } catch (e: any) {
-      toast.error(e?.message || '操作失败')
+    } catch (e: unknown) {
+      toast.error((e instanceof Error ? e.message : null) || '操作失败')
     } finally {
       loading.value = false
     }

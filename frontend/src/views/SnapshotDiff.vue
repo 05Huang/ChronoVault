@@ -6,6 +6,13 @@ import type { StateDiffResult, Snapshot } from '@/types'
 import StateTree from '@/components/StateTree.vue'
 import { useToastStore } from '@/stores/toast'
 
+/** Extract a safe error message from an unknown catch value */
+function getErrorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'message' in e) return (e as { message: string }).message
+  if (typeof e === 'string') return e
+  return fallback
+}
+
 const route = useRoute()
 const toast = useToastStore()
 
@@ -76,8 +83,8 @@ const loadDiff = async () => {
     diff.value = diffData
     fromSnapshot.value = fromData
     toSnapshot.value = toData
-  } catch (e: any) {
-    error.value = e?.message || '加载失败'
+  } catch (e: unknown) {
+    error.value = getErrorMessage(e, '加载失败')
   } finally {
     loading.value = false
   }
@@ -98,8 +105,8 @@ async function confirmRollback() {
     toast.success(result || '选择性回滚完成')
     // Reload diff to reflect changes
     await loadDiff()
-  } catch (e: any) {
-    toast.error(e?.message || '选择性回滚失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '选择性回滚失败'))
   } finally {
     rollingBack.value = false
     rollbackItem.value = null

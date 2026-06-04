@@ -127,8 +127,8 @@ async function handleAdd() {
     })
     toast.success(`存储目标 ${form.value.name} 已添加`)
     emit('close')
-  } catch (e: any) {
-    toast.error(e.message || '添加失败')
+  } catch (e: unknown) {
+    toast.error((e instanceof Error ? e.message : null) || '添加失败')
   } finally {
     loading.value = false
   }
