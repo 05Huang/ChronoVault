@@ -27,6 +27,16 @@ public class StateCollectionService {
 
     private static final java.time.Duration MODULE_TIMEOUT = java.time.Duration.ofSeconds(10);
 
+    /** Execute an SSH command with module-level timeout protection. */
+    private SshConnection.CommandResult timedCommand(SshConnection conn, String command) {
+        try {
+            return conn.executeCommand(command, MODULE_TIMEOUT);
+        } catch (Exception e) {
+            log.debug("Command timed out or failed: {} — {}", command, e.getMessage());
+            return new SshConnection.CommandResult(-1, "", e.getMessage());
+        }
+    }
+
     /**
      * Collect system state via SSH and return it as a JSON string.
      * Each collection module runs with a 10-second timeout to prevent hanging.
@@ -94,13 +104,13 @@ public class StateCollectionService {
         Map<String, Object> sys = new LinkedHashMap<>();
         try {
             SshConnection.CommandResult r;
-            r = conn.executeCommand("hostname 2>/dev/null");
+            r = timedCommand(conn, "hostname 2>/dev/null");
             sys.put("hostname", r.isSuccess() ? r.stdout().trim() : "unknown");
 
-            r = conn.executeCommand("hostname -I 2>/dev/null | awk '{print $1}'");
+            r = timedCommand(conn, "hostname -I 2>/dev/null | awk '{print $1}'");
             sys.put("ip", r.isSuccess() ? r.stdout().trim() : "unknown");
 
-            r = conn.executeCommand("free -m 2>/dev/null | awk '/^Mem:/{printf \"%d/%dMB (%.1f%%)\", $3, $2, $3*100/$2}'");
+            r = timedCommand(conn, "free -m 2>/dev/null | awk '/^Mem:/{printf \"%d/%dMB (%.1f%%)\", $3, $2, $3*100/$2}'");
             sys.put("memory", r.isSuccess() ? r.stdout().trim() : "unknown");
 
             r = conn.executeCommand("df -h / 2>/dev/null | awk 'NR==2{printf \"%s/%s (%s)\", $3, $2, $5}'");
