@@ -664,10 +664,28 @@ const toast = useToastStore()
 const modal = useModalStore()
 const serverId = Number(route.params.id)
 
-import type { Server, Container, Volume, AiServerAnalysis, ServerBranch, Snapshot, ChangeAttribution, SnapshotHook, DriftReport } from '@/types'
+import type { Server, Container, Volume, LogEntry, AiServerAnalysis, ServerBranch, Snapshot, ChangeAttribution, SnapshotHook, DriftReport } from '@/types'
+
+/** Extract a safe error message from an unknown catch value */
+function getErrorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'message' in e) return (e as { message: string }).message
+  if (typeof e === 'string') return e
+  return fallback
+}
+
+function getApiErrorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object') {
+    const err = e as Record<string, unknown>
+    const resp = err.response as Record<string, unknown> | undefined
+    const data = resp?.data as Record<string, unknown> | undefined
+    if (typeof data?.message === 'string') return data.message
+    if (typeof err.message === 'string') return err.message
+  }
+  return fallback
+}
 
 const server = ref<Server>({} as Server)
-const containers = ref<(Container & { metric1: any; metric2: any })[]>([])
+const containers = ref<(Container & { metric1: { label: string; value: string; percent: string }; metric2: { label: string; value: string; percent: string } })[]>([])
 const volumes = ref<(Volume & { size: string; icon: string; iconColor: string; status: string; statusColor: string })[]>([])
 const logs = ref<{ text: string; color: string }[]>([])
 const aiAnalysis = ref<AiServerAnalysis | null>(null)
@@ -714,8 +732,8 @@ async function scanDrift() {
   try {
     const res = await driftApi.detect(server.value.id)
     driftReport.value = res
-  } catch (e: any) {
-    toast.error(e?.message || '漂移检测失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '漂移检测失败'))
   } finally {
     driftScanning.value = false
   }
@@ -824,8 +842,8 @@ async function saveSshConfig() {
     })
     toast.success('SSH 配置已保存')
     sshConfig.value.credential = '' // Clear credential after save
-  } catch (e: any) {
-    toast.error(e?.response?.data?.message || '保存失败')
+  } catch (e: unknown) {
+    toast.error(getApiErrorMessage(e, '保存失败'))
   } finally {
     sshSaving.value = false
   }
@@ -836,7 +854,7 @@ function exportLogs() {
     toast.error('暂无日志数据')
     return
   }
-  const text = logs.value.map((l: any) => l.text).join('\n')
+  const text = logs.value.map((l) => l.text).join('\n')
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -916,8 +934,8 @@ function initTopologyNodes() {
   const cy = h / 2
 
   // Group containers by type
-  const groups: Record<string, any[]> = {}
-  containers.value.forEach((c: any) => {
+  const groups: Record<string, (typeof containers.value)[number][]> = {}
+  containers.value.forEach((c) => {
     const t = c.type || 'Other'
     if (!groups[t]) groups[t] = []
     groups[t].push(c)
@@ -959,7 +977,7 @@ function initTopologyNodes() {
     const sectorStart = (2 * Math.PI * gi) / groupCount - Math.PI / 2
     const sectorEnd = (2 * Math.PI * (gi + 1)) / groupCount - Math.PI / 2
 
-    group.forEach((c: any, ci: number) => {
+    group.forEach((c, ci: number) => {
       // Spread containers within the sector
       const spread = group.length === 1 ? 0 : (sectorEnd - sectorStart) * 0.7
       const angle = sectorStart + (sectorEnd - sectorStart) * 0.15 + (spread * ci) / Math.max(group.length - 1, 1)
@@ -1049,8 +1067,8 @@ const volumeIcons: Record<string, { icon: string; iconColor: string }> = {
   log: { icon: 'description', iconColor: 'text-tertiary' },
 }
 
-function mapContainers(cData: any[]) {
-  return cData.map((c: any) => {
+function mapContainers(cData: Container[]) {
+  return cData.map((c: Container) => {
     const defaults = containerDefaults[c.type as keyof typeof containerDefaults] || containerDefaults['HTTP Server']
     return {
       ...c,
@@ -1093,8 +1111,8 @@ async function switchBranch(branch: ServerBranch) {
     activeBranch.value = branch
     showBranchDropdown.value = false
     toast.success(`已切换到分支: ${branch.name}`)
-  } catch (e: any) {
-    toast.error(e?.message || '切换分支失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '切换分支失败'))
   }
 }
 
@@ -1107,8 +1125,8 @@ async function createBranch() {
     branches.value.push(newBranch)
     newBranchName.value = ''
     toast.success(`分支 "${name}" 已创建`)
-  } catch (e: any) {
-    toast.error(e?.message || '创建分支失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '创建分支失败'))
   } finally {
     creatingBranch.value = false
   }
@@ -1126,8 +1144,8 @@ async function deleteBranch(branch: ServerBranch) {
       activeBranch.value = branches.value.find(b => b.isDefault) || branches.value[0] || null
     }
     toast.success(`分支 "${branch.name}" 已删除`)
-  } catch (e: any) {
-    toast.error(e?.message || '删除分支失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '删除分支失败'))
   }
 }
 
@@ -1138,8 +1156,8 @@ async function toggleAutoSnapshot() {
     await serversApi.toggleAutoSnapshot(serverId, newState)
     server.value.autoSnapshotEnabled = newState
     toast.success(`自动快照已${newState ? '开启' : '关闭'}`)
-  } catch (e: any) {
-    toast.error(e?.message || '操作失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '操作失败'))
   }
 }
 
@@ -1165,8 +1183,8 @@ async function saveHook() {
     editingHook.value = null
     hookForm.value = { name: '', hookType: 'PRE_SNAPSHOT', command: '', timeoutSeconds: 60, enabled: true, orderIndex: 0 }
     await loadHooks()
-  } catch (e: any) {
-    toast.error(e?.message || '保存失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '保存失败'))
   }
 }
 
@@ -1180,8 +1198,8 @@ async function deleteHook(hookId: number) {
     await hooksApi.delete(serverId, hookId)
     hooks.value = hooks.value.filter(h => h.id !== hookId)
     toast.success('Hook 已删除')
-  } catch (e: any) {
-    toast.error(e?.message || '删除失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '删除失败'))
   }
 }
 
@@ -1255,8 +1273,8 @@ async function createStash() {
     const result = await stashApi.create(serverId, '手动暂存')
     stashes.value.unshift(result)
     toast.success('已创建暂存快照')
-  } catch (e: any) {
-    toast.error(e?.message || '暂存失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '暂存失败'))
   } finally {
     stashing.value = false
   }
@@ -1267,8 +1285,8 @@ async function popStash() {
     const result = await stashApi.pop(serverId)
     toast.success(result || '已恢复暂存快照')
     await loadStashes()
-  } catch (e: any) {
-    toast.error(e?.message || '恢复暂存失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '恢复暂存失败'))
   }
 }
 
@@ -1277,8 +1295,8 @@ async function discardStash(stashId: number) {
     await stashApi.discard(serverId, stashId)
     stashes.value = stashes.value.filter(s => s.id !== stashId)
     toast.success('暂存快照已丢弃')
-  } catch (e: any) {
-    toast.error(e?.message || '丢弃暂存失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '丢弃暂存失败'))
   }
 }
 
@@ -1330,7 +1348,7 @@ onMounted(async () => {
     const cData = containersRes || []
     containers.value = mapContainers(cData)
     const vData = volumesRes || []
-    volumes.value = vData.map((v: any) => {
+    volumes.value = vData.map((v: Volume) => {
       const iconCfg = volumeIcons[v.type] || volumeIcons.database
       return {
         ...v,
@@ -1341,7 +1359,7 @@ onMounted(async () => {
       }
     })
     const lData = logsRes || []
-    logs.value = lData.map((l: any) => ({
+    logs.value = lData.map((l: LogEntry) => ({
       text: l.message || l.text || '',
       color: l.level === 'ERROR' ? 'text-red-400' : l.level === 'WARN' ? 'text-amber-400' : l.level === 'DEBUG' ? 'text-blue-300' : 'text-green-400',
     }))

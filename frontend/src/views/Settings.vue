@@ -389,7 +389,14 @@ import { verificationApi } from '@/api/verification'
 import { scheduledBackupsApi } from '@/api/scheduledBackups'
 import GenerateKeyModal from '@/components/modals/GenerateKeyModal.vue'
 import ConfirmModal from '@/components/modals/ConfirmModal.vue'
-import type { AiConfig, WebhookEndpoint, VerificationJob, ScheduledBackup } from '@/types'
+import type { AiConfig, ApiKey, WebhookEndpoint, VerificationJob, ScheduledBackup } from '@/types'
+
+/** Extract a safe error message from an unknown catch value */
+function getErrorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'message' in e) return (e as { message: string }).message
+  if (typeof e === 'string') return e
+  return fallback
+}
 
 const modal = useModalStore()
 const toast = useToastStore()
@@ -409,7 +416,7 @@ function openDeleteKey(id: number, name: string) {
       successMessage: `密钥 ${name} 已删除`,
       onConfirm: async () => {
         await settingsApi.deleteKey(id)
-        apiKeys.value = apiKeys.value.filter((k: any) => k.id !== id)
+        apiKeys.value = apiKeys.value.filter((k: ApiKey) => k.id !== id)
       },
     },
   })
@@ -455,8 +462,8 @@ async function saveScheduledBackup() {
     showBackupForm.value = false
     backupForm.value = { name: '', serverId: 0, cronExpression: '0 2 * * *', enabled: true }
     await loadScheduledBackups()
-  } catch (e: any) {
-    toast.error(e?.message || '保存失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '保存失败'))
   }
 }
 
@@ -464,8 +471,8 @@ async function toggleScheduledBackup(id: number) {
   try {
     await scheduledBackupsApi.toggle(id)
     await loadScheduledBackups()
-  } catch (e: any) {
-    toast.error(e?.message || '操作失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '操作失败'))
   }
 }
 
@@ -474,8 +481,8 @@ async function deleteScheduledBackup(id: number) {
     await scheduledBackupsApi.delete(id)
     scheduledBackups.value = scheduledBackups.value.filter(b => b.id !== id)
     toast.success('定时备份已删除')
-  } catch (e: any) {
-    toast.error(e?.message || '删除失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '删除失败'))
   }
 }
 
@@ -556,8 +563,8 @@ async function saveWebhook() {
     webhookForm.value = { url: '', secret: '', events: 'SNAPSHOT_CREATED,SNAPSHOT_DELETED,SNAPSHOT_RESTORED', enabled: true }
     showWebhookForm.value = false
     await loadWebhooks()
-  } catch (e: any) {
-    toast.error(e?.message || '保存失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '保存失败'))
   }
 }
 
@@ -572,8 +579,8 @@ async function deleteWebhook(id: number) {
     await webhooksApi.delete(id)
     webhooks.value = webhooks.value.filter(w => w.id !== id)
     toast.success('Webhook 已删除')
-  } catch (e: any) {
-    toast.error(e?.message || '删除失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '删除失败'))
   }
 }
 
@@ -581,8 +588,8 @@ async function testWebhook(id: number) {
   try {
     await webhooksApi.test(id)
     toast.success('测试事件已发送')
-  } catch (e: any) {
-    toast.error(e?.message || '测试失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '测试失败'))
   }
 }
 
@@ -616,8 +623,8 @@ async function createVerificationJob() {
     })
     toast.success('验证任务已创建')
     await loadVerificationJobs()
-  } catch (e: any) {
-    toast.error(e?.message || '创建失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '创建失败'))
   }
 }
 
@@ -626,8 +633,8 @@ async function runVerificationJob(id: number) {
     await verificationApi.run(id)
     toast.success('验证任务已执行')
     await loadVerificationJobs()
-  } catch (e: any) {
-    toast.error(e?.message || '执行失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '执行失败'))
   }
 }
 
@@ -636,8 +643,8 @@ async function deleteVerificationJob(id: number) {
     await verificationApi.delete(id)
     verificationJobs.value = verificationJobs.value.filter(j => j.id !== id)
     toast.success('验证任务已删除')
-  } catch (e: any) {
-    toast.error(e?.message || '删除失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '删除失败'))
   }
 }
 
@@ -667,8 +674,11 @@ async function saveAiConfig() {
     toast.success('AI 配置已保存')
     // Reload to get masked key
     await loadAiConfig()
-  } catch (e: any) {
-    toast.error(e?.response?.data?.message || '保存失败')
+  } catch (e: unknown) {
+    const msg = (e && typeof e === 'object' && 'response' in e)
+      ? ((e as { response?: { data?: { message?: string } } }).response?.data?.message)
+      : undefined
+    toast.error(msg || getErrorMessage(e, '保存失败'))
   } finally {
     savingAi.value = false
   }

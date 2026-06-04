@@ -110,7 +110,7 @@ import { useToastStore } from '@/stores/toast'
 import { useModalStore } from '@/stores/modal'
 import { storageApi } from '@/api/storage'
 import { formatBytes } from '@/utils/format'
-import type { StorageOverview } from '@/types/storage'
+import type { StorageOverview, StorageDistribution, StorageHealthCheck } from '@/types'
 import AddStorageModal from '@/components/modals/AddStorageModal.vue'
 
 const toast = useToastStore()
@@ -158,8 +158,6 @@ function exportReport() {
   URL.revokeObjectURL(url)
   toast.success('存储报告已导出')
 }
-
-import type { StorageOverview, StorageDistribution, StorageHealthCheck } from '@/types'
 
 const overview = ref<StorageOverview[]>([])
 const distribution = ref<(StorageDistribution & { size: string; color: string })[]>([])

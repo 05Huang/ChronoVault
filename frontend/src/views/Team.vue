@@ -88,8 +88,6 @@ const roleBadgeMap: Record<string, string> = {
 
 const avatarColors = ['bg-primary', 'bg-secondary', 'bg-tertiary', 'bg-error', 'bg-green-600']
 
-import type { TeamMember } from '@/types'
-
 const teamMembers = ref<(TeamMember & { initials: string; avatarBg: string; roleBadge: string; status: string; statusColor: string; lastActive: string })[]>([])
 
 onMounted(async () => {

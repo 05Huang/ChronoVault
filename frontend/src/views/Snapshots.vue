@@ -710,6 +710,13 @@ const modal = useModalStore()
 import type { Snapshot, SnapshotDiff, BisectSession, SnapshotFileEntry, SnapshotVerifyResult, ContainerState, FileDiffSummary, StateSnapshot } from '@/types'
 import { serversApi } from '@/api/servers'
 
+/** Extract a safe error message from an unknown catch value */
+function getErrorMessage(e: unknown, fallback: string): string {
+  if (e && typeof e === 'object' && 'message' in e) return (e as { message: string }).message
+  if (typeof e === 'string') return e
+  return fallback
+}
+
 const snapshots = ref<Snapshot[]>([])
 const selectedSnapshot = ref<Snapshot | null>(null)
 const diffs = ref<SnapshotDiff[]>([])
@@ -790,7 +797,7 @@ async function openRollbackConfirm() {
         },
       },
     })
-  } catch (e: any) {
+  } catch {
     // Fallback to simple dialog if preview fails
     modal.open({
       component: ConfirmModal,
@@ -898,8 +905,8 @@ async function handleRemoveTag(snapshotId: number, tagName: string) {
     await snapshotsApi.removeTag(snapshotId, tagName)
     toast.success(`标签 "${tagName}" 已移除`)
     await refreshSnapshotTags(snapshotId)
-  } catch (e: any) {
-    toast.error(e?.message || '移除标签失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '移除标签失败'))
   }
 }
 
@@ -943,8 +950,8 @@ async function startBisect() {
     })
     bisectSession.value = session
     toast.success('二分查找已启动，共需 ' + session.totalSteps + ' 步')
-  } catch (e: any) {
-    toast.error(e?.message || '启动二分查找失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '启动二分查找失败'))
   } finally {
     bisectStarting.value = false
   }
@@ -961,8 +968,8 @@ async function markBisect(verdict: 'good' | 'bad') {
     if (result.status === 'FOUND') {
       toast.success('已定位到问题快照：' + result.culpritSnapshotName)
     }
-  } catch (e: any) {
-    toast.error(e?.message || '标记失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '标记失败'))
   }
 }
 
@@ -983,8 +990,8 @@ async function loadFiles(path: string) {
   try {
     const res = await snapshotsApi.listFiles(selectedSnapshot.value.id, path)
     fileEntries.value = res || []
-  } catch (e: any) {
-    toast.error(e?.message || '加载文件列表失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '加载文件列表失败'))
     fileEntries.value = []
   } finally {
     fileBrowserLoading.value = false
@@ -1013,8 +1020,8 @@ async function previewFile(path: string) {
   try {
     const res = await snapshotsApi.downloadFile(selectedSnapshot.value.id, path)
     filePreviewContent.value = res || '(空文件)'
-  } catch (e: any) {
-    filePreviewContent.value = '加载失败: ' + (e?.message || '未知错误')
+  } catch (e: unknown) {
+    filePreviewContent.value = '加载失败: ' + (getErrorMessage(e, '未知错误'))
   }
 }
 
@@ -1033,8 +1040,8 @@ async function verifySnapshot() {
     } else {
       toast.error('快照验证发现问题: ' + (result.errors || '未知错误'))
     }
-  } catch (e: any) {
-    toast.error(e?.message || '验证失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '验证失败'))
   } finally {
     verifying.value = false
   }
@@ -1086,8 +1093,8 @@ async function executeCherryPick() {
     showCherryPickDialog.value = false
     cherryPickFiles.value = ''
     cherryPickTargetId.value = 0
-  } catch (e: any) {
-    toast.error(e?.message || 'Cherry-pick 失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, 'Cherry-pick 失败'))
   } finally {
     cherryPicking.value = false
   }
@@ -1142,8 +1149,8 @@ async function runComparison() {
   try {
     const result = await snapshotsApi.compare(selectedSnapshot.value.id, compareId.value)
     compareResult.value = result
-  } catch (e: any) {
-    toast.error(e?.message || '对比失败')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '对比失败'))
   } finally {
     comparing.value = false
   }
