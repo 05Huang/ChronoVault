@@ -1,0 +1,38 @@
+# Production overlay: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Disables exposed ports for internal-only services, adds logging config
+
+services:
+  postgres:
+    ports: []  # No external access in production
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    ports: []  # No external access in production
+    command: redis-server --requirepass  --maxmemory 128mb --maxmemory-policy allkeys-lru
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      LOGGING_LEVEL_ROOT: WARN
+      LOGGING_LEVEL_COM_CHRONOVAULT: INFO
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "10"
+
+  frontend:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
