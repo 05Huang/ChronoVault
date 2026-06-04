@@ -67,7 +67,9 @@ public class SnapshotController {
             @RequestParam(defaultValue = "createdAt") String sort,
             @RequestParam(defaultValue = "desc") String direction) {
         if (tagName != null && !tagName.isBlank()) {
-            return ResponseEntity.ok(ApiResponse.success(snapshotService.getSnapshotsByTag(tagName)));
+            Page<SnapshotDTO> result = snapshotService.getSnapshotsByTagPaged(tagName, page, size, sort, direction);
+            return ResponseEntity.ok(ApiResponse.successPage(
+                    result.getContent(), page, size, result.getTotalElements()));
         }
         Page<SnapshotDTO> result = snapshotService.getSnapshotsPaged(page, size, sort, direction);
         return ResponseEntity.ok(ApiResponse.successPage(

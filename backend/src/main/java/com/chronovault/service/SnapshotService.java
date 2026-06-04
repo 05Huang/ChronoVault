@@ -123,6 +123,19 @@ public class SnapshotService {
     }
 
     @Transactional(readOnly = true)
+    public Page<SnapshotDTO> getSnapshotsByTagPaged(String tagName, int page, int size, String sort, String direction) {
+        Sort.Direction dir = "ASC".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String sortField = (sort != null && !sort.isBlank()) ? sort : "createdAt";
+        var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), Sort.by(dir, sortField));
+        return snapshotRepository.findByTagNamePaged(tagName, pageable)
+                .map(s -> {
+                    List<SnapshotTagDTO> tags = tagRepository.findBySnapshotIdOrderByCreatedAtDesc(s.getId())
+                            .stream().map(SnapshotTagDTO::from).toList();
+                    return SnapshotDTO.from(s, tags);
+                });
+    }
+
+    @Transactional(readOnly = true)
     public Page<SnapshotDTO> getSnapshotsPaged(int page, int size, String sort, String direction) {
         Sort.Direction dir = "ASC".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
         String sortField = (sort != null && !sort.isBlank()) ? sort : "createdAt";

@@ -74,8 +74,11 @@ class SnapshotControllerTest {
 
     @Test
     void getSnapshots_byTag_returnsFilteredList() {
-        when(snapshotService.getSnapshotsByTag("production"))
-                .thenReturn(List.of(createTestSnapshot(1L, "Prod Snap")));
+        var tagPage = new org.springframework.data.domain.PageImpl<>(
+                List.of(createTestSnapshot(1L, "Prod Snap")),
+                org.springframework.data.domain.PageRequest.of(0, 20), 1);
+        when(snapshotService.getSnapshotsByTagPaged("production", 0, 20, "createdAt", "desc"))
+                .thenReturn(tagPage);
 
         var response = controller.getSnapshots(0, 20, "production", "createdAt", "desc");
         assertNotNull(response);
