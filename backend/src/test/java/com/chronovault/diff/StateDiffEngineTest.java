@@ -770,4 +770,54 @@ class StateDiffEngineTest {
         assertEquals(2, s.configsChanged);       // nginx.conf changed, redis.conf added
         assertEquals(1, s.crontabChanged);       // cron entry removed
     }
+
+    @Test
+    void diff_withInvalidJson_returnsError() {
+        StateDiffEngine.StateDiffResult result = diffEngine.diff("not json", "{invalid}");
+        assertNotNull(result);
+        assertTrue(result.hasError());
+    }
+
+    @Test
+    void diff_withNullA_returnsEmpty() {
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(null, "{\"packages\":[]}");
+        assertNotNull(result);
+        assertFalse(result.hasError());
+    }
+
+    @Test
+    void diff_withNullB_returnsEmpty() {
+        StateDiffEngine.StateDiffResult result = diffEngine.diff("{\"packages\":[]}", null);
+        assertNotNull(result);
+        assertFalse(result.hasError());
+    }
+
+    @Test
+    void diff_withEmptyPackages_noChanges() {
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(
+                "{\"packages\":[],\"services\":[],\"ports\":[],\"docker\":{\"containers\":[]},\"configs\":[],\"crontab\":[]}",
+                "{\"packages\":[],\"services\":[],\"ports\":[],\"docker\":{\"containers\":[]},\"configs\":[],\"crontab\":[]}");
+        assertEquals(0, result.summary().packagesAdded);
+        assertEquals(0, result.summary().packagesRemoved);
+    }
+
+    @Test
+    void diff_osFieldIgnored_noError() {
+        String stateA = """
+                {
+                  "os": {"name": "Ubuntu", "version": "22.04", "kernel": "5.15.0", "arch": "x86_64"},
+                  "packages": [], "services": [], "ports": [],
+                  "docker": {"containers": []}, "configs": [], "crontab": []
+                }""";
+        String stateB = """
+                {
+                  "os": {"name": "Ubuntu", "version": "24.04", "kernel": "6.1.0", "arch": "x86_64"},
+                  "packages": [], "services": [], "ports": [],
+                  "docker": {"containers": []}, "configs": [], "crontab": []
+                }""";
+        // Should not throw even though OS changed (os field not yet compared)
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(stateA, stateB);
+        assertNotNull(result);
+        assertFalse(result.hasError());
+    }
 }

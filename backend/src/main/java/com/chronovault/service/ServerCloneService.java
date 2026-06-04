@@ -51,9 +51,8 @@ public class ServerCloneService {
         Server source = serverRepository.findById(request.sourceServerId())
                 .orElseThrow(() -> new ResourceNotFoundException("源服务器不存在: " + request.sourceServerId()));
 
-        // Check if target IP already exists
-        List<Server> existing = serverRepository.findAll();
-        boolean targetExists = existing.stream().anyMatch(s -> s.getIp().equals(request.targetServerIp()));
+        // Check if target IP already exists — use targeted query instead of findAll()
+        boolean targetExists = serverRepository.existsByIp(request.targetServerIp());
         if (targetExists) {
             throw new BadRequestException("目标IP " + request.targetServerIp() + " 已存在于系统中");
         }
