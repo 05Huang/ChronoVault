@@ -25,8 +25,8 @@
 - [x] `SecurityConfig` 中 `/swagger-ui.html` 和 `/v3/api-docs/**` 在生产环境（prod profile）应禁用，通过 `@Profile("!prod")` 或配置化控制
 - [x] `JwtTokenProvider` 检查密钥长度是否至少 256 位，添加启动校验
 - [x] `CredentialEncryptor` 验证 master key 长度校验，短于 32 字节时拒绝启动
-- [ ] `RateLimitFilter` 确认限流策略是否生效（检查 Redis key 过期逻辑），添加 IP + 用户维度限流
-- [ ] `ApiKeyAuthenticationFilter` 中 API key 的查询不应每次都查库，添加 Redis 缓存（TTL 5 分钟）
+- [x] `RateLimitFilter` 确认限流策略是否生效（检查 Redis key 过期逻辑），添加 IP + 用户维度限流
+- [x] `ApiKeyAuthenticationFilter` 中 API key 的查询不应每次都查库，添加 Redis 缓存（TTL 5 分钟）
 - [ ] 所有 Controller 中 `Authentication auth` 获取的 `auth.getName()` 应添加 null 检查，防止认证信息缺失时 NPE
 - [ ] 审查所有 `log.info()` 中是否意外打印了密码、密钥、token 等敏感信息，创建 `SensitiveDataMasker` 工具类
 - [ ] 检查 `application-dev.yml` 和 `application-prod.yml` 中密码是否在日志中明文输出（`show-sql: true` 在 dev 中可能泄露数据）
@@ -36,9 +36,9 @@
 - [x] `SnapshotService.getSnapshotDiff()` 中 `findByServerIdOrderByCreatedAtDesc()` 全量加载后 `stream().filter()`，改为分页查询
 - [x] `SnapshotService.rollback()` 方法标注了 `@Transactional` 但内部 SSH 操作在事务外执行，拆分为事务内（更新状态）和事务外（SSH 操作）两个方法
 - [x] `AutoSnapshotService` 中 `serverRepository.findAll()` + `stream().filter()`，改为 `findAllByAutoSnapshotEnabled(true)` 查询
-- [ ] `AiService` 中多处 `findAll()` 全量加载，添加分页或限制查询范围
+- [x] `AiService` 中多处 `findAll()` 全量加载，添加分页或限制查询范围
 - [ ] `DashboardService` 检查所有查询是否都有分页保护，防止数据增长后 OOM
-- [ ] `AlertService.getAlerts()` 调用 `findAllByOrderByCreatedAtDesc()`，改为分页查询
+- [x] `AlertService.getAlerts()` 调用 `findAllByOrderByCreatedAtDesc()`，改为分页查询
 - [ ] `AsyncTaskRepository.findAllByOrderByCreatedAtDesc()` 和 `EventRepository.findAllByOrderByCreatedAtDesc()` 都需要添加分页
 
 ### P0-4: 异常处理完善
@@ -47,9 +47,9 @@
 - [x] `StateDiffEngine.diff()` catch 块中 `log.warn` 后返回空 Map，调用方无法区分"无差异"和"计算失败"，返回包含 `error` 字段的结构化结果
 - [x] `CacheService` 所有方法 catch 后静默吞异常，至少在 debug 级别记录完整堆栈
 - [x] `AuditLogAspect` 中 catch `Exception` 后仅 `log.warn`，审计日志失败应升级为 `log.error` 并发送告警
-- [ ] `GlobalExceptionHandler` 添加 `ConstraintViolationException` 处理器（处理 `@RequestParam` 验证失败）
-- [ ] `GlobalExceptionHandler` 添加 `DataIntegrityViolationException` 处理器（数据库约束冲突，返回友好的 409 错误）
-- [ ] `GlobalExceptionHandler` 添加 `HttpMessageNotReadableException` 处理器（JSON 反序列化失败，返回友好的 400 错误）
+- [x] `GlobalExceptionHandler` 添加 `ConstraintViolationException` 处理器（处理 `@RequestParam` 验证失败）
+- [x] `GlobalExceptionHandler` 添加 `DataIntegrityViolationException` 处理器（数据库约束冲突，返回友好的 409 错误）
+- [x] `GlobalExceptionHandler` 添加 `HttpMessageNotReadableException` 处理器（JSON 反序列化失败，返回友好的 400 错误）
 
 ---
 
@@ -57,7 +57,7 @@
 
 ### P1-1: 结构化日志体系
 - [ ] 为所有 Service 类统一 `log.info/warn/error` 格式：`[操作类型] [目标对象ID] 结果描述`，例如 `[SNAPSHOT_CREATE] [server=12] 快照创建成功`
-- [ ] 创建 `LogContextFilter`（Web Filter），为每个请求注入 `requestId`、`userId`、`clientIp` 到 MDC，日志自动携带请求上下文
+- [x] 创建 `LogContextFilter`（Web Filter），为每个请求注入 `requestId`、`userId`、`clientIp` 到 MDC，日志自动携带请求上下文
 - [ ] `SnapshotEngine.executeSnapshot()` 中每个步骤（连接→检查工具→初始化仓库→备份→采集状态→保存）都要有 `log.info` 标记步骤开始和结束，耗时超过阈值时输出 `log.warn`
 - [ ] `SshConnectionManager` 添加连接池指标日志：创建连接数、复用连接数、销毁连接数、空闲连接数（每 60 秒输出一次）
 - [ ] `ResticClient` 每个操作记录执行耗时（init/backup/restore/diff/stats/forget），输出到日志和 Micrometer 指标

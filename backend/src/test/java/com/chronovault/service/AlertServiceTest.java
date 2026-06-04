@@ -54,7 +54,9 @@ class AlertServiceTest {
 
     @Test
     void getAlerts_noFilter_returnsAll() {
-        when(alertRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(testAlert));
+        // Service now uses paginated query with safety limit
+        var page = new org.springframework.data.domain.PageImpl<>(List.of(testAlert));
+        when(alertRepository.findAll(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
         var result = alertService.getAlerts("all");
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -62,7 +64,9 @@ class AlertServiceTest {
 
     @Test
     void getAlerts_criticalFilter_returnsCriticalAlerts() {
-        when(alertRepository.findBySeverityOrderByCreatedAtDesc(Alert.AlertSeverity.CRITICAL)).thenReturn(List.of(testAlert));
+        // Service now uses paginated query with safety limit
+        var page = new org.springframework.data.domain.PageImpl<>(List.of(testAlert));
+        when(alertRepository.findBySeverity(eq(Alert.AlertSeverity.CRITICAL), any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
         var result = alertService.getAlerts("critical");
         assertEquals(1, result.size());
     }

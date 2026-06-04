@@ -6,4 +6,9 @@ import java.util.List;
 
 public interface AiInsightRepository extends JpaRepository<AiInsight, Long> {
     List<AiInsight> findByCategory(String category);
+
+    /**
+     * Limited query to prevent OOM when loading insights.
+     */
+    List<AiInsight> findTop50ByOrderByCreatedAtDesc();
 }

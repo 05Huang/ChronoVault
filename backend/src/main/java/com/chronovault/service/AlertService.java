@@ -38,17 +38,19 @@ public class AlertService {
     private final SshConnectionManager sshManager;
 
     public List<AlertDTO> getAlerts(String filter) {
-        List<Alert> alerts;
+        // Safety limit: cap at 100 results to prevent OOM on unbounded queries
+        var pageable = PageRequest.of(0, 100, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Alert> page;
         if ("critical".equals(filter)) {
-            alerts = alertRepository.findBySeverityOrderByCreatedAtDesc(Alert.AlertSeverity.CRITICAL);
+            page = alertRepository.findBySeverity(Alert.AlertSeverity.CRITICAL, pageable);
         } else if ("predictive".equals(filter)) {
-            alerts = alertRepository.findBySeverityOrderByCreatedAtDesc(Alert.AlertSeverity.PREDICTIVE);
+            page = alertRepository.findBySeverity(Alert.AlertSeverity.PREDICTIVE, pageable);
         } else if ("warning".equals(filter)) {
-            alerts = alertRepository.findBySeverityOrderByCreatedAtDesc(Alert.AlertSeverity.WARNING);
+            page = alertRepository.findBySeverity(Alert.AlertSeverity.WARNING, pageable);
         } else {
-            alerts = alertRepository.findAllByOrderByCreatedAtDesc();
+            page = alertRepository.findAll(pageable);
         }
-        return alerts.stream().map(AlertDTO::from).toList();
+        return page.getContent().stream().map(AlertDTO::from).toList();
     }
 
     public Page<AlertDTO> getAlertsPaged(String filter, int page, int size) {

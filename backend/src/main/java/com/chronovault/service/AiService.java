@@ -43,10 +43,11 @@ public class AiService {
 
     @Transactional
     public List<AiInsightDTO> getInsights() {
-        List<AiInsight> insights = aiInsightRepository.findAll();
+        // Safety limit: cap at 50 insights to prevent OOM
+        List<AiInsight> insights = aiInsightRepository.findTop50ByOrderByCreatedAtDesc();
         if (insights.isEmpty()) {
             seedDefaultInsights();
-            insights = aiInsightRepository.findAll();
+            insights = aiInsightRepository.findTop50ByOrderByCreatedAtDesc();
         }
         // Regenerate REPORT insights that contain fallback content
         regenerateFallbackReports(insights);
@@ -70,10 +71,11 @@ public class AiService {
 
     @Transactional
     public List<AiRecommendationDTO> getRecommendations() {
-        List<AiRecommendation> recs = aiRecommendationRepository.findAll();
+        // Safety limit: cap at 50 recommendations to prevent OOM
+        List<AiRecommendation> recs = aiRecommendationRepository.findTop50ByOrderByCreatedAtDesc();
         if (recs.isEmpty()) {
             seedDefaultRecommendations();
-            recs = aiRecommendationRepository.findAll();
+            recs = aiRecommendationRepository.findTop50ByOrderByCreatedAtDesc();
         }
         return recs.stream().map(AiRecommendationDTO::from).toList();
     }
