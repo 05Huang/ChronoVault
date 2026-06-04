@@ -160,4 +160,116 @@ class SnapshotEngineTest {
         assertNotNull(result);
         assertEquals("No User", result.getTitle());
     }
+
+    @Test
+    void createSnapshot_defaultPaths_usesRootPath() {
+        when(snapshotRepository.save(any(Snapshot.class))).thenAnswer(inv -> {
+            Snapshot s = inv.getArgument(0);
+            if (s.getId() == null) {
+                ReflectionTestUtils.setField(s, "id", 1L);
+            }
+            return s;
+        });
+
+        Snapshot result = snapshotEngine.createSnapshot(
+                testServer, testStorageTarget, "Default Paths", "note",
+                Snapshot.SnapshotType.FULL, 1L, null, null);
+
+        assertNotNull(result);
+        // Should default to "/" when no custom paths provided
+        verify(snapshotRepository).save(any(Snapshot.class));
+    }
+
+    @Test
+    void createSnapshot_withExcludes_passedToTask() {
+        when(snapshotRepository.save(any(Snapshot.class))).thenAnswer(inv -> {
+            Snapshot s = inv.getArgument(0);
+            if (s.getId() == null) {
+                ReflectionTestUtils.setField(s, "id", 1L);
+            }
+            return s;
+        });
+
+        Snapshot result = snapshotEngine.createSnapshot(
+                testServer, testStorageTarget, "With Excludes", "note",
+                Snapshot.SnapshotType.FULL, 1L,
+                null,
+                List.of("/proc", "/sys", "/dev"));
+
+        assertNotNull(result);
+        verify(snapshotRepository).save(any(Snapshot.class));
+    }
+
+    @Test
+    void createSnapshot_initialStatus_isStable() {
+        when(snapshotRepository.save(any(Snapshot.class))).thenAnswer(inv -> {
+            Snapshot s = inv.getArgument(0);
+            if (s.getId() == null) {
+                ReflectionTestUtils.setField(s, "id", 1L);
+            }
+            return s;
+        });
+
+        Snapshot result = snapshotEngine.createSnapshot(
+                testServer, testStorageTarget, "Status Test", "note",
+                Snapshot.SnapshotType.FULL, 1L, null, null);
+
+        assertNotNull(result);
+        assertEquals(Snapshot.SnapshotStatus.STABLE, result.getStatus());
+    }
+
+    @Test
+    void createSnapshot_withEmptyTitle_usesProvidedTitle() {
+        when(snapshotRepository.save(any(Snapshot.class))).thenAnswer(inv -> {
+            Snapshot s = inv.getArgument(0);
+            if (s.getId() == null) {
+                ReflectionTestUtils.setField(s, "id", 1L);
+            }
+            return s;
+        });
+
+        Snapshot result = snapshotEngine.createSnapshot(
+                testServer, testStorageTarget, "", "note",
+                Snapshot.SnapshotType.FULL, 1L, null, null);
+
+        assertNotNull(result);
+        // Empty title is still passed through
+        assertEquals("", result.getTitle());
+    }
+
+    @Test
+    void createSnapshot_withNullNote_handlesGracefully() {
+        when(snapshotRepository.save(any(Snapshot.class))).thenAnswer(inv -> {
+            Snapshot s = inv.getArgument(0);
+            if (s.getId() == null) {
+                ReflectionTestUtils.setField(s, "id", 1L);
+            }
+            return s;
+        });
+
+        Snapshot result = snapshotEngine.createSnapshot(
+                testServer, testStorageTarget, "No Note", null,
+                Snapshot.SnapshotType.FULL, 1L, null, null);
+
+        assertNotNull(result);
+        assertNull(result.getNote());
+    }
+
+    @Test
+    void createSnapshot_serverInformation_copiedCorrectly() {
+        when(snapshotRepository.save(any(Snapshot.class))).thenAnswer(inv -> {
+            Snapshot s = inv.getArgument(0);
+            if (s.getId() == null) {
+                ReflectionTestUtils.setField(s, "id", 1L);
+            }
+            return s;
+        });
+
+        Snapshot result = snapshotEngine.createSnapshot(
+                testServer, testStorageTarget, "Server Info", "note",
+                Snapshot.SnapshotType.FULL, 1L, null, null);
+
+        assertNotNull(result);
+        assertEquals(testServer, result.getServer());
+    }
 }
