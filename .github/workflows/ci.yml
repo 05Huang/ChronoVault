@@ -24,6 +24,10 @@ jobs:
       - name: Run backend tests
         run: cd backend && mvn test -q
 
+      - name: Security scan (OWASP dependency check)
+        run: cd backend && mvn org.owasp:dependency-check-maven:check -q || true
+        continue-on-error: true
+
   frontend-test:
     name: Frontend Tests
     runs-on: ubuntu-latest
@@ -46,6 +50,10 @@ jobs:
       
       - name: Run frontend tests
         run: cd frontend && npx vitest run
+
+      - name: Security audit (npm)
+        run: cd frontend && npm audit --production || true
+        continue-on-error: true
 
   docker-build:
     name: Docker Build
