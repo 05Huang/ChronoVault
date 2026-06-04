@@ -94,6 +94,11 @@ public class SnapshotEngine {
                 throw new SnapshotStepException("备份工具安装", "无法在目标服务器上安装 restic 备份工具，请检查 sudo 权限");
             }
 
+            // Pre-flight disk space check
+            currentStep = "检查磁盘空间";
+            taskManager.updateProgress(taskId, 17, "检查磁盘空间...");
+            checkDiskSpace(conn, server);
+
             String repoUrl = resticClient.buildRepoUrl(storageTarget);
             log.info("Restic repo URL: {}", repoUrl);
 
@@ -222,6 +227,53 @@ public class SnapshotEngine {
             snapshot.setStatus(Snapshot.SnapshotStatus.WARNING);
             snapshotRepository.save(snapshot);
             throw new RuntimeException("快照创建失败 [" + currentStep + "]: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Pre-flight check: verify that the target server has enough disk space for a backup.
+     * Warns if less than 1GB free, refuses if less than 100MB.
+     */
+    private void checkDiskSpace(SshConnection conn, Server server) {
+        try {
+            SshConnection.CommandResult result = conn.executeCommand(
+                    "df -h / | tail -1 | awk '{print $4}'", java.time.Duration.ofSeconds(10));
+            if (result.isSuccess() && !result.stdout().isBlank()) {
+                String freeSpace = result.stdout().trim();
+                log.info("[PREFLIGHT] Server {} disk space: {} free", server.getIp(), freeSpace);
+
+                // Parse human-readable size to bytes for comparison
+                long freeBytes = parseHumanReadableSize(freeSpace);
+                if (freeBytes < 100 * 1024 * 1024L) { // < 100MB
+                    throw new SnapshotStepException("磁盘空间检查",
+                            "服务器磁盘空间不足（剩余 " + freeSpace + "），至少需要 100MB 可用空间");
+                }
+                if (freeBytes < 1024 * 1024 * 1024L) { // < 1GB
+                    log.warn("[PREFLIGHT] Server {} has low disk space: {} free (recommended: >1GB)", server.getIp(), freeSpace);
+                }
+            }
+        } catch (SnapshotStepException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[PREFLIGHT] Failed to check disk space on {}: {}", server.getIp(), e.getMessage());
+            // Don't block the snapshot if disk check fails — just warn
+        }
+    }
+
+    /**
+     * Parse human-readable disk size (e.g., "12G", "500M", "1024K") to bytes.
+     */
+    private long parseHumanReadableSize(String size) {
+        if (size == null || size.isBlank()) return Long.MAX_VALUE;
+        size = size.trim().toUpperCase();
+        try {
+            if (size.endsWith("G")) return Long.parseLong(size.substring(0, size.length() - 1)) * 1024 * 1024 * 1024L;
+            if (size.endsWith("M")) return Long.parseLong(size.substring(0, size.length() - 1)) * 1024 * 1024L;
+            if (size.endsWith("K")) return Long.parseLong(size.substring(0, size.length() - 1)) * 1024L;
+            if (size.endsWith("T")) return Long.parseLong(size.substring(0, size.length() - 1)) * 1024 * 1024 * 1024L * 1024L;
+            return Long.parseLong(size); // Assume bytes
+        } catch (NumberFormatException e) {
+            return Long.MAX_VALUE; // Can't parse, assume enough space
         }
     }
 
