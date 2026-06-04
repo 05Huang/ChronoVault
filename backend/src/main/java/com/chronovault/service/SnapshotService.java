@@ -16,6 +16,7 @@ import com.chronovault.entity.StorageTarget;
 import com.chronovault.entity.User;
 import com.chronovault.exception.BadRequestException;
 import com.chronovault.exception.ResourceNotFoundException;
+import com.chronovault.exception.RollbackFailedException;
 import com.chronovault.repository.AlertRepository;
 import com.chronovault.repository.ServerRepository;
 import com.chronovault.repository.SnapshotDiffRepository;
@@ -70,12 +71,18 @@ public class SnapshotService {
     @Transactional(readOnly = true)
     public List<SnapshotDTO> getSnapshots() {
         List<Snapshot> snapshots = snapshotRepository.findAll();
+        // Batch load tags to avoid N+1 queries
+        List<Long> snapshotIds = snapshots.stream().map(Snapshot::getId).toList();
+        Map<Long, List<SnapshotTagDTO>> tagsBySnapshot = new java.util.HashMap<>();
+        if (!snapshotIds.isEmpty()) {
+            Map<Long, List<SnapshotTagDTO>> grouped = tagRepository.findBySnapshotIdsIn(snapshotIds).stream()
+                    .collect(java.util.stream.Collectors.groupingBy(
+                            t -> t.getSnapshot().getId(),
+                            java.util.stream.Collectors.mapping(SnapshotTagDTO::from, java.util.stream.Collectors.toList())));
+            grouped.forEach((k, v) -> tagsBySnapshot.put(k, v));
+        }
         return snapshots.stream()
-                .map(s -> {
-                    List<SnapshotTagDTO> tags = tagRepository.findBySnapshotIdOrderByCreatedAtDesc(s.getId())
-                            .stream().map(SnapshotTagDTO::from).toList();
-                    return SnapshotDTO.from(s, tags);
-                })
+                .map(s -> SnapshotDTO.from(s, tagsBySnapshot.getOrDefault(s.getId(), List.of())))
                 .toList();
     }
 
@@ -160,9 +167,12 @@ public class SnapshotService {
                     "类型: " + type + ", 笔记: " + (request.note() != null ? request.note() : "无"));
 
             return SnapshotDTO.from(snapshot);
+        } catch (BadRequestException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("SnapshotEngine.createSnapshot failed: {}", e.getMessage(), e);
-            throw new BadRequestException("快照创建失败: " + e.getMessage());
+            // Log detailed error for debugging but don't expose internals to the client
+            log.error("SnapshotEngine.createSnapshot failed for server {}: {}", request.serverId(), e.getMessage(), e);
+            throw new BadRequestException("快照创建失败，请检查服务器连接和存储目标配置");
         }
     }
 
@@ -428,8 +438,8 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Selective rollback failed for snapshot {}: {}", snapshotId, e.getMessage(), e);
-            throw new RuntimeException("选择性回滚失败: " + e.getMessage(), e);
+            log.error("[ROLLBACK_FAILED] [snapshot={}] Selective rollback failed: {}", snapshotId, e.getMessage(), e);
+            throw new RollbackFailedException("选择性回滚失败，请检查服务器连接状态和备份数据完整性", e);
         }
     }
 
@@ -511,8 +521,8 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Revert failed for snapshot {}: {}", snapshotId, e.getMessage(), e);
-            throw new RuntimeException("撤销失败: " + e.getMessage(), e);
+            log.error("[ROLLBACK_FAILED] [snapshot={}] Revert failed: {}", snapshotId, e.getMessage(), e);
+            throw new RollbackFailedException("撤销操作失败，请检查服务器连接状态和备份数据完整性", e);
         }
     }
 
@@ -580,8 +590,8 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Selective restore failed for snapshot {}: {}", snapshotId, e.getMessage(), e);
-            throw new RuntimeException("文件恢复失败: " + e.getMessage(), e);
+            log.error("[RESTORE_FAILED] [snapshot={}] File restore failed: {}", snapshotId, e.getMessage(), e);
+            throw new RollbackFailedException("文件恢复失败，请检查快照数据和服务器连接状态", e);
         }
     }
 
@@ -664,8 +674,8 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Cherry-pick failed for snapshot {}: {}", snapshotId, e.getMessage(), e);
-            throw new RuntimeException("Cherry-pick 失败: " + e.getMessage(), e);
+            log.error("[CHERRY_PICK_FAILED] [snapshot={}] Cherry-pick failed: {}", snapshotId, e.getMessage(), e);
+            throw new RollbackFailedException("Cherry-pick 操作失败，请检查服务器连接状态和备份数据完整性", e);
         }
     }
 
@@ -697,8 +707,8 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to list files for snapshot {}: {}", snapshotId, e.getMessage());
-            throw new RuntimeException("文件列表获取失败: " + e.getMessage(), e);
+            log.error("[LIST_FAILED] [snapshot={}] Failed to list files: {}", snapshotId, e.getMessage(), e);
+            throw new BadRequestException("文件列表获取失败，请检查快照数据完整性");
         }
     }
 
@@ -728,8 +738,8 @@ public class SnapshotService {
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to dump file {} from snapshot {}: {}", filePath, snapshotId, e.getMessage());
-            throw new RuntimeException("文件内容获取失败: " + e.getMessage(), e);
+            log.error("[DUMP_FAILED] [snapshot={}] Failed to dump file {}: {}", snapshotId, filePath, e.getMessage(), e);
+            throw new BadRequestException("文件内容获取失败，请检查快照数据完整性");
         }
     }
 
@@ -815,20 +825,18 @@ public class SnapshotService {
 
     /**
      * Verify oldest unverified snapshot daily at 4:00 AM.
+     * Uses a paginated query to avoid loading all snapshots into memory.
      */
     @Scheduled(cron = "0 0 4 * * ?")
     @Transactional
     public void scheduledVerification() {
-        List<Snapshot> unverified = snapshotRepository.findAll().stream()
-                .filter(s -> !s.isVerified() && s.getHash() != null && !s.getHash().isBlank())
-                .filter(s -> s.getType() != Snapshot.SnapshotType.STASH)
-                .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
-                .limit(5)
-                .toList();
+        // Use dedicated repository method to avoid loading all snapshots
+        PageRequest pageRequest = PageRequest.of(0, 5, Sort.by(Sort.Direction.ASC, "createdAt"));
+        List<Snapshot> unverified = snapshotRepository.findUnverifiedUnstashed(pageRequest);
 
+        log.info("[SCHEDULED_VERIFY] Verifying {} unverified snapshots", unverified.size());
         for (Snapshot snapshot : unverified) {
             try {
-                log.info("Scheduled verification of snapshot {} ({})", snapshot.getId(), snapshot.getTitle());
                 verifySnapshot(snapshot.getId());
             } catch (Exception e) {
                 log.warn("Scheduled verification failed for snapshot {}: {}", snapshot.getId(), e.getMessage());
@@ -929,19 +937,16 @@ public class SnapshotService {
 
     /**
      * Get paginated snapshots for timeline view with change summaries included.
-     * Unlike getSnapshotsPaged(), this includes changeSummaryJson for the timeline display.
+     * Uses database-level pagination via Pageable instead of loading all and filtering in Java.
      */
     @Transactional(readOnly = true)
     public List<SnapshotDTO> getSnapshotsForTimeline(Long serverId, int page, int size) {
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
                 Sort.by(Sort.Direction.DESC, "createdAt"));
-        return snapshotRepository.findByServerIdOrderByCreatedAtDesc(serverId).stream()
-                .skip((long) page * size)
-                .limit(size)
+        return snapshotRepository.findByServerIdOrderByCreatedAtDesc(serverId, pageable).stream()
                 .map(s -> {
                     List<SnapshotTagDTO> tags = tagRepository.findBySnapshotIdOrderByCreatedAtDesc(s.getId())
                             .stream().map(SnapshotTagDTO::from).toList();
-                    // Include changeSummaryJson for timeline view
                     return SnapshotDTO.fromDetail(s, tags);
                 })
                 .toList();

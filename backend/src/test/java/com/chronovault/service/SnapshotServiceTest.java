@@ -75,7 +75,8 @@ class SnapshotServiceTest {
     @Test
     void getSnapshots_returnsList() {
         when(snapshotRepository.findAll()).thenReturn(List.of(testSnapshot));
-        when(tagRepository.findBySnapshotIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+        // Service now uses batch tag loading: findBySnapshotIdsIn()
+        when(tagRepository.findBySnapshotIdsIn(anyList())).thenReturn(List.of());
         List<SnapshotDTO> result = snapshotService.getSnapshots();
         assertNotNull(result);
         assertEquals(1, result.size());
@@ -282,7 +283,8 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
-                new StateDiffEngine.DiffSummary()
+                new StateDiffEngine.DiffSummary(),
+                null
         );
         mockResult.ports().added.add("3306/tcp");
 
@@ -315,7 +317,8 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
-                new StateDiffEngine.DiffSummary()
+                new StateDiffEngine.DiffSummary(),
+                null
         );
         StateDiffEngine.ServiceChange change = new StateDiffEngine.ServiceChange("nginx");
         change.fromEnabled = true;
@@ -352,7 +355,8 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
-                new StateDiffEngine.DiffSummary()
+                new StateDiffEngine.DiffSummary(),
+                null
         );
         mockResult.packages().added.add(new StateDiffEngine.PackageInfo("wget", "1.21"));
 
@@ -527,7 +531,11 @@ class SnapshotServiceTest {
         Snapshot s3 = Snapshot.builder().id(3L).server(testServer).title("S3").status(Snapshot.SnapshotStatus.STABLE)
                 .createdAt(LocalDateTime.now()).build();
 
-        when(snapshotRepository.findByServerIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(s3, s2, s1));
+        // Service now uses paginated query: findByServerIdOrderByCreatedAtDesc(serverId, pageable)
+        org.springframework.data.domain.PageImpl<Snapshot> page =
+                new org.springframework.data.domain.PageImpl<>(List.of(s3, s2));
+        when(snapshotRepository.findByServerIdOrderByCreatedAtDesc(eq(1L), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
         when(tagRepository.findBySnapshotIdOrderByCreatedAtDesc(anyLong())).thenReturn(List.of());
 
         List<SnapshotDTO> result = snapshotService.getSnapshotsForTimeline(1L, 0, 2);
@@ -603,7 +611,8 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
-                new StateDiffEngine.DiffSummary()
+                new StateDiffEngine.DiffSummary(),
+                null
         );
         mockResult.ports().added.add("22/tcp");
         StateDiffEngine.ServiceChange change = new StateDiffEngine.ServiceChange("sshd");
@@ -646,7 +655,8 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
-                new StateDiffEngine.DiffSummary()
+                new StateDiffEngine.DiffSummary(),
+                null
         );
         StateDiffEngine.ServiceChange change = new StateDiffEngine.ServiceChange("nginx");
         change.fromEnabled = false;
@@ -681,7 +691,8 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
-                new StateDiffEngine.DiffSummary()
+                new StateDiffEngine.DiffSummary(),
+                null
         );
         mockResult.configs().changed.add("/etc/sudoers");
 
@@ -714,7 +725,8 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
-                new StateDiffEngine.DiffSummary()
+                new StateDiffEngine.DiffSummary(),
+                null
         );
         mockResult.configs().changed.add("/etc/ssh/sshd_config");
 
@@ -885,7 +897,8 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
-                new StateDiffEngine.DiffSummary()
+                new StateDiffEngine.DiffSummary(),
+                null
         );
         mockResult.packages().added.add(new StateDiffEngine.PackageInfo("git", "2.42.0"));
         mockResult.packages().upgraded.add(new StateDiffEngine.PackageUpgrade("nginx", "1.22.0", "1.24.0"));

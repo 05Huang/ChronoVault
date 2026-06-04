@@ -73,7 +73,7 @@ public class AuditLogAspect {
                     action, resourceType, resourceId,
                     user != null ? user.getEmail() : "anonymous", ipAddress);
         } catch (Exception e) {
-            log.warn("Failed to record audit log: {}", e.getMessage());
+            log.error("Failed to record audit log — audit trail may be incomplete: {}", e.getMessage(), e);
         }
 
         return result;

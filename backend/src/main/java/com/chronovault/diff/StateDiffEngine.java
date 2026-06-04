@@ -23,6 +23,7 @@ public class StateDiffEngine {
 
     /**
      * Compare two state.json strings and produce a structured diff result.
+     * Returns a result with an error field if the diff computation fails.
      */
     public StateDiffResult diff(String stateJsonA, String stateJsonB) {
         if (stateJsonA == null || stateJsonB == null) {
@@ -66,12 +67,14 @@ public class StateDiffEngine {
             // Build result
             StateDiffResult result = new StateDiffResult(
                     pkgDiff, svcDiff, portDiff, dockerDiff, configDiff, crontabDiff,
-                    generateSummary(pkgDiff, svcDiff, portDiff, dockerDiff, configDiff, crontabDiff));
+                    generateSummary(pkgDiff, svcDiff, portDiff, dockerDiff, configDiff, crontabDiff),
+                    null); // null error = success
 
             return result;
         } catch (Exception e) {
-            log.warn("Failed to diff state snapshots: {}", e.getMessage());
-            return StateDiffResult.empty();
+            log.warn("[DIFF_FAILED] Failed to diff state snapshots: {}", e.getMessage(), e);
+            // Return result with error info instead of silently empty result
+            return StateDiffResult.error("Diff computation failed: " + e.getMessage());
         }
     }
 
@@ -357,13 +360,25 @@ public class StateDiffEngine {
             DockerDiff docker,
             ConfigDiff configs,
             CrontabDiff crontab,
-            DiffSummary summary
+            DiffSummary summary,
+            String error
     ) {
         public static StateDiffResult empty() {
             return new StateDiffResult(
                     new PackageDiff(), new ServiceDiff(), new PortDiff(),
                     new DockerDiff(), new ConfigDiff(), new CrontabDiff(),
-                    new DiffSummary());
+                    new DiffSummary(), null);
+        }
+
+        public static StateDiffResult error(String errorMessage) {
+            return new StateDiffResult(
+                    new PackageDiff(), new ServiceDiff(), new PortDiff(),
+                    new DockerDiff(), new ConfigDiff(), new CrontabDiff(),
+                    new DiffSummary(), errorMessage);
+        }
+
+        public boolean hasError() {
+            return error != null && !error.isBlank();
         }
     }
 

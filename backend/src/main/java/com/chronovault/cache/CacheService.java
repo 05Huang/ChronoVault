@@ -26,7 +26,9 @@ public class CacheService {
             String json = objectMapper.writeValueAsString(value);
             redisTemplate.opsForValue().set(PREFIX + key, json, ttl);
         } catch (JsonProcessingException e) {
-            log.warn("Cache put failed for key {}: {}", key, e.getMessage());
+            log.debug("Cache put failed for key {}: {}", key, e.getMessage(), e);
+        } catch (Exception e) {
+            log.debug("Cache put failed for key {}: {}", key, e.getMessage(), e);
         }
     }
 
@@ -36,7 +38,7 @@ public class CacheService {
             if (json == null) return null;
             return objectMapper.readValue(json, type);
         } catch (Exception e) {
-            log.warn("Cache get failed for key {}: {}", key, e.getMessage());
+            log.debug("Cache get failed for key {}: {}", key, e.getMessage(), e);
             return null;
         }
     }
@@ -47,7 +49,7 @@ public class CacheService {
             if (json == null) return null;
             return objectMapper.readValue(json, typeRef);
         } catch (Exception e) {
-            log.warn("Cache get failed for key {}: {}", key, e.getMessage());
+            log.debug("Cache get failed for key {}: {}", key, e.getMessage(), e);
             return null;
         }
     }

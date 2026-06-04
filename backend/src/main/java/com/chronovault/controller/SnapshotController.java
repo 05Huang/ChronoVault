@@ -351,6 +351,10 @@ public class SnapshotController {
 
     private String csvEscape(String s) {
         if (s == null) return "";
+        // Prevent CSV injection: prefix formula-triggering characters
+        if (!s.isEmpty() && (s.charAt(0) == '=' || s.charAt(0) == '+' || s.charAt(0) == '-' || s.charAt(0) == '@')) {
+            s = "'" + s;
+        }
         if (s.contains(",") || s.contains("\"") || s.contains("\n")) {
             return "\"" + s.replace("\"", "\"\"") + "\"";
         }

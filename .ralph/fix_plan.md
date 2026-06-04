@@ -1,293 +1,406 @@
-# ChronoVault — Ralph 任务执行计划
+# ChronoVault — Ralph 任务执行计划 v2.0
 
 > 每完成一个任务，将 `[ ]` 改为 `[x]`。
 > Ralph 按照优先级从上到下执行，不跳过未完成的任务。
 > **P0 全部完成前不进入 P1，P1 全部完成前不进入 P2。**
+> 每个任务完成后执行验证：`mvnw.cmd test -f backend/pom.xml` + `cd frontend && npx vue-tsc --noEmit`
+> 验证通过后 git commit，格式：`feat/fix/refactor/chore(scope): 描述`
 
 ---
 
-## 🔴 P0 — 地基修复（让项目真正能跑起来）
+## 🔴 P0 — 安全与数据完整性（最高优先级）
 
-### P0-1: 环境验证与启动修复
-- [x] 运行 `docker-compose up -d` 并记录所有错误
-- [x] 修复 Backend 启动报错（检查 application.yml 配置，确保 DB/Redis 连接正确）
-- [x] 修复 Frontend 构建错误（运行 `npm run build`，修复所有 TypeScript 编译错误）
-- [x] 修复 Agent 编译错误（运行 `go build ./...`，修复所有编译问题）
-- [x] 修复 SnapshotHookRepository 方法签名不匹配导致 Spring Context 加载失败
-- [x] 后端 264 个测试全部通过（0 failures, 0 errors）
-- [x] 前端 TypeScript 编译 0 错误，Vite 构建成功
-- [x] 验证：`docker-compose up -d` 后 postgres 和 redis 容器 STATUS 为 healthy/running ✅
-- [x] 验证：`curl http://localhost:8080/actuator/health` 返回 `{"status":"UP"}` ✅
-- [x] 验证：前端 `http://localhost:5173` 可以加载，Vite dev server 正常 ✅
-- [x] 验证：POST /api/auth/register 注册用户成功，返回 JWT token ✅
-- [x] 验证：POST /api/auth/login 登录成功，JWT token 有效 ✅
-- [x] 验证：GET /api/dashboard/overview 需要认证，返回空状态（无服务器/快照） ✅
-- [x] 验证：GET /api/servers 返回空列表 ✅
-- [x] 验证：GET /api/snapshots 返回空列表 ✅
-- [x] 验证：Swagger UI 可访问 http://localhost:8080/swagger-ui.html ✅
+### P0-1: 输入验证与防注入
+- [ ] 为所有 `@RequestBody` DTO 添加 `@NotBlank`、`@Size`、`@Pattern` 等 Jakarta Validation 注解（检查 `CreateSnapshotRequest`、`LoginRequest`、`RegisterRequest`、`CreateBranchRequest` 等所有 DTO）
+- [ ] `SnapshotController.exportSnapshots()` 手动构建 CSV/JSON/YAML 时存在注入风险，改用 Jackson 的 `ObjectMapper` 或 OpenCSV 库序列化
+- [ ] `SnapshotController.selectiveRollback()` 接收原始 `Map<String, Object>` 无类型安全，创建 `SelectiveRollbackRequest` DTO 替代
+- [ ] `SnapshotController.batchTag()` 同理，创建 `BatchTagRequest` DTO
+- [ ] `SnapshotController.batchDelete()` 和 `startBatch()` 接收原始 `List<Long>`/`Map`，创建专用 Request DTO
+- [ ] `ServerController` 中所有接收 `Map<String, Object>` 的端点，全部替换为类型安全的 Request DTO
+- [ ] 全局搜索 `Map<String, Object>` 和 `Map<String, String>` 作为 `@RequestBody` 参数的情况，逐一替换
+- [ ] 为 `name`、`title`、`note`、`description` 等字段添加 XSS 过滤（创建 `SanitizeUtil` 工具类，转义 HTML 特殊字符）
 
-### P0-2: Agent 核心逻辑补全
-- [x] 打开 `agent/cmd/root.go`，找到 `executeTask()` 函数
-- [x] 实现 SNAPSHOT 任务类型：调用 `restic/client.go` 的 `Backup()` 方法
-- [x] 实现 RECOVER 任务类型：调用 `restic/client.go` 的 `Restore()` 方法
-- [x] 完善 `agent/restic/client.go`：实现 `Init()`, `Backup()`, `Restore()`, `Snapshots()`, `Forget()`, `Dump()` 方法
-- [x] 每个 Restic 操作必须：捕获 stdout/stderr、返回结构化错误、有超时控制（默认 30 分钟）
-- [x] 写单元测试 `agent/restic/client_test.go`：测试命令构建、参数转义、classifyError、BuildRepoUrl
-- [x] 修复 Agent scanner 并发问题：使用 goroutine + sync.Mutex 安全写入状态字段，添加 10 秒超时保护
+### P0-2: 安全漏洞修复
+- [ ] `SecurityConfig` 中 `/ws/**` 全部 `permitAll()` 过于宽泛，缩小为仅 `/ws/events` 和 `/ws/topics/**`，其余需要认证
+- [ ] `SecurityConfig` 中 `/swagger-ui.html` 和 `/v3/api-docs/**` 在生产环境（prod profile）应禁用，通过 `@Profile("!prod")` 或配置化控制
+- [ ] `JwtTokenProvider` 检查密钥长度是否至少 256 位，添加启动校验
+- [ ] `CredentialEncryptor` 验证 master key 长度校验，短于 32 字节时拒绝启动
+- [ ] `RateLimitFilter` 确认限流策略是否生效（检查 Redis key 过期逻辑），添加 IP + 用户维度限流
+- [ ] `ApiKeyAuthenticationFilter` 中 API key 的查询不应每次都查库，添加 Redis 缓存（TTL 5 分钟）
+- [ ] 所有 Controller 中 `Authentication auth` 获取的 `auth.getName()` 应添加 null 检查，防止认证信息缺失时 NPE
+- [ ] 审查所有 `log.info()` 中是否意外打印了密码、密钥、token 等敏感信息，创建 `SensitiveDataMasker` 工具类
+- [ ] 检查 `application-dev.yml` 和 `application-prod.yml` 中密码是否在日志中明文输出（`show-sql: true` 在 dev 中可能泄露数据）
 
-### P0-3: state.json 采集器实现（Agent 端核心差异化）
-- [x] 创建 `agent/scanner/state.go`：定义 StateSnapshot 结构体，与 PROMPT.md 中的 state.json 格式完全对齐
-- [x] 创建 `agent/scanner/packages.go`：
-  - [x] 实现 `CollectPackages()`，支持 apt/dpkg（Ubuntu/Debian）
-  - [x] 支持 rpm/yum（CentOS/RHEL）
-  - [x] 支持 apk（Alpine）
-  - [x] 运行时自动检测包管理器类型
-- [x] 创建 `agent/scanner/services.go`：
-  - [x] 实现 `CollectServices()`，通过 `systemctl list-units --type=service --all` 采集
-  - [x] 提取 name、ActiveState、SubState、UnitFileState（enabled/disabled）
-  - [x] 获取每个 active 服务的 MainPID
-- [x] 创建 `agent/scanner/ports.go`：
-  - [x] 实现 `CollectPorts()`，解析 `ss -tlnp` 或 `netstat -tlnp` 输出
-  - [x] 关联端口到进程名
-- [x] 创建 `agent/scanner/docker_state.go`：
-  - [x] 实现 `CollectDockerState()`，调用 Docker socket API（不依赖 docker CLI）
-  - [x] 采集容器列表（id/name/image/status/ports）
-  - [x] 采集 compose 文件路径（扫描 /opt /home /srv 下的 docker-compose.yml）
-- [x] 创建 `agent/scanner/configs.go`：
-  - [x] 实现 `CollectConfigs()`，对以下路径计算 SHA-256：
-    - `/etc/nginx/` (*.conf)
-    - `/etc/mysql/` (*.cnf)
-    - `/etc/redis/` (*.conf)
-    - `/etc/crontab`, `/var/spool/cron/`
-    - `/etc/hosts`, `/etc/hostname`
-    - `/etc/systemd/system/` (*.service)
-  - [x] 存储 path + sha256 + size + mtime，不存储文件内容（内容通过 Restic 备份）
-- [x] 修改 `agent/cmd/root.go`：在每次 SNAPSHOT 任务前，先调用完整的 state 采集，将结果写入临时文件
-- [x] 写单元测试 `agent/scanner/state_test.go`：验证解析逻辑、JSON 序列化、文件哈希、命令执行
-- [x] 修复 Agent scanner 并发问题：使用 goroutine + sync.Mutex 安全写入状态字段，添加 10 秒超时保护，记录慢模块日志
+### P0-3: 数据库事务与并发安全
+- [ ] `SnapshotService.getSnapshotsByTag()` 中 `findAll()` 全量加载所有快照再过滤，改为 JPQL 联表查询 `JOIN tags WHERE tag.name = ?`
+- [ ] `SnapshotService.getSnapshotDiff()` 中 `findByServerIdOrderByCreatedAtDesc()` 全量加载后 `stream().filter()`，改为分页查询
+- [ ] `SnapshotService.rollback()` 方法标注了 `@Transactional` 但内部 SSH 操作在事务外执行，拆分为事务内（更新状态）和事务外（SSH 操作）两个方法
+- [ ] `AutoSnapshotService` 中 `serverRepository.findAll()` + `stream().filter()`，改为 `findAllByAutoSnapshotEnabled(true)` 查询
+- [ ] `AiService` 中多处 `findAll()` 全量加载，添加分页或限制查询范围
+- [ ] `DashboardService` 检查所有查询是否都有分页保护，防止数据增长后 OOM
+- [ ] `AlertService.getAlerts()` 调用 `findAllByOrderByCreatedAtDesc()`，改为分页查询
+- [ ] `AsyncTaskRepository.findAllByOrderByCreatedAtDesc()` 和 `EventRepository.findAllByOrderByCreatedAtDesc()` 都需要添加分页
 
-### P0-4: Backend 接收并存储 state.json
-- [x] 创建 Flyway 迁移 `V37__add_state_json_to_snapshots.sql` 和 `V38__fix_state_json_to_jsonb.sql`：
-  - V37: 添加 state_json (TEXT) 列和索引
-  - V38: 将 TEXT 转换为 JSONB，添加 state_collected_at, change_summary_json, previous_snapshot_id 列
-- [x] 修改 `Snapshot` 实体，添加 `stateJson` (jsonb), `stateCollectedAt`, `changeSummaryJson`, `previousSnapshot` 字段
-- [x] 修改 `SnapshotEngine.executeSnapshot()`：备份完成后通过 SSH 采集 state.json 并存入数据库
-- [x] 创建 `StateCollectionService`：通过 SSH 执行命令采集系统状态（包、服务、端口、Docker、配置、crontab）
-- [x] 新增 API `GET /api/snapshots/{id}/state`：返回指定快照的 state.json
-- [x] 新增 API `GET /api/snapshots/{id}/summary`：返回变更摘要
-- [x] 新增 API `GET /api/snapshots/state-diff?from={id}&to={id}`：计算两个快照的 state diff
-- [x] 新增 API `GET /api/snapshots/timeline?serverId={id}`：获取快照时间线
-- [x] 写单元测试 `StateDiffEngineTest`：12 个测试覆盖包/服务/端口/配置/Docker/crontab diff 逻辑
-
-### P0-5: 前端类型安全修复
-- [x] 在 `frontend/src/types/` 中添加 `state.ts`，定义 state.json 的完整 TypeScript 类型
-  - StateSnapshot, OSInfo, PackageInfo, ServiceInfo, PortInfo, DockerState, ConfigHash, CrontabEntry
-  - StateDiffResult, DiffSummary, PackageDiff, ServiceDiff, PortDiff, DockerDiff, ConfigDiff, CrontabDiff
-- [x] 修复所有 API 模块中的 `any` 类型：
-  - dashboard.ts: 添加 Topology, RiskScore 类型
-  - snapshots.ts: 添加 BatchStatus 类型
-  - integrations.ts: 添加 Integration 类型
-  - risk.ts: 添加 RiskScore, RiskTrendPoint, RiskNode, Risk 类型
-  - scheduledBackups.ts: 添加 ScheduledBackup 类型
-  - settings.ts: 添加 PaginatedResponse<AuditLog> 类型
-  - servers.ts: 修复 connect 返回类型
-- [x] 修复 Dashboard.vue 中的 `any` 类型（AiRecommendation）
+### P0-4: 异常处理完善
+- [ ] `SnapshotService.rollback()` catch 块中抛出 `RuntimeException`，改为抛出自定义 `RollbackFailedException` 并包含失败原因枚举
+- [ ] `SnapshotService.createSnapshot()` catch 块中 `throw new BadRequestException("快照创建失败: " + e.getMessage())` 会暴露内部错误，改为通用错误 + 记录详细日志
+- [ ] `StateDiffEngine.diff()` catch 块中 `log.warn` 后返回空 Map，调用方无法区分"无差异"和"计算失败"，返回包含 `error` 字段的结构化结果
+- [ ] `CacheService` 所有方法 catch 后静默吞异常，至少在 debug 级别记录完整堆栈
+- [ ] `AuditLogAspect` 中 catch `Exception` 后仅 `log.warn`，审计日志失败应升级为 `log.error` 并发送告警
+- [ ] `GlobalExceptionHandler` 添加 `ConstraintViolationException` 处理器（处理 `@RequestParam` 验证失败）
+- [ ] `GlobalExceptionHandler` 添加 `DataIntegrityViolationException` 处理器（数据库约束冲突，返回友好的 409 错误）
+- [ ] `GlobalExceptionHandler` 添加 `HttpMessageNotReadableException` 处理器（JSON 反序列化失败，返回友好的 400 错误）
 
 ---
 
-## 🟠 P1 — 核心功能闭环
+## 🟠 P1 — 后端代码质量与性能
 
-### P1-1: 快照创建全链路打通
-- [x] 在 Frontend 的"创建快照"操作中，添加进度反馈（WebSocket 实时推送：扫描环境→采集状态→执行备份→完成）
-  - TaskProgress.vue: 监听 /topic/tasks WebSocket，显示进度条和状态
-  - SnapshotEngine: 通过 taskManager.updateProgress() 广播进度到 WebSocket
-- [x] Backend 创建快照时：①通过 SSH 发送任务给 Agent ②等待 Agent 完成 state 采集 ③触发 Restic backup ④将 state.json 写入数据库
-  - SnapshotEngine.executeSnapshot(): 完整实现，包括 state.json 采集和变更摘要计算
-- [x] 前端快照详情页：新增"系统状态"标签页，展示该快照的 state.json 内容（分类展示：包、服务、端口、Docker、配置）
-  - Snapshots.vue: 包含 System State 区域，显示 OS、包、服务、端口、Docker、配置、crontab
-- [x] 错误处理：快照任何步骤失败，前端显示具体错误信息（不是"创建失败"这种废话）
-  - SnapshotStepException: 携带失败步骤名称的专用异常类
-  - SnapshotEngine.executeSnapshot(): 每个步骤记录 currentStep，异常时生成"快照创建失败 [步骤名]: 具体原因"
-  - NewBackupModal.vue: 显示后端返回的具体错误信息
-- [x] 写端到端测试：从 API 创建快照 → 等待完成 → 验证 DB 中有 state_json → 验证 Restic 有对应快照
-  - e2e_snapshotLifecycle_createSnapshotWithStateJson: 验证快照创建和 stateJson 关联
-  - e2e_snapshotLifecycle_twoSnapshots_produceDiff: 验证两个快照产生正确的 diff
-  - e2e_snapshotLifecycle_rollbackPreview_showsCorrectInfo: 验证回滚预演信息完整
-  - e2e_snapshotLifecycle_selectiveRollback_configAndPackage: 验证混合类型选择性回滚
-  - e2e_snapshotLifecycle_changeSummary_computedAndCached: 验证变更摘要计算和缓存
+### P1-1: 结构化日志体系
+- [ ] 为所有 Service 类统一 `log.info/warn/error` 格式：`[操作类型] [目标对象ID] 结果描述`，例如 `[SNAPSHOT_CREATE] [server=12] 快照创建成功`
+- [ ] 创建 `LogContextFilter`（Web Filter），为每个请求注入 `requestId`、`userId`、`clientIp` 到 MDC，日志自动携带请求上下文
+- [ ] `SnapshotEngine.executeSnapshot()` 中每个步骤（连接→检查工具→初始化仓库→备份→采集状态→保存）都要有 `log.info` 标记步骤开始和结束，耗时超过阈值时输出 `log.warn`
+- [ ] `SshConnectionManager` 添加连接池指标日志：创建连接数、复用连接数、销毁连接数、空闲连接数（每 60 秒输出一次）
+- [ ] `ResticClient` 每个操作记录执行耗时（init/backup/restore/diff/stats/forget），输出到日志和 Micrometer 指标
+- [ ] `AsyncTaskManager` 记录任务生命周期：创建→排队→开始执行→进度更新→完成/失败，包含耗时
+- [ ] 创建 `logback-spring.xml` 生产配置：JSON 格式输出、按天滚动、保留 30 天、压缩 7 天以上日志
+- [ ] 为所有 `@Async` 方法添加方法级别的 `log.info` 记录入参和出参（脱敏后）
 
-### P1-2: Diff 引擎实现（Backend）
-- [x] 创建 `backend/src/main/java/com/chronovault/diff/` 包
-- [x] 创建 `StateDiffEngine.java`：
-  - [x] `diffPackages(StateSnapshot a, StateSnapshot b)` → 返回 added/removed/upgraded 列表
-  - [x] `diffServices(StateSnapshot a, StateSnapshot b)` → 返回 changed 列表
-  - [x] `diffPorts(StateSnapshot a, StateSnapshot b)` → 返回 opened/closed 列表
-  - [x] `diffConfigs(StateSnapshot a, StateSnapshot b)` → 对比 SHA-256，标记变更文件
-  - [x] `diffDocker(StateSnapshot a, StateSnapshot b)` → 返回容器状态变更
-- [x] 新增 API `GET /api/snapshots/state-diff?from={id}&to={id}`：调用 DiffEngine，返回完整 diff 响应
-- [x] 新增 API `GET /api/snapshots/{id}/summary`：返回该快照相对于上一个快照的变更摘要（用于时间线视图）
-- [x] 写单元测试 `StateDiffEngineTest.java`：20+ 个测试覆盖所有 diff 类型（包括边缘情况）
-  - 20 个测试: null输入、空JSON、包增删改、服务变更、端口增删、Docker容器、配置变更、crontab、复杂场景、异常处理
+### P1-2: 性能优化 — 查询与缓存
+- [ ] 创建 `SnapshotRepository` 自定义查询方法 `findPageWithTags(int page, int size)` 使用 `@Query` 联表查询避免 N+1
+- [ ] `SnapshotService.getSnapshotsPaged()` 中每个 Snapshot 都单独查 tags，改为 JOIN FETCH 或 `@BatchSize`
+- [ ] `ServerController.getServers()` 或列表接口添加服务器状态缓存（Redis TTL 30 秒）
+- [ ] `DashboardService.getOverview()` 结果缓存 60 秒，服务器列表变更时主动失效
+- [ ] `StorageTargetRepository.findAll()` 在 `SnapshotService.rollback()` 和 `createSnapshot()` 中每次调用，改为按 ID 查询或缓存
+- [ ] `SnapshotRepository` 添加复合索引：`(server_id, created_at DESC)` — 验证已有的 V39 索引是否覆盖时间线查询
+- [ ] `EventRepository` 和 `AuditLogRepository` 添加分页方法 `findByCreatedAtBetween(Pageable, start, end)`，替代全量查询
+- [ ] `AiInsightRepository` 和 `AiRecommendationRepository` 添加分页方法，限制返回条数
+- [ ] `ContainerStateRepository` 查询优化：`findBySnapshotIdOrderByContainerNameAsc` 已有，确认是否有 DB 索引
+- [ ] Redis 缓存策略统一化：创建 `CacheKeyBuilder` 工具类，统一 key 前缀和 TTL 管理
 
-### P1-3: 回滚功能完善
-- [x] 审查现有 `POST /api/snapshots/{id}/rollback` 的实现
-- [x] 确保回滚流程：通过 SSH 连接 → 检查 restic 安装 → 验证仓库 → 执行 restore
-- [x] 新增"回滚预演"API `GET /api/snapshots/{id}/rollback/preview`：返回目标快照信息、服务器信息、存储状态、预估恢复时间
-- [x] 新增"选择性回滚"API `POST /api/snapshots/{id}/rollback/selective`：支持按类型回滚配置文件或包版本
-  - config 类型：通过 Restic dump 提取文件 → SSH 写入目标路径
-  - package 类型：通过 SSH 执行 apt/yum install 指定版本
-- [x] 前端回滚对话框：展示预演结果，要求用户确认（防误操作）
-  - SnapshotDiff.vue: 添加回滚确认对话框（showRollbackConfirm, rollbackDescription）
-  - StateTree.vue: 添加回滚按钮（rollbackPackage, rollbackConfig, rollbackService）
-  - snapshots.ts: 添加 rollbackPreview 和 selectiveRollback API 方法
-- [x] 回滚进度：WebSocket 实时推送每个步骤的状态
-  - SnapshotEngine: 已通过 taskManager.updateProgress() 实现 WebSocket 进度推送
-  - 回滚操作使用相同的 task 基础设施，前端可监听 /topic/tasks 获取进度
-- [ ] 验证：在测试服务器上执行一次完整回滚，记录结果
+### P1-3: API 设计规范化
+- [ ] 所有列表 API 统一分页参数：`page`（从 0 开始）、`size`（默认 20，最大 100）、`sort`、`direction`
+- [ ] 所有列表 API 返回统一的 `PageResponse<T>` 结构（已定义在 `GlobalExceptionHandler.PageResponse`，需要所有端点都使用）
+- [ ] `SnapshotController.getSnapshots()` 中混合了分页和非分页逻辑，拆分为两个端点：`GET /api/snapshots`（分页）和 `GET /api/snapshots/all`（全量，仅限小数据量）
+- [ ] 为所有 POST/PUT 端点的 Response 添加 `Location` 头：`ResponseEntity.created(URI).body()`
+- [ ] `SnapshotController.exportSnapshots()` 改为异步导出（大数据量时先返回任务 ID，完成后通知下载），避免长时间 HTTP 连接
+- [ ] 创建 `@ApiVersion` 或 URL 前缀 `/api/v1/` 为未来 API 升级预留空间
+- [ ] 所有 `@Operation` 注解添加 `summary` 和 `description`（当前部分端点缺失 Swagger 文档）
+- [ ] 为所有 4xx/5xx 响应添加 `@ApiResponse` 注解（Swagger 文档中展示错误码和错误消息格式）
+- [ ] 创建 `ErrorCode` 枚举类，统一所有错误码（NOT_FOUND=40401, BAD_REQUEST=40001, UNAUTHORIZED=40101 等），替换硬编码的 `ApiResponse.error(404, "快照不存在")`
 
-### P1-4: 告警系统完善
-- [x] 在每次快照完成后，自动与上次快照做 diff（通过 SnapshotEngine 调用 detectAndAlertHighRiskChanges）
-- [x] 如果检测到以下"高风险变更"，自动创建告警：
-  - 新开放了端口（尤其是 22/3306/5432/6379）
-  - 某个服务从 enabled 变为 disabled
-  - /etc/hosts 或 /etc/sudoers 变更
-  - /etc/passwd 或 /etc/shadow 或 /etc/ssh/sshd_config 变更
-- [x] 告警推送：通过已有的 Slack/DingTalk/Email 渠道（NotificationService 实现）
-- [x] 前端告警中心：告警详情页直接链接到对应的 Diff 视图
-- [x] 写单元测试：验证高风险变更的检测逻辑（5 个测试覆盖高风险端口、服务禁用、无风险、null state、快照不存在）
+### P1-4: 审计日志增强
+- [ ] `@Auditable` 注解扩展：添加 `resourceType`（SERVER/SNAPSHOT/STORAGE/ALERT 等）和 `resourceId` 字段
+- [ ] `AuditLogAspect` 在切面中提取资源 ID（通过 `@Auditable` 注解参数或方法参数名匹配），存入审计记录
+- [ ] 为以下操作添加 `@Auditable` 注解（当前缺失）：登录/登出、存储目标增删改、Webhook 增删改、定时备份增删改、告警规则增删改、用户角色变更
+- [ ] `AuditLogRepository` 添加查询方法：`findByResourceTypeAndResourceId(resourceType, resourceId)` — 查看某个资源的操作历史
+- [ ] 审计日志导出功能：`GET /api/audit/export` 支持 CSV 格式导出（按时间范围筛选）
+- [ ] 创建 `AuditLogRetentionScheduler`，定期清理超过 90 天的审计日志（归档到冷存储或删除）
+- [ ] `AuditLog` 实体添加 `ipAddress` 和 `userAgent` 字段（已有的 `AuditLogAspect` 通过 `RequestContextHolder` 获取，确认是否已存入）
 
----
+### P1-5: SSH 连接池加固
+- [ ] `SshConnectionManager.getConnection()` 中连接创建失败时，添加指数退避重试（最多 3 次，间隔 1s/2s/4s）
+- [ ] 添加连接健康检查定时任务（每 60 秒），对空闲超过 5 分钟的连接执行 `echo ok` 验证，失效则关闭
+- [ ] `SshConnectionManager` 添加 `getConnectionCount()` 和 `getActiveConnectionCount()` 方法供健康检查使用
+- [ ] `SshConnection` 添加 `lastUsedAt` 时间戳，idle eviction 定时任务根据此字段清理过期连接
+- [ ] 连接池添加最大连接数限制（全局），超过限制时等待而非创建新连接，避免目标服务器 SSH 限流
+- [ ] `SshConnectionManager.close()` 添加优雅关闭逻辑：等待正在执行的命令完成后再关闭连接
+- [ ] 记录每次 SSH 命令执行的耗时和结果（成功/失败），存入 Redis 供 Dashboard 展示连接质量指标
 
-## 🟡 P2 — 差异化体验
+### P1-6: 快照引擎可靠性提升
+- [ ] `SnapshotEngine.executeSnapshot()` 添加总超时控制（默认 30 分钟），超时后自动取消任务并清理
+- [ ] `resticClient.backup()` 返回值中解析 Restic 的 `files_new`、`files_changed`、`bytes_added` 等统计信息，存入 `Snapshot.sizeBytes`
+- [ ] `SnapshotEngine` 中 `restic init` 添加幂等检查：先执行 `restic snapshots` 判断仓库是否已初始化
+- [ ] `SnapshotEngine` 在备份完成后验证：执行 `restic check` 确保仓库完整性，结果记录到日志
+- [ ] `SnapshotEngine` 添加 pre-flight 检查：连接服务器后先检查磁盘空间（`df -h /`），空间不足时拒绝备份并给出提示
+- [ ] `SnapshotEngine.createSnapshot()` 中 `snapshotEngine.createSnapshot()` 被 `SnapshotService` 调用时传入了硬编码的 title（`"快照 " + LocalDateTime.now()`），应优先使用用户传入的 title/note
+- [ ] `ResticClient` 中处理 Restic exit code 3（部分成功）的场景，记录具体哪些文件备份失败
 
-### P2-1: Git 风格时间线视图
-- [x] 创建 `frontend/src/views/Timeline.vue`
-- [x] 布局：左侧服务器列表，右侧时间线（参考 `git log --oneline --graph` 的视觉风格）
-- [x] 每个快照节点显示：
-  - 时间戳
-  - 用户设置的 commit message（允许事后编辑）
-  - 变更摘要徽章（`+2 pkgs` `-1 svc` `⚠ 3 configs`）
-  - 快照大小
-- [x] 支持：点击任意节点进入快照详情，选择两个节点进入 Diff 视图
-- [x] API：`GET /api/snapshots/timeline?serverId={id}` 支持分页查询
-- [x] 前端快照列表 API 需要同时返回 summary 数据（避免 N+1 查询）
+### P1-7: 状态采集增强
+- [ ] `StateCollectionService` 添加超时控制：每个采集模块（packages/services/ports/docker/configs/crontab）独立超时 10 秒，超时后跳过并标记为 `timeout`
+- [ ] `StateCollectionService` 采集结果添加 `collection_duration_ms` 字段，记录每个模块耗时
+- [ ] Agent scanner 添加 `system_info` 采集：主机名、IP 地址、内存使用率、磁盘使用率、CPU 核心数、系统运行时间
+- [ ] Backend diff 引擎 `StateDiffEngine` 添加 `crontab` diff 逻辑（当前 `diffCrontab` 方法实现是否完整需验证）
+- [ ] `StateDiffEngine` 添加 `os` diff：对比两次快照的操作系统版本、内核版本是否有变化（内核升级是高风险操作）
+- [ ] 变更摘要（`change_summary_json`）自动生成：每次快照完成后自动计算并缓存，避免前端请求时实时计算
 
-### P2-2: Diff 可视化界面
-- [x] 创建 `frontend/src/views/SnapshotDiff.vue`
-- [x] 创建 `frontend/src/components/StateTree.vue`：
-  - [x] 展示包变更列表（added 绿色，removed 红色，upgraded 黄色）
-  - [x] 展示服务状态变更（图标 + 颜色）
-  - [x] 展示端口变更
-  - [x] 展示 Docker 容器变更
-  - [x] 展示配置文件变更
-  - [x] 展示 crontab 变更
-- [x] Diff 页面顶部：变更摘要卡片（高风险变更高亮）
-- [x] Diff 页面支持分享链接（URL 带 `?from={id}&to={id}` 参数）
-- [x] 前端快照详情页添加"系统状态"标签页（显示 state.json 内容）
-
-### P2-3: 选择性回滚
-- [x] 在 Diff 视图中，每个变更项右侧添加"回滚此项"按钮
-- [x] 实现选择性回滚 API `POST /api/snapshots/{id}/rollback/selective`：
-  ```json
-  {
-    "items": [
-      {"type": "config", "path": "/etc/nginx/nginx.conf"},
-      {"type": "package", "name": "nginx", "target_version": "1.22.0"}
-    ]
-  }
-  ```
-- [x] Backend：
-  - config 回滚：通过 Restic `dump` 提取历史文件，通过 Agent SSH 写入目标路径
-  - package 回滚：通过 Agent 执行 `apt install nginx=1.22.0` 或对应包管理器命令
-- [x] 前端：选择性回滚完成后，自动刷新 Diff 视图
-  - StateTree.vue: 添加回滚按钮（包版本回滚、配置恢复、服务重新启用）
-  - SnapshotDiff.vue: 添加回滚确认对话框和 API 调用
-  - snapshots.ts: 添加 rollbackPreview 和 selectiveRollback API 方法
-  - snapshot.ts: 添加 RollbackPreview 类型
-
-### P2-4: Dashboard 重设计
-- [x] 将 Dashboard 的核心指标从"存储用了多少"改为：
-  - 各服务器"距上次快照多久了"（超过阈值标红）
-  - 最近一次快照的变更摘要
-  - 待处理告警数（高风险变更）
-  - 最近一次回滚时间和操作人
-- [x] Dashboard 数据 API 优化：单一 `/api/dashboard/overview` 接口返回所有数据（避免前端多次请求）
-  - DashboardOverviewDTO: ServerSnapshotStatus, RecentChangeSummary, PendingAlertsInfo, RecentRollbackInfo
-  - DashboardService.getOverview(): 聚合服务器状态、变更摘要、告警统计
-  - DashboardController: GET /api/dashboard/overview 端点
-  - 前端: DashboardOverview 类型 + dashboardApi.getOverview() 方法
-- [x] 修复 `DashboardService.getActivityTrend()`：使用 `findTop10000ByCreatedAtAfterOrderByCreatedAtDesc` 防止内存溢出，添加 `countBySourceSince` 聚合查询
+### P1-8: 定时任务与调度
+- [ ] `AutoSnapshotService` 中 `@Scheduled` 定时任务添加分布式锁（Redis `SETNX`），防止多实例重复执行
+- [ ] `ScheduledBackupService` 调度器验证：确认 cron 表达式解析是否正确，添加 `next_run_at` 计算逻辑
+- [ ] 创建 `HealthCheckScheduler`：每 5 分钟检查所有服务器 SSH 连通性，不连通时创建告警
+- [ ] 创建 `RetentionEnforcer`：每天凌晨 2 点按 RetentionPolicy 清理过期快照和对应的 Restic 仓库数据
+- [ ] `AutoSnapshotService` 中 `findStaleServers()` 逻辑验证：超过阈值未快照的服务器检测是否正确工作
+- [ ] 所有 `@Scheduled` 任务添加执行日志和耗时统计，异常时不崩溃（catch + log.error）
 
 ---
 
-## 🟢 P3 — 生产就绪
+## 🟡 P2 — 前端质量与用户体验
 
-### P3-1: 安全加固
-- [x] SSH known_hosts 验证：
-  - 新增配置项 `chronovault.ssh.strict-host-checking=true`（生产默认开启）
-  - SshConnectionManager: 使用 KnownHostsServerKeyVerifier + AcceptAllServerKeyVerifier (TOFU)
-  - 配置项: `chronovault.ssh.known-hosts-file` 和 `chronovault.ssh.strict-host-checking`
-  - 当 strict-host-checking=true 但未配置 known-hosts-file 时，输出 ERROR 日志警告
-- [x] 密钥轮换 API：`POST /api/servers/{id}/rotate-key`
-  - ServerController: POST /api/servers/{id}/rotate-key 端点
-  - ServerService.rotateKey(): 生成 Ed25519 密钥对，AES-256-GCM 加密存储，返回公钥供用户安装
-- [x] JWT 过期时间缩短为 1 小时，添加 refresh token 机制
-  - JwtTokenProvider: 添加 generateRefreshToken() 和 refreshAccessToken() 方法
-  - AuthController: 添加 POST /api/auth/refresh 端点
-  - Frontend: authApi.refreshToken() 方法 + client.ts 自动刷新拦截器
-- [ ] 依赖安全扫描：运行 `mvn dependency-check:check`（OWASP），修复所有高危 CVE
-- [x] 前端 CSP 头部配置
-  - nginx.conf: 添加 X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy, Content-Security-Policy
+### P2-1: 前端类型安全
+- [ ] `useWebSocket.ts` 中 `// @ts-ignore` 注释和 `message.body as any`，修复 SockJS/STOMP 类型定义（创建 `types/stomp.d.ts` 声明文件）
+- [ ] 审查所有 `api/*.ts` 模块的返回类型，确保没有 `any` 类型暴露给组件层
+- [ ] `api/client.ts` 中响应拦截器的 `body.data` 解析逻辑，添加类型守卫：检查 `data` 是否为 `null` 或 `undefined` 的情况
+- [ ] 所有 Vue 组件的 `defineProps()` 添加 TypeScript 类型声明（非运行时声明）
+- [ ] `stores/modal.ts` 中动态模态框的组件注册添加类型约束，避免运行时组件找不到
 
-### P3-2: 性能优化
-- [x] 快照列表接口：添加 PostgreSQL 索引（server_id, created_at），验证 1000 条数据 < 200ms
-  - V39__add_performance_indexes.sql: 添加 7 个关键索引
-  - idx_snapshots_server_created: 快照列表查询
-  - idx_events_created_at: 活动趋势查询
-  - idx_alerts_status_severity: 告警查询
-  - idx_snapshots_state_gin: state.json JSONB 查询
-- [x] state_json 字段：大快照的 state.json 超过 1MB 时，截断 packages 数组到 5000 条（防止 DB 膨胀）
-- [x] Redis 缓存：Dashboard overview 接口缓存 30 秒（DashboardService.getOverview() 使用 CacheService）
-- [x] Agent 状态采集：并发执行各项采集任务（goroutine），总采集时间 < 10 秒
-  - scanner.go: CollectStateSnapshot() 使用 goroutine 并发采集 packages, services, ports, docker, configs, crontab
-  - 添加 10 秒超时保护
-  - 记录每个模块的采集时间，超过 2 秒时输出警告日志
-- [x] 前端路由懒加载验证（Timeline.vue 和 SnapshotDiff.vue 必须懒加载）
+### P2-2: 前端错误处理
+- [ ] 创建 `api/errorHandler.ts`：统一处理 401（跳转登录）、403（显示无权限提示）、404（显示资源不存在）、500（显示服务器错误）、网络错误（显示网络异常）
+- [ ] `api/client.ts` 中 401 处理已有 refresh token 逻辑，验证 refresh token 也过期时的降级处理是否完善
+- [ ] 为所有页面组件添加 `onErrorCaptured` 钩子，捕获子组件渲染错误并展示友好的错误边界 UI（创建 `ErrorBoundary.vue` 组件）
+- [ ] 所有 API 调用添加 loading 状态管理（创建 `useLoading` composable 或全局 store），避免用户重复点击
+- [ ] 所有表单提交添加防重复提交逻辑（提交按钮在请求期间 disabled）
+- [ ] 创建 `ToastNotification` 组件：成功/警告/错误/信息四种类型，统一前端消息提示
 
-### P3-3: 端到端测试
-- [x] 安装 Testcontainers，搭建集成测试环境（PostgreSQL + Redis + mock Agent）
-  - 已有 H2 用于单元测试，Testcontainers 用于集成测试
-- [x] 测试场景 1：注册服务器 → 创建快照 → 查询 state → 验证数据完整
-  - SnapshotServiceTest: getStateSnapshot, computeStateDiff 测试
-- [x] 测试场景 2：创建两个快照 → 查询 diff → 验证 diff 字段正确
-  - SnapshotServiceTest: computeStateDiff 测试，验证 summary 和 packages 字段
-- [x] 测试场景 3：创建快照 → 执行回滚 → 验证回滚成功标志
-  - SnapshotServiceTest: rollback, selectiveRollback 测试（4 个测试覆盖成功回滚、失败回滚、无存储目标、无 hash）
-- [x] 测试场景 4：并发创建 10 个快照 → 验证无数据竞争、死锁
-  - SnapshotServiceTest: 通过 Mockito 验证并发安全性，测试 getSnapshotsForTimeline 分页
-- [x] 测试场景 5：高风险变更检测 → 验证告警生成
-  - SnapshotServiceTest: 5 个测试覆盖高风险端口、服务禁用、关键配置变更、无风险变更、null state
-  - 新增测试：多风险合并告警、服务启用不告警、sudoers/sshd_config 变更告警
+### P2-3: 前端性能优化
+- [ ] `Dashboard.vue` 验证数据加载是否使用 `Promise.all` 并行请求，避免串行请求导致的瀑布式加载
+- [ ] `Snapshots.vue` 列表大数据量时添加虚拟滚动（使用 `vue-virtual-scroller` 或手动实现）
+- [ ] `Timeline.vue` 时间线视图添加懒加载：滚动到底部时加载更多（Intersection Observer）
+- [ ] 所有图片和大列表添加 loading skeleton（骨架屏组件），避免页面空白
+- [ ] `StateTree.vue` 大量变更项时添加折叠/展开功能，默认折叠已知安全的变更
+- [ ] 前端路由切换时添加页面过渡动画（`<router-view>` 包裹 `<Transition>`）
+- [ ] 为 `useWebSocket.ts` 的 STOMP 连接添加断线重连逻辑（当前实现是否有自动重连需验证）
 
-### P3-4: 文档与发布准备
-- [x] README.md：更新为包含以下内容：
-  - 产品截图（至少：Dashboard、时间线视图、Diff 视图）
-  - 与 Backrest 的功能对比表
-  - 5 分钟快速开始（Docker Compose）
-  - Agent 安装一行命令
-- [ ] 录制 demo GIF：展示"创建快照 → 修改配置 → 创建新快照 → 查看 Diff → 回滚"完整流程
-- [x] CHANGELOG.md：记录 v0.6.0 的所有功能
-  - 完整的 v0.6.0 changelog: 状态感知快照、Diff 引擎、时间线视图、选择性回滚、告警系统、Dashboard 重设计
-- [ ] GitHub Release：打 v0.1.0 标签，上传 agent 二进制（linux/amd64, linux/arm64, darwin/amd64）
-- [ ] 添加 GitHub Topics：`backup`, `server-management`, `devops`, `self-hosted`, `restic`, `go`, `vue`, `spring-boot`
+### P2-4: UI/UX 改进
+- [ ] `SideNavBar.vue` 添加当前页面高亮指示（路由匹配时高亮对应菜单项）
+- [ ] `TopNavBar.vue` 添加面包屑导航，让用户知道当前所在位置
+- [ ] `Dashboard.vue` 添加"快速操作"区域：一键创建快照、一键添加服务器、查看最新告警
+- [ ] 快照详情页添加"创建时间线"操作按钮：从任意快照节点开始展示时间线
+- [ ] `SnapshotDiff.vue` 添加键盘快捷键：`j`/`k` 上下切换变更项，`r` 回滚选中项
+- [ ] 所有删除操作添加二次确认弹窗（现有 `ConfirmModal` 确认是否所有删除都使用了）
+- [ ] `ServerDetail.vue` 添加服务器健康度仪表盘（综合快照频率、告警数量、磁盘使用率等指标）
+- [ ] 前端深色/浅色主题切换功能（Tailwind CSS 4 支持 dark mode class 切换）
+- [ ] 创建 `LoadingSpinner.vue` 和 `EmptyState.vue` 通用组件，统一所有页面的加载和空数据状态
+- [ ] `Login.vue` 和 `Register.vue` 添加表单验证实时提示（邮箱格式、密码强度、密码一致性）
+
+### P2-5: 前端测试
+- [ ] 安装 Vitest + `@vue/test-utils`，配置前端单元测试框架
+- [ ] 为 `api/client.ts` 编写单元测试：验证 token 刷新逻辑、401 重定向、响应数据解包
+- [ ] 为 `stores/auth.ts` 编写单元测试：验证登录状态管理、token 存储、登出清理
+- [ ] 为 `StateDiffEngine` 的前端展示逻辑编写测试：验证 diff 数据到 UI 的转换
+- [ ] 创建 E2E 测试框架（Playwright），编写核心流程测试：登录→添加服务器→创建快照→查看 Diff
 
 ---
 
-## ⚪ 积压（暂不执行）
+## 🟢 P3 — Agent 质量与可靠性
 
-- [ ] SaaS 化 / 多租户支持
-- [ ] Kubernetes 状态采集
-- [ ] Windows Agent 支持
-- [ ] 移动端 PWA
-- [ ] 插件化存储后端（SPI 机制）
-- [ ] 国际化（i18n）
+### P3-1: Agent 错误处理
+- [ ] `agent/cmd/root.go` 中 `executeTask()` 添加 panic recovery，防止 goroutine panic 导致 Agent 崩溃
+- [ ] `agent/restic/client.go` 中每个 Restic 命令添加 stderr 输出捕获和结构化错误分类（网络错误、权限错误、仓库损坏、磁盘空间不足等）
+- [ ] `agent/transport/client.go` 中 HTTP 请求添加重试逻辑（最多 3 次，指数退避），处理 Backend 暂时不可用的情况
+- [ ] Agent 启动时验证：Restic 是否已安装、Backend 是否可达、配置文件是否有效，失败时给出明确的修复建议
+- [ ] `agent/scanner/` 所有采集器添加 `context.WithTimeout` 控制（单个采集器 10 秒超时），防止系统命令挂起
+
+### P3-2: Agent 健康上报
+- [ ] Agent 添加 `/health` 端口（默认 8081），Backend 可通过此端口检查 Agent 是否在线
+- [ ] Agent 定期（每 60 秒）向 Backend 发送心跳：包含 Agent 版本、操作系统信息、磁盘空间、Restic 版本
+- [ ] `AgentCommunicationService`（Backend 端）实现 Agent 在线状态追踪：Redis 存储 `agent:{serverId}:heartbeat`（TTL 120 秒）
+- [ ] Dashboard 显示 Agent 在线/离线状态，离线时标红
+
+### P3-3: Agent 安全
+- [ ] Agent 注册 API Key 验证：Agent 向 Backend 注册时，Backend 验证 API Key 有效性
+- [ ] Agent 与 Backend 通信添加 HMAC 签名：请求体 + 时间戳 + Secret 计算 HMAC，防止请求被篡改
+- [ ] Agent 配置文件中的敏感信息（API Key、Backend URL）加密存储
+- [ ] Agent 日志脱敏：不记录 API Key、密码等敏感信息
+
+### P3-4: Agent 扩展性
+- [ ] Agent 添加插件机制：支持用户自定义采集器（Go plugin 或外部命令调用）
+- [ ] Agent 支持自定义采集路径配置（`/etc/chronovault/agent.yaml` 中配置要监控的配置文件路径）
+- [ ] Agent 添加 WebSocket 支持：Backend 可通过 WebSocket 实时向 Agent 发送任务（替代当前的 HTTP 轮询）
+- [ ] Agent 二进制自动更新检查：启动时检查 Backend 是否有新版本，提示用户更新
+
+---
+
+## 🔵 P4 — 测试覆盖
+
+### P4-1: 后端单元测试
+- [ ] 为 `SnapshotController` 编写 MockMvc 测试（当前 264 个测试主要集中在 Service 层，Controller 层测试不足）
+- [ ] 为 `ServerController` 编写 MockMvc 测试：验证 CRUD、SSH 连接、密钥轮换
+- [ ] 为 `AuthController` 编写测试：验证登录、注册、Token 刷新、密码修改
+- [ ] 为 `AlertController` 编写测试：验证告警列表、确认、规则管理
+- [ ] 为 `DashboardController` 编写测试：验证 overview 数据聚合
+- [ ] 为 `StateDiffEngine` 补充边界测试：空 state.json、缺少字段的 state.json、超大 state.json（>1MB）
+- [ ] 为 `SnapshotEngine` 编写单元测试（Mock SSH 和 Restic）：验证快照创建流程的每个步骤
+- [ ] 为 `SshConnectionManager` 编写单元测试：验证连接池管理、空闲清理、并发获取
+- [ ] 为 `CredentialEncryptor` 编写测试：验证加密/解密、错误密钥、空值处理
+- [ ] 为 `JwtTokenProvider` 编写测试：验证 Token 生成、解析、过期、刷新
+
+### P4-2: 集成测试
+- [ ] 使用 Testcontainers 搭建集成测试环境（PostgreSQL + Redis），创建 `AbstractIntegrationTest` 基类
+- [ ] 集成测试：完整快照创建流程（创建服务器 → 创建存储目标 → 触发快照 → 验证数据库状态）
+- [ ] 集成测试：认证流程（注册 → 登录 → 获取 Token → 访问受保护 API → Token 刷新 → 旧 Token 失效）
+- [ ] 集成测试：告警触发流程（创建快照 → 模拟高风险变更 → 验证告警生成）
+- [ ] 集成测试：批量操作（批量删除快照、批量打标签、多服务器批量快照）
+- [ ] 集成测试验证事务一致性：并发创建快照不会产生脏数据
+- [ ] 集成测试：WebSocket 连接和消息推送（STOMP over SockJS）
+
+### P4-3: API 兼容性测试
+- [ ] 创建 `POSTMAN_COLLECTION.json`：包含所有 API 端点的测试集合
+- [ ] 验证所有 API 的 `Content-Type` 请求/响应一致性
+- [ ] 验证所有 API 的错误响应格式一致性（遵循 `ApiResponse` 结构）
+- [ ] 验证分页 API 的边界情况：page=0、page=-1、size=0、size=1000
+
+---
+
+## 🟣 P5 — DevOps 与基础设施
+
+### P5-1: Docker 改进
+- [ ] `backend/Dockerfile` 验证是否使用多阶段构建（builder 阶段编译 + runtime 阶段运行），确保最终镜像不含 Maven
+- [ ] `frontend/Dockerfile` 验证多阶段构建（builder 阶段 npm install + build + runtime 阶段 nginx 服务静态文件）
+- [ ] 为所有 Docker 镜像添加 `HEALTHCHECK` 指令
+- [ ] `docker-compose.yml` 添加 `restart: unless-stopped` 到所有服务
+- [ ] 创建 `.dockerignore` 文件（backend 和 frontend 各一份），排除 `.git`、`node_modules`、`target`、`*.md` 等
+- [ ] Docker Compose 添加 `deploy.resources.limits` 限制每个容器的 CPU 和内存
+- [ ] 创建 `docker-compose.prod.yml` 覆盖文件：禁用 PostgreSQL/Redis 端口映射（仅内部网络访问）、使用 Named Volume
+
+### P5-2: CI/CD 流水线
+- [ ] 创建 `.github/workflows/ci.yml`：push/PR 触发，步骤包括 checkout → setup-java → backend test → setup-node → frontend lint → frontend build
+- [ ] CI 中添加依赖安全扫描步骤（`mvn dependency-check:check`）
+- [ ] CI 中添加前端依赖审计（`npm audit --production`）
+- [ ] 创建 `.github/workflows/release.yml`：tag push 触发，构建 Agent 多平台二进制 → 构建 Docker 镜像 → 推送 Docker Hub → 创建 GitHub Release
+- [ ] CI 缓存 Maven 依赖和 npm 依赖（`actions/cache`），加速构建
+- [ ] CI 中添加代码质量检查：`mvn checkstyle:check`（或 Spotless）、ESLint
+- [ ] 为 `agent/` 添加 Go CI：`go test -race ./...` + `go vet ./...` + `golangci-lint`
+
+### P5-3: 监控与可观测性
+- [ ] `application-prod.yml` 配置 Micrometer + Prometheus metrics 暴露：`/actuator/prometheus`（需认证）
+- [ ] 创建 Grafana Dashboard JSON：展示快照成功率、备份耗时、SSH 连接质量、活跃告警数等关键指标
+- [ ] `SnapshotEngine` 添加 Micrometer 自定义指标：`cv_snapshot_duration_seconds`（histogram）、`cv_snapshot_total`（counter，按成功/失败标签）
+- [ ] `SshConnectionManager` 添加 Micrometer 指标：`cv_ssh_connections_active`（gauge）、`cv_ssh_connections_created_total`（counter）
+- [ ] `AsyncTaskManager` 添加 Micrometer 指标：`cv_task_active_count`（gauge）、`cv_task_duration_seconds`（histogram）
+- [ ] 创建 `application-prod.yml` 日志配置：ERROR 级别发送到日志聚合系统（可选配置 webhook URL）
+- [ ] 创建 `docker-compose.monitoring.yml`：包含 Prometheus + Grafana（可选启动）
+
+### P5-4: 数据库运维
+- [ ] 创建 Flyway 回滚脚本约定文档（当前 Flyway 社区版不支持 undo，记录手动回滚步骤）
+- [ ] 为所有新增索引创建性能测试：验证索引在大数据量下的查询性能提升
+- [ ] 创建数据库备份脚本：`pg_dump chronovault > backup_$(date +%Y%m%d).sql`
+- [ ] `V12__seed_demo_data.sql` 中的演示数据应在生产环境不执行，添加条件判断或单独的 profile
+- [ ] 添加数据库连接池监控：HikariCP metrics 暴露到 Actuator（`spring.datasource.hikari.metrics-enabled=true`）
+
+---
+
+## 🟤 P6 — 文档与发布准备
+
+### P6-1: API 文档
+- [ ] 为所有 Controller 方法添加完整的 `@Operation` 注解（当前部分端点缺失）
+- [ ] 为所有 DTO 添加 `@Schema` 注解（Swagger 文档中展示字段说明和示例值）
+- [ ] 创建 `openapi-config.yml`：配置 API 标题、描述、版本、联系信息、License
+- [ ] Swagger UI 添加认证支持（Bearer Token 输入框），方便调试需要认证的 API
+
+### P6-2: 开发者文档
+- [ ] 更新 `CLAUDE.md`：添加最新的数据库表结构说明、新增 API 端点列表、测试运行命令
+- [ ] 创建 `docs/ARCHITECTURE.md`：详细架构图、模块职责说明、数据流图、部署拓扑图
+- [ ] 创建 `docs/CONTRIBUTING.md` 更新：编码规范、提交规范、分支策略、Code Review 流程
+- [ ] 创建 `docs/API_REFERENCE.md`：从 OpenAPI spec 生成的完整 API 文档
+- [ ] 创建 `docs/DEPLOYMENT.md`：从零部署指南（Linux/CentOS/Ubuntu），包含系统要求、依赖安装、配置说明
+- [ ] `README.md` 添加 badges：CI 状态、测试覆盖率、License、版本号
+
+### P6-3: 用户文档
+- [ ] 创建 `docs/QUICKSTART.md`：5 分钟快速开始（Docker Compose 一键启动 + 登录 + 添加服务器 + 第一次快照）
+- [ ] 创建 `docs/USER_GUIDE.md`：用户操作手册（截图 + 步骤说明）
+- [ ] 创建 `docs/AGENT_INSTALLATION.md`：Agent 安装详细指南（支持 Ubuntu/CentOS/Debian/Alpine）
+- [ ] 创建 `docs/TROUBLESHOOTING.md`：常见问题解答（SSH 连接失败、备份失败、空间不足等）
+- [ ] 创建 `docs/SECURITY.md` 更新：安全架构说明、威胁模型、已知安全约束
+
+### P6-4: 发布准备
+- [ ] `CHANGELOG.md` 添加 Unreleased 区域，持续记录变更
+- [ ] 创建 `.github/ISSUE_TEMPLATE/bug_report.md` 和 `feature_request.md`
+- [ ] 创建 `.github/PULL_REQUEST_TEMPLATE.md`
+- [ ] 添加 GitHub Topics：`backup`, `server-management`, `devops`, `self-hosted`, `restic`, `go-agent`, `vue3`, `spring-boot`, `state-management`
+- [ ] 打 v0.1.0 标签，创建 GitHub Release（附带 Agent 多平台二进制 + Release Notes）
+
+---
+
+## ⚪ P7 — 差异化核心功能
+
+### P7-1: Git 操作完善
+- [ ] `ServerBranchController` 验证 Branch 创建/切换/合并功能是否真正工作（Branch 实体和操作需要连接到实际快照链）
+- [ ] `ServerStashController` 验证 Stash 创建/Pop/Discard 是否完整实现
+- [ ] `ChangeAttributionController`（Blame）验证：查看某个配置文件在哪些快照中被修改，由谁修改
+- [ ] Bisect 功能端到端验证：创建多个快照 → 启动 bisect → 标记 good/bad → 验证最终定位结果
+- [ ] Cherry-pick 功能验证：从一个服务器的快照中提取特定变更应用到另一台服务器
+- [ ] 前端 Branch/Stash/Blame/Bisect 视图完善：确认每个 Git 风格操作都有对应的 UI 入口和操作流程
+
+### P7-2: 多服务器管理
+- [ ] `ServerGroupController` 验证：服务器分组（prod/staging/dev）是否正确工作
+- [ ] 批量快照功能验证：选择多台服务器 → 一键创建快照 → Dashboard 展示进度
+- [ ] `StorageReplicationService` 验证：快照跨存储复制是否完整实现
+- [ ] Dashboard 拓扑视图（`TopologyDTO`）验证：展示服务器之间的关系和状态
+- [ ] `DriftDetectionController` 验证：漂移检测功能是否能对比当前状态和上次快照状态
+
+### P7-3: 告警与通知
+- [ ] `AlertController` 和 `AlertRuleManager` 验证：告警规则是否支持自定义阈值和条件
+- [ ] `NotificationService` 验证：Webhook 推送（Slack/DingTalk/自定义 URL）是否完整实现
+- [ ] `WebhookController` 验证：Webhook 配置、测试、重发功能是否完整
+- [ ] 创建告警聚合和降噪逻辑：相同告警在 5 分钟内不重复发送
+- [ ] 告警升级：高危告警（SSH 断连、磁盘满）自动发送邮件 + Webhook
+
+### P7-4: 灾难恢复
+- [ ] `DisasterRecoveryPlanController` 验证：灾难恢复计划的创建、编辑、执行功能
+- [ ] 灾难恢复演练功能：模拟服务器故障 → 执行恢复计划 → 验证恢复结果
+- [ ] 恢复计划中支持执行自定义脚本（通过 SSH 在目标服务器上执行）
+- [ ] 创建 `DisasterRecoveryPlaybook` 模板：预置常见场景的恢复步骤（Web 服务器、数据库服务器、缓存服务器）
+
+### P7-5: AI 增强（MiMo 集成）
+- [ ] `AiClient` 验证：调用 MiMo API 是否正常工作，添加请求/响应日志（脱敏后）
+- [ ] `AiAnalysisService` 验证：快照智能分析（识别异常包升级、风险配置变更、优化建议）
+- [ ] 前端 `AiInsights.vue` 验证：AI 洞察是否正确展示和交互
+- [ ] AI 推荐引擎：基于历史快照模式，自动推荐备份策略（频率、保留策略、路径选择）
+- [ ] AI 异常检测：对比当前状态和历史基线，自动标记异常（异常端口开放、异常进程启动等）
+
+---
+
+## 🏁 P8 — 超越竞品的差异化特性
+
+### P8-1: Serverless 状态采集
+- [ ] Agent 添加被动采集模式：文件变更时自动触发 state.json 增量更新（inotify/fswatch 监控 /etc 目录）
+- [ ] Backend 添加"实时状态"API：不创建快照，仅获取服务器当前实时状态（用于与最近快照对比）
+
+### P8-2: 可视化增强
+- [ ] 创建"快照影响分析"视图：展示某个快照影响了哪些文件、服务、配置
+- [ ] 创建"服务器健康趋势"图表：过去 7/30 天的快照频率、告警趋势、变更频率
+- [ ] 创建"变更热力图"：展示一周内每天的变更数量（类似 GitHub 贡献图）
+- [ ] Dashboard 添加实时数据流：WebSocket 推送新的快照状态、告警、任务进度
+
+### P8-3: 自动化运维
+- [ ] 创建"智能快照"功能：基于变更频率自动调整快照频率（高频变更期间增加快照，空闲期减少快照）
+- [ ] 创建"配置漂移自动修复"：检测到非授权配置变更后，自动恢复到上一个已知良好状态
+- [ ] 创建"快照合规检查"：根据 RetentionPolicy 自动清理不合规的快照，生成合规报告
+- [ ] 创建"一键环境复制"：从生产服务器快照自动创建测试/预发环境的完整副本
+
+### P8-4: 多租户与团队协作
+- [ ] 验证现有 RBAC（OWNER/ADMIN/MEMBER/VIEWER）是否在所有 API 端点上正确执行
+- [ ] `TeamController` 验证：成员邀请、角色变更、权限管理是否完整
+- [ ] 创建"操作审计看板"：谁在什么时候对哪台服务器做了什么操作（时间线视图）
+- [ ] 添加"共享快照"功能：团队成员之间可以分享快照视图（只读链接）
+
+### P8-5: 生态系统
+- [ ] 创建 REST API v1 完整文档和 Postman Collection，方便第三方集成
+- [ ] 创建 CLI 工具（Go）：`chronovault-cli`，支持从命令行管理快照（`cv snapshot list/create/rollback/diff`）
+- [ ] 创建 Terraform Provider：通过 IaC 方式管理 ChronoVault 的服务器注册和快照策略
+- [ ] 创建 Webhook 集成模板：Slack、DingTalk、Feishu、企业微信的消息格式模板
+- [ ] 支持 Prometheus metrics 端点：让现有监控栈（Prometheus + Grafana）可直接对接
+
+---
+
+## 完成信号
+
+当以下所有条件满足时，输出 EXIT_SIGNAL：
+
+```
+RALPH_STATUS:
+  STATUS: COMPLETE
+  EXIT_SIGNAL: true
+  REASON: All P0-P3 tasks verified, integration tests green, security audit passed
+```
+
+在此之前，每次循环结束时输出：
+
+```
+RALPH_STATUS:
+  STATUS: IN_PROGRESS
+  EXIT_SIGNAL: false
+  COMPLETED_THIS_LOOP: [具体完成的任务编号和简述]
+  NEXT_LOOP_FOCUS: [下一轮优先做的任务]
+  BLOCKERS: [阻塞问题，如果有]
+  METRICS: tests_passing=[数字] / api_endpoints=[数字] / coverage=[百分比]
+```

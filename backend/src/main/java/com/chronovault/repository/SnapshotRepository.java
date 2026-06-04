@@ -11,6 +11,12 @@ import java.util.List;
 
 public interface SnapshotRepository extends JpaRepository<Snapshot, Long> {
     List<Snapshot> findByServerIdOrderByCreatedAtDesc(Long serverId);
+
+    /**
+     * Find snapshots by server ID with database-level pagination.
+     */
+    Page<Snapshot> findByServerIdOrderByCreatedAtDesc(Long serverId, Pageable pageable);
+
     List<Snapshot> findAllByOrderByCreatedAtDesc();
     long countByStatus(Snapshot.SnapshotStatus status);
 
@@ -55,4 +61,11 @@ public interface SnapshotRepository extends JpaRepository<Snapshot, Long> {
      */
     @Query("SELECT s FROM Snapshot s WHERE s.changeSummaryJson IS NOT NULL AND s.changeSummaryJson <> '' ORDER BY s.createdAt DESC")
     List<Snapshot> findRecentWithChangeSummary(Pageable pageable);
+
+    /**
+     * Find unverified snapshots that are not stash type — for scheduled verification.
+     * Avoids loading all snapshots into memory.
+     */
+    @Query("SELECT s FROM Snapshot s WHERE s.verified = false AND s.hash IS NOT NULL AND s.hash <> '' AND s.type <> 'STASH' ORDER BY s.createdAt ASC")
+    List<Snapshot> findUnverifiedUnstashed(Pageable pageable);
 }
