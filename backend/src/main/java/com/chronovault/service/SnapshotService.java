@@ -162,8 +162,12 @@ public class SnapshotService {
         log.info("Snapshot type: {}", type);
 
         try {
+            // Use user-provided title if available, otherwise generate default
+            String title = (request.title() != null && !request.title().isBlank())
+                    ? request.title()
+                    : "快照 " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("MM-dd HH:mm"));
             Snapshot snapshot = snapshotEngine.createSnapshot(server, storageTarget,
-                    "快照 " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("MM-dd HH:mm")),
+                    title,
                     request.note(), type, userId,
                     request.paths(), request.excludes());
             log.info("Snapshot created: id={}", snapshot.getId());

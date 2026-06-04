@@ -138,14 +138,14 @@ class SnapshotServiceTest {
 
     @Test
     void createSnapshot_invalidServer_throwsException() {
-        CreateSnapshotRequest request = new CreateSnapshotRequest(999L, null, "FULL", "test", null, null);
+        CreateSnapshotRequest request = new CreateSnapshotRequest(999L, null, "FULL", "Test Snapshot", "test", null, null);
         when(serverRepository.findById(999L)).thenReturn(Optional.empty());
         assertThrows(ResourceNotFoundException.class, () -> snapshotService.createSnapshot(request, 1L));
     }
 
     @Test
     void createSnapshot_noStorageTargets_throwsException() {
-        CreateSnapshotRequest request = new CreateSnapshotRequest(1L, null, "FULL", "test", null, null);
+        CreateSnapshotRequest request = new CreateSnapshotRequest(1L, null, "FULL", "Test Snapshot", "test", null, null);
         when(serverRepository.findById(1L)).thenReturn(Optional.of(testServer));
         when(storageTargetRepository.findAll()).thenReturn(List.of());
         assertThrows(BadRequestException.class, () -> snapshotService.createSnapshot(request, 1L));
@@ -761,7 +761,7 @@ class SnapshotServiceTest {
                 .thenReturn(createdSnapshot);
 
         // Step 1: Create snapshot via service
-        CreateSnapshotRequest request = new CreateSnapshotRequest(1L, 1L, "FULL", "E2E test snapshot", null, null);
+        CreateSnapshotRequest request = new CreateSnapshotRequest(1L, 1L, "FULL", "E2E Test Snapshot", "E2E test snapshot", null, null);
         SnapshotDTO result = snapshotService.createSnapshot(request, 1L);
 
         // Verify: snapshot created with state_json

@@ -12,6 +12,8 @@ public record CreateSnapshotRequest(
     Long storageTargetId,
     @Pattern(regexp = "^(FULL|INCREMENTAL|DIFF)?$", message = "快照类型必须为 FULL、INCREMENTAL 或 DIFF")
     String type,
+    @Size(max = 200, message = "标题不能超过200个字符")
+    String title,
     @Size(max = 500, message = "备注不能超过500个字符")
     String note,
     List<String> paths,
