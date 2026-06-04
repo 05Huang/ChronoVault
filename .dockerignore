@@ -1,0 +1,13 @@
+.git
+.github
+.ralph
+node_modules
+target
+*.md
+*.log
+.idea
+.vscode
+*.iml
+.env
+.env.*
+!env.example

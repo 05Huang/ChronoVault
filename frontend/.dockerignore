@@ -1,9 +1,6 @@
-.git
-.gitignore
 node_modules
 dist
-*.md
 *.log
-.idea
-*.iml
-.env*
+.env
+.env.*
+.git
