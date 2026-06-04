@@ -107,10 +107,19 @@ public class ScheduledBackupService {
     @Scheduled(fixedRate = 60000) // Check every minute
     @Transactional
     public void executeDue() {
-        LocalDateTime now = LocalDateTime.now();
-        List<ScheduledBackup> due = scheduledBackupRepository.findByEnabledTrueAndNextRunAtBefore(now);
-        for (ScheduledBackup sb : due) {
-            executeSingle(sb);
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            List<ScheduledBackup> due = scheduledBackupRepository.findByEnabledTrueAndNextRunAtBefore(now);
+            log.debug("[SCHEDULED_BACKUP] Found {} due backups", due.size());
+            for (ScheduledBackup sb : due) {
+                try {
+                    executeSingle(sb);
+                } catch (Exception e) {
+                    log.error("[SCHEDULED_BACKUP] Failed to execute backup {}: {}", sb.getId(), e.getMessage(), e);
+                }
+            }
+        } catch (Exception e) {
+            log.error("[SCHEDULED_BACKUP] Failed to query due backups: {}", e.getMessage(), e);
         }
     }
 

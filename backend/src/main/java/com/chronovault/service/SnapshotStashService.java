@@ -149,20 +149,22 @@ public class SnapshotStashService {
 
     /**
      * Auto-expiry: clean up stashes older than 7 days.
-     * Runs daily at 3:00 AM.
+     * Runs daily at 3:00 AM. Uses targeted query instead of findAll().
      */
     @Scheduled(cron = "0 0 3 * * ?")
     @Transactional
     public void cleanExpiredStashes() {
-        LocalDateTime expiryThreshold = LocalDateTime.now().minusDays(7);
-        List<Snapshot> expiredStashes = snapshotRepository.findAll().stream()
-                .filter(s -> s.getType() == Snapshot.SnapshotType.STASH)
-                .filter(s -> s.getCreatedAt() != null && s.getCreatedAt().isBefore(expiryThreshold))
-                .toList();
+        try {
+            LocalDateTime expiryThreshold = LocalDateTime.now().minusDays(7);
+            // Use targeted query instead of loading all snapshots into memory
+            List<Snapshot> expiredStashes = snapshotRepository.findExpiredStashes(expiryThreshold);
 
-        if (!expiredStashes.isEmpty()) {
-            snapshotRepository.deleteAll(expiredStashes);
-            log.info("Auto-cleaned {} expired stashes (older than 7 days)", expiredStashes.size());
+            if (!expiredStashes.isEmpty()) {
+                snapshotRepository.deleteAll(expiredStashes);
+                log.info("Auto-cleaned {} expired stashes (older than 7 days)", expiredStashes.size());
+            }
+        } catch (Exception e) {
+            log.error("[STASH_CLEANUP] Failed to clean expired stashes: {}", e.getMessage(), e);
         }
     }
 }

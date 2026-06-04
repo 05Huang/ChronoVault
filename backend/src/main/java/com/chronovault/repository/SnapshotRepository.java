@@ -68,4 +68,10 @@ public interface SnapshotRepository extends JpaRepository<Snapshot, Long> {
      */
     @Query("SELECT s FROM Snapshot s WHERE s.verified = false AND s.hash IS NOT NULL AND s.hash <> '' AND s.type <> 'STASH' ORDER BY s.createdAt ASC")
     List<Snapshot> findUnverifiedUnstashed(Pageable pageable);
+
+    /**
+     * Find expired stash snapshots older than the given threshold — for auto-expiry cleanup.
+     */
+    @Query("SELECT s FROM Snapshot s WHERE s.type = 'STASH' AND s.createdAt < :threshold")
+    List<Snapshot> findExpiredStashes(@Param("threshold") java.time.LocalDateTime threshold);
 }

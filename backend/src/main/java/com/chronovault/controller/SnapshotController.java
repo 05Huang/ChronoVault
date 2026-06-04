@@ -58,7 +58,7 @@ public class SnapshotController {
     private final BatchSnapshotService batchService;
 
     @GetMapping
-    @Operation(summary = "获取快照列表（分页）", description = "返回分页快照列表，支持按标签过滤")
+    @Operation(summary = "获取快照列表（分页）", description = "返回分页快照列表，支持按标签过滤。默认 page=0, size=20")
     public ResponseEntity<?> getSnapshots(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -67,7 +67,8 @@ public class SnapshotController {
             return ResponseEntity.ok(ApiResponse.success(snapshotService.getSnapshotsByTag(tagName)));
         }
         Page<SnapshotDTO> result = snapshotService.getSnapshotsPaged(page, size);
-        return ResponseEntity.ok(ApiResponse.success(result));
+        return ResponseEntity.ok(ApiResponse.successPage(
+                result.getContent(), page, size, result.getTotalElements()));
     }
 
     @GetMapping("/all")

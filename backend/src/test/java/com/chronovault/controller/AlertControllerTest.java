@@ -31,10 +31,13 @@ class AlertControllerTest {
     }
 
     @Test
-    void getAlerts_noPagination_returnsList() {
-        when(alertService.getAlerts(null)).thenReturn(List.of(createTestAlert(1L, "Test Alert")));
+    void getAlerts_defaultPagination_returnsPage() {
+        var page = new PageImpl<>(
+                List.of(createTestAlert(1L, "Test Alert")),
+                PageRequest.of(0, 20), 1);
+        when(alertService.getAlertsPaged(null, 0, 20)).thenReturn(page);
 
-        var response = controller.getAlerts(null, null, null);
+        var response = controller.getAlerts(null, 0, 20);
         assertNotNull(response);
     }
 
@@ -42,10 +45,10 @@ class AlertControllerTest {
     void getAlerts_withPagination_returnsPage() {
         var page = new PageImpl<>(
                 List.of(createTestAlert(1L, "Alert 1")),
-                PageRequest.of(0, 20), 1);
-        when(alertService.getAlertsPaged(null, 0, 20)).thenReturn(page);
+                PageRequest.of(0, 10), 1);
+        when(alertService.getAlertsPaged(null, 0, 10)).thenReturn(page);
 
-        var response = controller.getAlerts(null, 0, 20);
+        var response = controller.getAlerts(null, 0, 10);
         assertNotNull(response);
     }
 

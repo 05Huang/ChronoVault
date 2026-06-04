@@ -26,16 +26,14 @@ public class AlertController {
     private final AlertService alertService;
 
     @GetMapping
-    @Operation(summary = "获取告警列表", description = "返回告警列表，支持分页和过滤")
+    @Operation(summary = "获取告警列表", description = "返回告警列表，支持分页和过滤。默认分页参数：page=0, size=20")
     public ResponseEntity<?> getAlerts(
             @RequestParam(required = false) String filter,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
-        if (page != null && size != null) {
-            Page<AlertDTO> result = alertService.getAlertsPaged(filter, page, size);
-            return ResponseEntity.ok(ApiResponse.success(result));
-        }
-        return ResponseEntity.ok(ApiResponse.success(alertService.getAlerts(filter)));
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<AlertDTO> result = alertService.getAlertsPaged(filter, page, size);
+        return ResponseEntity.ok(ApiResponse.successPage(
+                result.getContent(), page, size, result.getTotalElements()));
     }
 
     @GetMapping("/stats")
