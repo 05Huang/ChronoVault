@@ -102,11 +102,20 @@ public class SnapshotService {
     @Transactional(readOnly = true)
     public Page<SnapshotDTO> getSnapshotsPaged(int page, int size) {
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), Sort.by(Sort.Direction.DESC, "createdAt"));
-        return snapshotRepository.findAll(pageable).map(s -> {
-            List<SnapshotTagDTO> tags = tagRepository.findBySnapshotIdOrderByCreatedAtDesc(s.getId())
-                    .stream().map(SnapshotTagDTO::from).toList();
-            return SnapshotDTO.from(s, tags);
-        });
+        Page<Snapshot> snapshotPage = snapshotRepository.findAll(pageable);
+
+        // Batch load tags to avoid N+1 queries
+        List<Long> snapshotIds = snapshotPage.getContent().stream().map(Snapshot::getId).toList();
+        Map<Long, List<SnapshotTagDTO>> tagsBySnapshot = new java.util.HashMap<>();
+        if (!snapshotIds.isEmpty()) {
+            Map<Long, List<SnapshotTagDTO>> grouped = tagRepository.findBySnapshotIdsIn(snapshotIds).stream()
+                    .collect(java.util.stream.Collectors.groupingBy(
+                            t -> t.getSnapshot().getId(),
+                            java.util.stream.Collectors.mapping(SnapshotTagDTO::from, java.util.stream.Collectors.toList())));
+            grouped.forEach((k, v) -> tagsBySnapshot.put(k, v));
+        }
+
+        return snapshotPage.map(s -> SnapshotDTO.from(s, tagsBySnapshot.getOrDefault(s.getId(), List.of())));
     }
 
     @Transactional(readOnly = true)

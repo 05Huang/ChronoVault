@@ -103,9 +103,17 @@ public class ResticClient {
         String cmd = String.format("RESTIC_PASSWORD=%s %s init --repo %s 2>&1", shellEscape(password), restic, shellEscape(repoUrl));
         log.debug("Restic init command: {}", LogSanitizer.sanitize(cmd));
         SshConnection.CommandResult result = conn.executeCommand(cmd);
+
+        // Restic returns exit code 1 with "already initialized" message when repo exists — this is OK
+        String output = result.stdout() != null ? result.stdout() : "";
+        if (!result.isSuccess() && output.contains("already initialized")) {
+            log.info("Restic repository already initialized at {}", repoUrl);
+            return true;
+        }
+
         if (!result.isSuccess()) {
             log.warn("Restic init failed (exit={}): {}", result.exitCode(),
-                    result.stdout() != null ? result.stdout().substring(0, Math.min(300, result.stdout().length())) : "");
+                    output.substring(0, Math.min(300, output.length())));
         }
         return result.isSuccess();
     }
