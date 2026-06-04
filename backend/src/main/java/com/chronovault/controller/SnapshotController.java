@@ -152,6 +152,7 @@ public class SnapshotController {
         return ResponseEntity.ok(ApiResponse.success(snapshotService.rollbackPreview(id)));
     }
 
+    @Auditable(action = "选择性回滚", changeType = "SNAPSHOT_RESTORED", resourceType = "SNAPSHOT", resourceId = "#id")
     @PostMapping("/{id}/rollback/selective")
     @Operation(summary = "选择性回滚", description = "只回滚指定的配置文件或包版本")
     public ResponseEntity<ApiResponse<String>> selectiveRollback(

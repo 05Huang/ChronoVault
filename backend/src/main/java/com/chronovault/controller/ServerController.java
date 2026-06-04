@@ -120,6 +120,7 @@ public class ServerController {
         return ResponseEntity.ok(ApiResponse.success(serverService.testConnection(id)));
     }
 
+    @Auditable(action = "删除服务器", changeType = "SERVER_DELETED", resourceType = "SERVER", resourceId = "#id")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteServer(@PathVariable Long id) {
         serverService.deleteServer(id);
