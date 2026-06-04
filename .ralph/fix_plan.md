@@ -11,20 +11,20 @@
 ## 🔴 P0 — 安全与数据完整性（最高优先级）
 
 ### P0-1: 输入验证与防注入
-- [ ] 为所有 `@RequestBody` DTO 添加 `@NotBlank`、`@Size`、`@Pattern` 等 Jakarta Validation 注解（检查 `CreateSnapshotRequest`、`LoginRequest`、`RegisterRequest`、`CreateBranchRequest` 等所有 DTO）
-- [ ] `SnapshotController.exportSnapshots()` 手动构建 CSV/JSON/YAML 时存在注入风险，改用 Jackson 的 `ObjectMapper` 或 OpenCSV 库序列化
-- [ ] `SnapshotController.selectiveRollback()` 接收原始 `Map<String, Object>` 无类型安全，创建 `SelectiveRollbackRequest` DTO 替代
-- [ ] `SnapshotController.batchTag()` 同理，创建 `BatchTagRequest` DTO
-- [ ] `SnapshotController.batchDelete()` 和 `startBatch()` 接收原始 `List<Long>`/`Map`，创建专用 Request DTO
-- [ ] `ServerController` 中所有接收 `Map<String, Object>` 的端点，全部替换为类型安全的 Request DTO
-- [ ] 全局搜索 `Map<String, Object>` 和 `Map<String, String>` 作为 `@RequestBody` 参数的情况，逐一替换
-- [ ] 为 `name`、`title`、`note`、`description` 等字段添加 XSS 过滤（创建 `SanitizeUtil` 工具类，转义 HTML 特殊字符）
+- [x] 为所有 `@RequestBody` DTO 添加 `@NotBlank`、`@Size`、`@Pattern` 等 Jakarta Validation 注解（检查 `CreateSnapshotRequest`、`LoginRequest`、`RegisterRequest`、`CreateBranchRequest` 等所有 DTO）
+- [x] `SnapshotController.exportSnapshots()` 手动构建 CSV/JSON/YAML 时存在注入风险，改用 Jackson 的 `ObjectMapper` 或 OpenCSV 库序列化
+- [x] `SnapshotController.selectiveRollback()` 接收原始 `Map<String, Object>` 无类型安全，创建 `SelectiveRollbackRequest` DTO 替代
+- [x] `SnapshotController.batchTag()` 同理，创建 `BatchTagRequest` DTO
+- [x] `SnapshotController.batchDelete()` 和 `startBatch()` 接收原始 `List<Long>`/`Map`，创建专用 Request DTO
+- [x] `ServerController` 中所有接收 `Map<String, Object>` 的端点，全部替换为类型安全的 Request DTO
+- [x] 全局搜索 `Map<String, Object>` 和 `Map<String, String>` 作为 `@RequestBody` 参数的情况，逐一替换
+- [x] 为 `name`、`title`、`note`、`description` 等字段添加 XSS 过滤（创建 `SanitizeUtil` 工具类，转义 HTML 特殊字符）
 
 ### P0-2: 安全漏洞修复
-- [ ] `SecurityConfig` 中 `/ws/**` 全部 `permitAll()` 过于宽泛，缩小为仅 `/ws/events` 和 `/ws/topics/**`，其余需要认证
-- [ ] `SecurityConfig` 中 `/swagger-ui.html` 和 `/v3/api-docs/**` 在生产环境（prod profile）应禁用，通过 `@Profile("!prod")` 或配置化控制
-- [ ] `JwtTokenProvider` 检查密钥长度是否至少 256 位，添加启动校验
-- [ ] `CredentialEncryptor` 验证 master key 长度校验，短于 32 字节时拒绝启动
+- [x] `SecurityConfig` 中 `/ws/**` 全部 `permitAll()` 过于宽泛，缩小为仅 `/ws/events` 和 `/ws/topics/**`，其余需要认证
+- [x] `SecurityConfig` 中 `/swagger-ui.html` 和 `/v3/api-docs/**` 在生产环境（prod profile）应禁用，通过 `@Profile("!prod")` 或配置化控制
+- [x] `JwtTokenProvider` 检查密钥长度是否至少 256 位，添加启动校验
+- [x] `CredentialEncryptor` 验证 master key 长度校验，短于 32 字节时拒绝启动
 - [ ] `RateLimitFilter` 确认限流策略是否生效（检查 Redis key 过期逻辑），添加 IP + 用户维度限流
 - [ ] `ApiKeyAuthenticationFilter` 中 API key 的查询不应每次都查库，添加 Redis 缓存（TTL 5 分钟）
 - [ ] 所有 Controller 中 `Authentication auth` 获取的 `auth.getName()` 应添加 null 检查，防止认证信息缺失时 NPE
@@ -32,21 +32,21 @@
 - [ ] 检查 `application-dev.yml` 和 `application-prod.yml` 中密码是否在日志中明文输出（`show-sql: true` 在 dev 中可能泄露数据）
 
 ### P0-3: 数据库事务与并发安全
-- [ ] `SnapshotService.getSnapshotsByTag()` 中 `findAll()` 全量加载所有快照再过滤，改为 JPQL 联表查询 `JOIN tags WHERE tag.name = ?`
-- [ ] `SnapshotService.getSnapshotDiff()` 中 `findByServerIdOrderByCreatedAtDesc()` 全量加载后 `stream().filter()`，改为分页查询
-- [ ] `SnapshotService.rollback()` 方法标注了 `@Transactional` 但内部 SSH 操作在事务外执行，拆分为事务内（更新状态）和事务外（SSH 操作）两个方法
-- [ ] `AutoSnapshotService` 中 `serverRepository.findAll()` + `stream().filter()`，改为 `findAllByAutoSnapshotEnabled(true)` 查询
+- [x] `SnapshotService.getSnapshotsByTag()` 中 `findAll()` 全量加载所有快照再过滤，改为 JPQL 联表查询 `JOIN tags WHERE tag.name = ?`
+- [x] `SnapshotService.getSnapshotDiff()` 中 `findByServerIdOrderByCreatedAtDesc()` 全量加载后 `stream().filter()`，改为分页查询
+- [x] `SnapshotService.rollback()` 方法标注了 `@Transactional` 但内部 SSH 操作在事务外执行，拆分为事务内（更新状态）和事务外（SSH 操作）两个方法
+- [x] `AutoSnapshotService` 中 `serverRepository.findAll()` + `stream().filter()`，改为 `findAllByAutoSnapshotEnabled(true)` 查询
 - [ ] `AiService` 中多处 `findAll()` 全量加载，添加分页或限制查询范围
 - [ ] `DashboardService` 检查所有查询是否都有分页保护，防止数据增长后 OOM
 - [ ] `AlertService.getAlerts()` 调用 `findAllByOrderByCreatedAtDesc()`，改为分页查询
 - [ ] `AsyncTaskRepository.findAllByOrderByCreatedAtDesc()` 和 `EventRepository.findAllByOrderByCreatedAtDesc()` 都需要添加分页
 
 ### P0-4: 异常处理完善
-- [ ] `SnapshotService.rollback()` catch 块中抛出 `RuntimeException`，改为抛出自定义 `RollbackFailedException` 并包含失败原因枚举
-- [ ] `SnapshotService.createSnapshot()` catch 块中 `throw new BadRequestException("快照创建失败: " + e.getMessage())` 会暴露内部错误，改为通用错误 + 记录详细日志
-- [ ] `StateDiffEngine.diff()` catch 块中 `log.warn` 后返回空 Map，调用方无法区分"无差异"和"计算失败"，返回包含 `error` 字段的结构化结果
-- [ ] `CacheService` 所有方法 catch 后静默吞异常，至少在 debug 级别记录完整堆栈
-- [ ] `AuditLogAspect` 中 catch `Exception` 后仅 `log.warn`，审计日志失败应升级为 `log.error` 并发送告警
+- [x] `SnapshotService.rollback()` catch 块中抛出 `RuntimeException`，改为抛出自定义 `RollbackFailedException` 并包含失败原因枚举
+- [x] `SnapshotService.createSnapshot()` catch 块中 `throw new BadRequestException("快照创建失败: " + e.getMessage())` 会暴露内部错误，改为通用错误 + 记录详细日志
+- [x] `StateDiffEngine.diff()` catch 块中 `log.warn` 后返回空 Map，调用方无法区分"无差异"和"计算失败"，返回包含 `error` 字段的结构化结果
+- [x] `CacheService` 所有方法 catch 后静默吞异常，至少在 debug 级别记录完整堆栈
+- [x] `AuditLogAspect` 中 catch `Exception` 后仅 `log.warn`，审计日志失败应升级为 `log.error` 并发送告警
 - [ ] `GlobalExceptionHandler` 添加 `ConstraintViolationException` 处理器（处理 `@RequestParam` 验证失败）
 - [ ] `GlobalExceptionHandler` 添加 `DataIntegrityViolationException` 处理器（数据库约束冲突，返回友好的 409 错误）
 - [ ] `GlobalExceptionHandler` 添加 `HttpMessageNotReadableException` 处理器（JSON 反序列化失败，返回友好的 400 错误）
