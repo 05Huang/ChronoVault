@@ -212,7 +212,7 @@
 ## 🔵 P4 — 测试覆盖
 
 ### P4-1: 后端单元测试
-- [ ] 为 `SnapshotController` 编写 MockMvc 测试（当前 264 个测试主要集中在 Service 层，Controller 层测试不足）
+- [x] 为 `SnapshotController` 编写 MockMvc 测试（当前 264 个测试主要集中在 Service 层，Controller 层测试不足）
 - [ ] 为 `ServerController` 编写 MockMvc 测试：验证 CRUD、SSH 连接、密钥轮换
 - [ ] 为 `AuthController` 编写测试：验证登录、注册、Token 刷新、密码修改
 - [ ] 为 `AlertController` 编写测试：验证告警列表、确认、规则管理

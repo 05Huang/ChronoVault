@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -234,5 +235,137 @@ class SnapshotControllerTest {
                 .thenThrow(new ResourceNotFoundException("快照不存在: 999"));
 
         assertThrows(ResourceNotFoundException.class, () -> controller.rollbackPreview(999L));
+    }
+
+    // ===== createSnapshot tests =====
+
+    @Test
+    void createSnapshot_validRequest_returnsCreated() {
+        when(userService.getByEmail("test@test.com")).thenReturn(
+                com.chronovault.entity.User.builder().id(1L).email("test@test.com").build());
+        CreateSnapshotRequest request = new CreateSnapshotRequest(1L, 1L, "FULL", "New Snapshot", "test note",
+                null, null);
+        SnapshotDTO dto = createTestSnapshot(10L, "New Snapshot");
+        when(snapshotService.createSnapshot(any(), eq(1L))).thenReturn(dto);
+
+        org.springframework.security.core.Authentication auth =
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
+        var response = controller.createSnapshot(auth, request);
+        assertEquals(201, response.getStatusCode().value());
+        assertEquals(10L, response.getBody().data().id());
+    }
+
+    // ===== rollback test =====
+
+    @Test
+    void rollback_validSnapshot_succeeds() {
+        when(userService.getByEmail("test@test.com")).thenReturn(
+                com.chronovault.entity.User.builder().id(1L).email("test@test.com").build());
+        doNothing().when(snapshotService).rollback(1L, 1L);
+
+        org.springframework.security.core.Authentication auth =
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
+        var response = controller.rollback(auth, 1L);
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    @Test
+    void rollback_nonExistent_throwsException() {
+        when(userService.getByEmail("test@test.com")).thenReturn(
+                com.chronovault.entity.User.builder().id(1L).email("test@test.com").build());
+        doThrow(new ResourceNotFoundException("快照不存在: 999"))
+                .when(snapshotService).rollback(999L, 1L);
+
+        org.springframework.security.core.Authentication auth =
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
+        assertThrows(ResourceNotFoundException.class, () -> controller.rollback(auth, 999L));
+    }
+
+    // ===== compareSnapshots test =====
+
+    @Test
+    void compareSnapshots_validIds_returnsSummary() {
+        var summary = new SnapshotDiffDTO.DiffSummary(2, 1, 0, List.of());
+        when(snapshotService.compareSnapshots(1L, 2L)).thenReturn(summary);
+
+        var response = controller.compareSnapshots(1L, 2L);
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(2, response.getBody().data().addedCount());
+    }
+
+    // ===== batchDelete test =====
+
+    @Test
+    void batchDelete_validIds_deletesAndReturnsCount() {
+        when(snapshotService.batchDelete(List.of(1L, 2L, 3L))).thenReturn(3);
+
+        BatchDeleteRequest request = new BatchDeleteRequest(List.of(1L, 2L, 3L));
+        var response = controller.batchDelete(request);
+        assertEquals(200, response.getStatusCode().value());
+        assertTrue(response.getBody().data().contains("3"));
+    }
+
+    // ===== getAllTags test =====
+
+    @Test
+    void getAllTags_returnsList() {
+        when(tagService.getAllTags()).thenReturn(List.of());
+        var response = controller.getAllTags();
+        assertEquals(200, response.getStatusCode().value());
+        assertNotNull(response.getBody().data());
+    }
+
+    // ===== listFiles test =====
+
+    @Test
+    void listFiles_validSnapshot_returnsEntries() {
+        var entries = List.of(new SnapshotFileEntry("etc/nginx/nginx.conf", "nginx.conf", 1024, "CONFIG", "2026-06-01"));
+        when(snapshotService.listSnapshotFiles(1L, null)).thenReturn(entries);
+
+        var response = controller.listFiles(1L, null);
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(1, response.getBody().data().size());
+    }
+
+    // ===== verifySnapshot test =====
+
+    @Test
+    void verifySnapshot_validId_returnsResult() {
+        var result = new SnapshotVerifyResult(1L, true, null, 100L);
+        when(snapshotService.verifySnapshot(1L)).thenReturn(result);
+
+        var response = controller.verifySnapshot(1L);
+        assertEquals(200, response.getStatusCode().value());
+        assertTrue(response.getBody().data().verified());
+    }
+
+    // ===== selectiveRollback test =====
+
+    @Test
+    void selectiveRollback_validRequest_succeeds() {
+        when(userService.getByEmail("test@test.com")).thenReturn(
+                com.chronovault.entity.User.builder().id(1L).email("test@test.com").build());
+        SelectiveRollbackRequest request = new SelectiveRollbackRequest(
+                List.of(Map.of("type", "config", "path", "/etc/nginx/nginx.conf")));
+        when(snapshotService.selectiveRollback(eq(1L), anyList(), eq(1L))).thenReturn("选择性回滚成功");
+
+        org.springframework.security.core.Authentication auth =
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
+        var response = controller.selectiveRollback(auth, 1L, request);
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    // ===== revert test =====
+
+    @Test
+    void revert_validSnapshot_succeeds() {
+        when(userService.getByEmail("test@test.com")).thenReturn(
+                com.chronovault.entity.User.builder().id(1L).email("test@test.com").build());
+        when(snapshotService.revert(1L, 1L)).thenReturn("撤销成功");
+
+        org.springframework.security.core.Authentication auth =
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
+        var response = controller.revert(auth, 1L);
+        assertEquals(200, response.getStatusCode().value());
     }
 }
