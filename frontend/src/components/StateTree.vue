@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { StateDiffResult } from '@/types'
 
 const props = defineProps<{
@@ -10,6 +11,22 @@ const props = defineProps<{
 const emit = defineEmits<{
   rollback: [item: { type: string; name?: string; path?: string; target_version?: string }]
 }>()
+
+// Collapsible section state: collapsedSections[sectionKey] = true means collapsed
+const collapsedSections = ref<Record<string, boolean>>({})
+
+function toggleSection(key: string) {
+  collapsedSections.value[key] = !collapsedSections.value[key]
+}
+
+function isCollapsed(key: string): boolean {
+  return collapsedSections.value[key] ?? false
+}
+
+// Auto-collapse sections with > 20 items
+function shouldAutoCollapse(count: number): boolean {
+  return count > 20
+}
 
 function rollbackPackage(name: string, fromVersion: string) {
   emit('rollback', { type: 'package', name, target_version: fromVersion })
@@ -35,8 +52,16 @@ function rollbackService(name: string) {
 
       <!-- Added -->
       <div v-if="diff.packages?.added.length" class="mb-4">
-        <h4 class="text-sm font-medium text-green-700 mb-2">新增包 ({{ diff.packages.added.length }})</h4>
-        <div v-for="pkg in diff.packages.added" :key="pkg.name"
+        <button
+          @click="toggleSection('pkg-added')"
+          class="flex items-center gap-1 text-sm font-medium text-green-700 mb-2 hover:text-green-900"
+        >
+          <span class="text-xs transition-transform" :class="isCollapsed('pkg-added') ? '' : 'rotate-90'">▶</span>
+          新增包 ({{ diff.packages.added.length }})
+          <span v-if="diff.packages.added.length > 20" class="text-xs text-gray-400 ml-1">点击展开/折叠</span>
+        </button>
+        <div v-if="!isCollapsed('pkg-added')"
+          v-for="pkg in diff.packages.added" :key="pkg.name"
           class="flex items-center gap-2 px-3 py-1.5 bg-green-50 rounded mb-1">
           <span class="text-green-600 font-mono text-sm">+</span>
           <span class="text-sm font-medium">{{ pkg.name }}</span>
@@ -46,8 +71,15 @@ function rollbackService(name: string) {
 
       <!-- Removed -->
       <div v-if="diff.packages?.removed.length" class="mb-4">
-        <h4 class="text-sm font-medium text-red-700 mb-2">删除包 ({{ diff.packages.removed.length }})</h4>
-        <div v-for="pkg in diff.packages.removed" :key="pkg.name"
+        <button
+          @click="toggleSection('pkg-removed')"
+          class="flex items-center gap-1 text-sm font-medium text-red-700 mb-2 hover:text-red-900"
+        >
+          <span class="text-xs transition-transform" :class="isCollapsed('pkg-removed') ? '' : 'rotate-90'">▶</span>
+          删除包 ({{ diff.packages.removed.length }})
+        </button>
+        <div v-if="!isCollapsed('pkg-removed')"
+          v-for="pkg in diff.packages.removed" :key="pkg.name"
           class="flex items-center gap-2 px-3 py-1.5 bg-red-50 rounded mb-1">
           <span class="text-red-600 font-mono text-sm">-</span>
           <span class="text-sm font-medium">{{ pkg.name }}</span>
@@ -153,8 +185,15 @@ function rollbackService(name: string) {
       </div>
 
       <div v-if="diff.configs?.added.length" class="mb-4">
-        <h4 class="text-sm font-medium text-green-700 mb-2">新增配置文件 ({{ diff.configs.added.length }})</h4>
-        <div v-for="path in diff.configs.added" :key="path"
+        <button
+          @click="toggleSection('cfg-added')"
+          class="flex items-center gap-1 text-sm font-medium text-green-700 mb-2 hover:text-green-900"
+        >
+          <span class="text-xs transition-transform" :class="isCollapsed('cfg-added') ? '' : 'rotate-90'">▶</span>
+          新增配置文件 ({{ diff.configs.added.length }})
+        </button>
+        <div v-if="!isCollapsed('cfg-added')"
+          v-for="path in diff.configs.added" :key="path"
           class="flex items-center gap-2 px-3 py-1.5 bg-green-50 rounded mb-1">
           <span class="text-green-600 font-mono text-sm">+</span>
           <span class="text-sm font-mono">{{ path }}</span>

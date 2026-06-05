@@ -136,47 +136,47 @@
 ## 🟡 P2 — 前端质量与用户体验
 
 ### P2-1: 前端类型安全
-- [ ] `useWebSocket.ts` 中 `// @ts-ignore` 注释和 `message.body as any`，修复 SockJS/STOMP 类型定义（创建 `types/stomp.d.ts` 声明文件）
-- [ ] 审查所有 `api/*.ts` 模块的返回类型，确保没有 `any` 类型暴露给组件层
-- [ ] `api/client.ts` 中响应拦截器的 `body.data` 解析逻辑，添加类型守卫：检查 `data` 是否为 `null` 或 `undefined` 的情况
-- [ ] 所有 Vue 组件的 `defineProps()` 添加 TypeScript 类型声明（非运行时声明）
-- [ ] `stores/modal.ts` 中动态模态框的组件注册添加类型约束，避免运行时组件找不到
+- [x] `useWebSocket.ts` 中 `// @ts-ignore` 注释和 `message.body as any`，修复 SockJS/STOMP 类型定义（创建 `types/stomp.d.ts` 声明文件）
+- [x] 审查所有 `api/*.ts` 模块的返回类型，确保没有 `any` 类型暴露给组件层
+- [x] `api/client.ts` 中响应拦截器的 `body.data` 解析逻辑，添加类型守卫：检查 `data` 是否为 `null` 或 `undefined` 的情况
+- [x] 所有 Vue 组件的 `defineProps()` 添加 TypeScript 类型声明（非运行时声明）
+- [x] `stores/modal.ts` 中动态模态框的组件注册添加类型约束，避免运行时组件找不到
 
 ### P2-2: 前端错误处理
-- [ ] 创建 `api/errorHandler.ts`：统一处理 401（跳转登录）、403（显示无权限提示）、404（显示资源不存在）、500（显示服务器错误）、网络错误（显示网络异常）
-- [ ] `api/client.ts` 中 401 处理已有 refresh token 逻辑，验证 refresh token 也过期时的降级处理是否完善
-- [ ] 为所有页面组件添加 `onErrorCaptured` 钩子，捕获子组件渲染错误并展示友好的错误边界 UI（创建 `ErrorBoundary.vue` 组件）
-- [ ] 所有 API 调用添加 loading 状态管理（创建 `useLoading` composable 或全局 store），避免用户重复点击
-- [ ] 所有表单提交添加防重复提交逻辑（提交按钮在请求期间 disabled）
-- [ ] 创建 `ToastNotification` 组件：成功/警告/错误/信息四种类型，统一前端消息提示
+- [x] 创建 `api/errorHandler.ts`：统一处理 401（跳转登录）、403（显示无权限提示）、404（显示资源不存在）、500（显示服务器错误）、网络错误（显示网络异常）
+- [x] `api/client.ts` 中 401 处理已有 refresh token 逻辑，验证 refresh token 也过期时的降级处理是否完善
+- [x] 为所有页面组件添加 `onErrorCaptured` 钩子，捕获子组件渲染错误并展示友好的错误边界 UI（创建 `ErrorBoundary.vue` 组件）
+- [x] 所有 API 调用添加 loading 状态管理（创建 `useLoading` composable 或全局 store），避免用户重复点击
+- [x] 所有表单提交添加防重复提交逻辑（提交按钮在请求期间 disabled）
+- [x] 创建 `ToastNotification` 组件：成功/警告/错误/信息四种类型，统一前端消息提示
 
 ### P2-3: 前端性能优化
-- [ ] `Dashboard.vue` 验证数据加载是否使用 `Promise.all` 并行请求，避免串行请求导致的瀑布式加载
-- [ ] `Snapshots.vue` 列表大数据量时添加虚拟滚动（使用 `vue-virtual-scroller` 或手动实现）
-- [ ] `Timeline.vue` 时间线视图添加懒加载：滚动到底部时加载更多（Intersection Observer）
-- [ ] 所有图片和大列表添加 loading skeleton（骨架屏组件），避免页面空白
-- [ ] `StateTree.vue` 大量变更项时添加折叠/展开功能，默认折叠已知安全的变更
-- [ ] 前端路由切换时添加页面过渡动画（`<router-view>` 包裹 `<Transition>`）
-- [ ] 为 `useWebSocket.ts` 的 STOMP 连接添加断线重连逻辑（当前实现是否有自动重连需验证）
+- [x] `Dashboard.vue` 验证数据加载是否使用 `Promise.all` 并行请求，避免串行请求导致的瀑布式加载
+- [x] `Snapshots.vue` 列表大数据量时添加虚拟滚动（使用 `vue-virtual-scroller` 或手动实现）
+- [x] `Timeline.vue` 时间线视图添加懒加载：滚动到底部时加载更多（Intersection Observer）
+- [x] 所有图片和大列表添加 loading skeleton（骨架屏组件），避免页面空白
+- [x] `StateTree.vue` 大量变更项时添加折叠/展开功能，默认折叠已知安全的变更
+- [x] 前端路由切换时添加页面过渡动画（`<router-view>` 包裹 `<Transition>`）
+- [x] 为 `useWebSocket.ts` 的 STOMP 连接添加断线重连逻辑（当前实现是否有自动重连需验证）
 
 ### P2-4: UI/UX 改进
-- [ ] `SideNavBar.vue` 添加当前页面高亮指示（路由匹配时高亮对应菜单项）
-- [ ] `TopNavBar.vue` 添加面包屑导航，让用户知道当前所在位置
-- [ ] `Dashboard.vue` 添加"快速操作"区域：一键创建快照、一键添加服务器、查看最新告警
-- [ ] 快照详情页添加"创建时间线"操作按钮：从任意快照节点开始展示时间线
-- [ ] `SnapshotDiff.vue` 添加键盘快捷键：`j`/`k` 上下切换变更项，`r` 回滚选中项
-- [ ] 所有删除操作添加二次确认弹窗（现有 `ConfirmModal` 确认是否所有删除都使用了）
-- [ ] `ServerDetail.vue` 添加服务器健康度仪表盘（综合快照频率、告警数量、磁盘使用率等指标）
-- [ ] 前端深色/浅色主题切换功能（Tailwind CSS 4 支持 dark mode class 切换）
-- [ ] 创建 `LoadingSpinner.vue` 和 `EmptyState.vue` 通用组件，统一所有页面的加载和空数据状态
-- [ ] `Login.vue` 和 `Register.vue` 添加表单验证实时提示（邮箱格式、密码强度、密码一致性）
+- [x] `SideNavBar.vue` 添加当前页面高亮指示（路由匹配时高亮对应菜单项）
+- [x] `TopNavBar.vue` 添加面包屑导航，让用户知道当前所在位置
+- [x] `Dashboard.vue` 添加"快速操作"区域：一键创建快照、一键添加服务器、查看最新告警
+- [x] 快照详情页添加"创建时间线"操作按钮：从任意快照节点开始展示时间线
+- [x] `SnapshotDiff.vue` 添加键盘快捷键：`j`/`k` 上下切换变更项，`r` 回滚选中项
+- [x] 所有删除操作添加二次确认弹窗（现有 `ConfirmModal` 确认是否所有删除都使用了）
+- [x] `ServerDetail.vue` 添加服务器健康度仪表盘（综合快照频率、告警数量、磁盘使用率等指标）
+- [x] 前端深色/浅色主题切换功能（Tailwind CSS 4 支持 dark mode class 切换）
+- [x] 创建 `LoadingSpinner.vue` 和 `EmptyState.vue` 通用组件，统一所有页面的加载和空数据状态
+- [x] `Login.vue` 和 `Register.vue` 添加表单验证实时提示（邮箱格式、密码强度、密码一致性）
 
 ### P2-5: 前端测试
-- [ ] 安装 Vitest + `@vue/test-utils`，配置前端单元测试框架
-- [ ] 为 `api/client.ts` 编写单元测试：验证 token 刷新逻辑、401 重定向、响应数据解包
-- [ ] 为 `stores/auth.ts` 编写单元测试：验证登录状态管理、token 存储、登出清理
-- [ ] 为 `StateDiffEngine` 的前端展示逻辑编写测试：验证 diff 数据到 UI 的转换
-- [ ] 创建 E2E 测试框架（Playwright），编写核心流程测试：登录→添加服务器→创建快照→查看 Diff
+- [x] 安装 Vitest + `@vue/test-utils`，配置前端单元测试框架
+- [x] 为 `api/client.ts` 编写单元测试：验证 token 刷新逻辑、401 重定向、响应数据解包
+- [x] 为 `stores/auth.ts` 编写单元测试：验证登录状态管理、token 存储、登出清理
+- [x] 为 `StateDiffEngine` 的前端展示逻辑编写测试：验证 diff 数据到 UI 的转换
+- [x] 创建 E2E 测试框架（Playwright），编写核心流程测试：登录→添加服务器→创建快照→查看 Diff
 
 ---
 

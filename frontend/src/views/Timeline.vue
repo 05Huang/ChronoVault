@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { snapshotsApi } from '@/api/snapshots'
 import { serversApi } from '@/api/servers'
@@ -107,9 +107,28 @@ const goToDiff = () => {
 
 const isSelected = (id: number) => selectedSnapshotIds.value.has(id)
 
+let loadMoreObserver: IntersectionObserver | null = null
+
+const setupInfiniteScroll = () => {
+  const sentinel = document.getElementById('timeline-load-more-sentinel')
+  if (!sentinel) return
+  loadMoreObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && hasMore.value && !loading.value) {
+      loadTimeline(false)
+    }
+  }, { rootMargin: '200px' })
+  loadMoreObserver.observe(sentinel)
+}
+
 onMounted(async () => {
   await loadServers()
   await loadTimeline(true)
+  await nextTick()
+  setupInfiniteScroll()
+})
+
+onUnmounted(() => {
+  loadMoreObserver?.disconnect()
 })
 </script>
 
@@ -227,15 +246,10 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Load more -->
-      <div v-if="hasMore" class="pl-12 pb-4">
-        <button
-          @click="loadTimeline(false)"
-          :disabled="loading"
-          class="text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400"
-        >
-          {{ loading ? '加载中...' : '加载更多' }}
-        </button>
+      <!-- Load more sentinel for IntersectionObserver -->
+      <div id="timeline-load-more-sentinel" class="pl-12 pb-4">
+        <div v-if="loading" class="text-sm text-gray-400">加载中...</div>
+        <div v-else-if="!hasMore" class="text-sm text-gray-400">已加载全部快照</div>
       </div>
     </div>
   </div>

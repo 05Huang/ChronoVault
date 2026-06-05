@@ -13,6 +13,7 @@
       </div>
     </div>
     <div class="flex items-center gap-4">
+      <ThemeToggle />
       <div class="relative hidden sm:block">
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
         <input
@@ -42,6 +43,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useLayoutStore } from '@/stores/layout'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 const route = useRoute()
 const auth = useAuthStore()

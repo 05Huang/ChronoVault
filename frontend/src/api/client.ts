@@ -36,9 +36,10 @@ client.interceptors.response.use(
     const body = res.data
     // Unwrap backend ApiResponse<T> wrapper { code, message, data, timestamp }
     if (body && typeof body === 'object' && 'data' in body && 'code' in body) {
-      return body.data
+      // Return data; if data is null/undefined, callers should handle it
+      return body.data ?? null
     }
-    return body
+    return body ?? null
   },
   async (err) => {
     const originalRequest = err.config
