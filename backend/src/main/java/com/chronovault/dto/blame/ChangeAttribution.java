@@ -2,17 +2,24 @@ package com.chronovault.dto.blame;
 
 import com.chronovault.entity.AuditLog;
 import java.time.format.DateTimeFormatter;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = "变更归属（Blame）信息 DTO")
 public record ChangeAttribution(
     Long id,
+    @Schema(description = "用户 ID", example = "1")
     Long userId,
     String userName,
+    @Schema(description = "操作类型", example = "SNAPSHOT_CREATE")
     String action,
     String changeType,
+    @Schema(description = "服务器 ID", example = "1")
     Long serverId,
     String serverName,
+    @Schema(description = "快照 ID", example = "1")
     Long snapshotId,
     String snapshotName,
+    @Schema(description = "资源 ID", example = "1")
     Long resourceId,
     String details,
     String timestamp

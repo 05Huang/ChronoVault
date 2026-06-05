@@ -1,9 +1,12 @@
 package com.chronovault.dto.server;
 
 import com.chronovault.entity.Server;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = "服务器信息 DTO")
 public record ServerDTO(Long id, String name, String ip, String os, String status, String uptime,
                         Long uptimeSeconds, Integer sshPort, String sshUsername, String sshAuthMethod,
+                        @Schema(description = "是否启用自动快照", example = "true")
                         boolean autoSnapshotEnabled, Long groupId) {
     public static ServerDTO from(Server s) {
         String uptime = s.getUptimeSeconds() != null ? formatUptime(s.getUptimeSeconds()) : "未知";

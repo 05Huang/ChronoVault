@@ -4,9 +4,12 @@ import com.chronovault.entity.Snapshot;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = "快照信息 DTO")
 public record SnapshotDTO(Long id, String name, String createdAt, String status, String description,
                           String hash, Integer microserviceCount, String serverName, Long sizeBytes, String warning,
+                          @Schema(description = "标签列表")
                           List<SnapshotTagDTO> tags, String stateJson, String changeSummaryJson) {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 

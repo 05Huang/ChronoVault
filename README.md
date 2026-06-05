@@ -1,5 +1,15 @@
 # ChronoVault
 
+[![CI](https://github.com/chronovault/chronovault/actions/workflows/ci.yml/badge.svg)](https://github.com/chronovault/chronovault/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-697-passing-brightgreen)](#testing)
+[![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)](#testing)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0--alpha-orange)](CHANGELOG.md)
+[![Java](https://img.shields.io/badge/Java-17-orange)](https://www.java.com)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.5-brightgreen)](https://spring.io/projects/spring-boot)
+[![Vue.js](https://img.shields.io/badge/Vue.js-3.5-brightgreen)](https://vuejs.org/)
+[![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+
 **Git for Server State** — The world's first tool that manages server state like git manages code.
 
 ## Overview

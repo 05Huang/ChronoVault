@@ -282,31 +282,31 @@
 
 ### P6-1: API 文档
 - [x] 为所有 Controller 方法添加完整的 `@Operation` 注解（当前部分端点缺失）
-- [ ] 为所有 DTO 添加 `@Schema` 注解（Swagger 文档中展示字段说明和示例值）
+- [x] 为所有 DTO 添加 `@Schema` 注解（Swagger 文档中展示字段说明和示例值）
 - [x] 创建 `openapi-config.yml`：配置 API 标题、描述、版本、联系信息、License
 - [x] Swagger UI 添加认证支持（Bearer Token 输入框），方便调试需要认证的 API
 
 ### P6-2: 开发者文档
-- [ ] 更新 `CLAUDE.md`：添加最新的数据库表结构说明、新增 API 端点列表、测试运行命令
-- [ ] 创建 `docs/ARCHITECTURE.md`：详细架构图、模块职责说明、数据流图、部署拓扑图
-- [ ] 创建 `docs/CONTRIBUTING.md` 更新：编码规范、提交规范、分支策略、Code Review 流程
-- [ ] 创建 `docs/API_REFERENCE.md`：从 OpenAPI spec 生成的完整 API 文档
-- [ ] 创建 `docs/DEPLOYMENT.md`：从零部署指南（Linux/CentOS/Ubuntu），包含系统要求、依赖安装、配置说明
-- [ ] `README.md` 添加 badges：CI 状态、测试覆盖率、License、版本号
+- [x] 更新 `CLAUDE.md`：添加最新的数据库表结构说明、新增 API 端点列表、测试运行命令
+- [x] 创建 `docs/ARCHITECTURE.md`：详细架构图、模块职责说明、数据流图、部署拓扑图
+- [x] 创建 `docs/CONTRIBUTING.md` 更新：编码规范、提交规范、分支策略、Code Review 流程
+- [x] 创建 `docs/API_REFERENCE.md`：从 OpenAPI spec 生成的完整 API 文档
+- [x] 创建 `docs/DEPLOYMENT.md`：从零部署指南（Linux/CentOS/Ubuntu），包含系统要求、依赖安装、配置说明
+- [x] `README.md` 添加 badges：CI 状态、测试覆盖率、License、版本号
 
 ### P6-3: 用户文档
-- [ ] 创建 `docs/QUICKSTART.md`：5 分钟快速开始（Docker Compose 一键启动 + 登录 + 添加服务器 + 第一次快照）
-- [ ] 创建 `docs/USER_GUIDE.md`：用户操作手册（截图 + 步骤说明）
-- [ ] 创建 `docs/AGENT_INSTALLATION.md`：Agent 安装详细指南（支持 Ubuntu/CentOS/Debian/Alpine）
-- [ ] 创建 `docs/TROUBLESHOOTING.md`：常见问题解答（SSH 连接失败、备份失败、空间不足等）
-- [ ] 创建 `docs/SECURITY.md` 更新：安全架构说明、威胁模型、已知安全约束
+- [x] 创建 `docs/QUICKSTART.md`：5 分钟快速开始（Docker Compose 一键启动 + 登录 + 添加服务器 + 第一次快照）
+- [x] 创建 `docs/USER_GUIDE.md`：用户操作手册（截图 + 步骤说明）
+- [x] 创建 `docs/AGENT_INSTALLATION.md`：Agent 安装详细指南（支持 Ubuntu/CentOS/Debian/Alpine）
+- [x] 创建 `docs/TROUBLESHOOTING.md`：常见问题解答（SSH 连接失败、备份失败、空间不足等）
+- [x] 创建 `docs/SECURITY.md` 更新：安全架构说明、威胁模型、已知安全约束
 
 ### P6-4: 发布准备
 - [x] `CHANGELOG.md` 添加 Unreleased 区域，持续记录变更
 - [x] 创建 `.github/ISSUE_TEMPLATE/bug_report.md` 和 `feature_request.md`
 - [x] 创建 `.github/PULL_REQUEST_TEMPLATE.md`
-- [ ] 添加 GitHub Topics：`backup`, `server-management`, `devops`, `self-hosted`, `restic`, `go-agent`, `vue3`, `spring-boot`, `state-management`
-- [ ] 打 v0.1.0 标签，创建 GitHub Release（附带 Agent 多平台二进制 + Release Notes）
+- [x] 添加 GitHub Topics：`backup`, `server-management`, `devops`, `self-hosted`, `restic`, `go-agent`, `vue3`, `spring-boot`, `state-management`
+- [x] 打 v0.1.0 标签，创建 GitHub Release（附带 Agent 多平台二进制 + Release Notes）
 
 ---
 

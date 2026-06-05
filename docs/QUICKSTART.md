@@ -1,157 +1,219 @@
-# ChronoVault 快速开始
+# ChronoVault Quick Start Guide
 
-## 5 分钟快速部署
+> 5 minutes from zero to first snapshot
 
-### 前置要求
+---
 
-- Docker & Docker Compose v2+
+## Prerequisites
+
+- Docker & Docker Compose v2+ installed
 - 4GB+ RAM
-- 20GB+ 磁盘空间
+- 20GB+ disk space
+- A Linux server to manage (Ubuntu/Debian/CentOS)
+- SSH access to the target server
 
-### 1. 克隆项目
+---
+
+## Step 1: Start ChronoVault
 
 ```bash
-git clone https://github.com/your-org/chronovault.git
+# Clone the repository
+git clone https://github.com/chronovault/chronovault.git
 cd chronovault
+
+# Generate security keys and create .env
+cat > .env << EOF
+POSTGRES_DB=chronovault
+POSTGRES_USER=chronovault
+POSTGRES_PASSWORD=$(openssl rand -hex 16)
+JWT_SECRET=$(openssl rand -hex 32)
+CHRONOVAULT_MASTER_KEY=$(openssl rand -hex 32)
+CHRONOVAULT_RESTIC_PASSWORD=$(openssl rand -hex 32)
+SPRING_PROFILES_ACTIVE=prod
+CORS_ALLOWED_ORIGINS=http://localhost
+EOF
+
+# Start all services
+docker compose up -d --build
+
+# Wait for services to be ready (about 30 seconds)
+docker compose logs -f backend
+# Press Ctrl+C when you see "Started ChronovaultBackendApplication"
 ```
 
-### 2. 配置环境变量
+Open your browser and go to **http://localhost**
+
+---
+
+## Step 2: Create Your Account
+
+1. Click **Register** on the login page
+2. Fill in the registration form:
+   - Name: `Admin`
+   - Email: `admin@chronovault.com`
+   - Password: `Admin123!`
+3. Click **Register**
+4. You'll be redirected to the Dashboard
+
+> Note: The first registered user automatically gets OWNER role.
+
+---
+
+## Step 3: Add a Server
+
+1. Navigate to **Servers** in the sidebar
+2. Click **Add Server**
+3. Fill in the server details:
+   - Name: `web-server-01`
+   - IP Address: `192.168.1.100` (your server's IP)
+   - OS: `Ubuntu 22.04`
+4. Configure SSH connection:
+   - Port: `22`
+   - Username: `root`
+   - Auth Method: `KEY` (recommended) or `PASSWORD`
+   - Paste your SSH private key or enter password
+5. Click **Test Connection** to verify SSH access
+6. If successful, click **Save**
+
+### SSH Key Setup (if needed)
+
+If you don't have SSH keys set up:
 
 ```bash
-cp .env.example .env
-# 编辑 .env，设置以下必需变量：
-# JWT_SECRET=$(openssl rand -hex 32)
-# CHRONOVAULT_MASTER_KEY=$(openssl rand -hex 32)
-# CHRONOVAULT_RESTIC_PASSWORD=$(openssl rand -hex 32)
+# Generate SSH key pair
+ssh-keygen -t ed25519 -C "chronovault"
+
+# Copy public key to target server
+ssh-copy-id -i ~/.ssh/id_ed25519.pub user@192.168.1.100
 ```
 
-### 3. 启动服务
+---
 
-```bash
-docker-compose up -d
-```
+## Step 4: Create Your First Snapshot
 
-等待所有服务启动（约 30 秒），然后访问：
+1. Go to **Snapshots** in the sidebar
+2. Click **Create Snapshot**
+3. Select your server: `web-server-01`
+4. Configure the snapshot:
+   - Type: `FULL` (captures everything)
+   - Title: `Initial Backup`
+   - Note: `First snapshot of web server`
+5. (Optional) Add paths to backup:
+   - `/etc` (system configs)
+   - `/opt` (applications)
+   - `/var/www` (web files)
+6. Click **Create Snapshot**
 
-- **前端**: http://localhost
-- **后端 API**: http://localhost:8080
-- **Swagger UI**: http://localhost:8080/swagger-ui.html
+The snapshot creation will take a few minutes depending on the amount of data.
 
-### 4. 首次登录
+---
 
-打开浏览器访问 http://localhost，使用默认账户登录：
+## Step 5: View Your Snapshot
 
-| 邮箱 | 密码 | 角色 |
-|------|------|------|
-| xuan@chronovault.io | password123 | OWNER |
-| liwei@chronovault.io | password123 | ADMIN |
-| zhangmin@chronovault.io | password123 | MEMBER |
+Once the snapshot completes:
 
-> ⚠️ 生产环境请立即修改默认密码！
+1. Click on the snapshot in the list
+2. View the **Details** tab:
+   - Snapshot ID, status, size
+   - Creation time
+   - Tags
+3. View the **State** tab (this is the magic!):
+   - **Packages**: All installed packages with versions
+   - **Services**: Systemd services status
+   - **Ports**: Open ports and processes
+   - **Docker**: Container status (if Docker is installed)
+   - **Configs**: /etc file hashes
+   - **Crontab**: Scheduled tasks
 
-### 5. 添加第一台服务器
+---
 
-1. 登录后点击「服务器」→「添加服务器」
-2. 填写服务器信息：
-   - 名称：我的服务器
-   - IP 地址：192.168.1.100
-   - 操作系统：Ubuntu 22.04
-3. 配置 SSH 连接：
-   - 端口：22
-   - 用户名：root
-   - 认证方式：KEY（推荐）或 PASSWORD
-   - 粘贴 SSH 私钥或输入密码
-4. 点击「测试连接」验证
-5. 点击「保存」完成添加
+## Step 6: Compare Snapshots (Diff)
 
-### 6. 创建第一个快照
+After making changes to your server:
 
-1. 在服务器详情页点击「创建快照」
-2. 选择存储目标（首次使用会自动创建本地存储）
-3. 点击「开始备份」
-4. 等待备份完成（进度条实时显示）
+1. Install an update on your server:
+   ```bash
+   # On your target server
+   sudo apt update && sudo apt upgrade -y
+   ```
 
-### 7. 查看系统状态
+2. Create another snapshot in ChronoVault
 
-快照完成后，你可以：
+3. Go to **Snapshots** and select two snapshots
+4. Click **Compare** to see the diff
 
-- **查看 state.json**: 快照详情页显示采集的系统状态（包、服务、端口、Docker）
-- **查看 Diff**: 选择两个快照对比变更
-- **查看时间线**: Git 风格的快照历史
+You'll see exactly what changed:
+- New packages installed
+- Packages upgraded (old version → new version)
+- Services that changed status
+- New ports opened
+- Config files modified
 
-## 生产环境部署
+---
 
-### 使用外部数据库
+## Step 7: Rollback (Optional)
 
-```yaml
-# docker-compose.prod.yml
-services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: chronovault
-      POSTGRES_USER: chronovault
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    # 不映射端口，仅内部网络访问
-```
+If something goes wrong:
 
-### 使用 S3 存储
+1. Go to **Snapshots**
+2. Find the snapshot you want to restore
+3. Click **Rollback**
+4. Confirm the rollback operation
 
-在「存储管理」中添加 S3 存储目标：
+ChronoVault will restore:
+- Files to their previous state
+- Packages to their previous versions
+- Services to their previous status
 
-- 类型：S3
-- 端点：https://s3.amazonaws.com
-- Bucket：chronovault-backups
-- Access Key：AKIA...
-- Secret Key：...
+---
 
-### 配置 HTTPS
+## Default Credentials
 
-使用 Nginx 反向代理：
+| Field | Value |
+|-------|-------|
+| Email | admin@chronovault.com |
+| Password | Admin123! |
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name chronovault.example.com;
+> Change these credentials immediately in production!
 
-    ssl_certificate /etc/ssl/certs/chronovault.pem;
-    ssl_certificate_key /etc/ssl/private/chronovault.key;
+---
 
-    location / {
-        proxy_pass http://localhost:80;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
+## What's Next?
 
-    location /api {
-        proxy_pass http://localhost:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
+- [Architecture Overview](ARCHITECTURE.md) - Understand the system design
+- [User Guide](USER_GUIDE.md) - Detailed feature documentation
+- [Agent Installation](AGENT_INSTALLATION.md) - Deploy agents to more servers
+- [API Reference](API_REFERENCE.md) - REST API documentation
+- [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions
+- [Deployment Guide](DEPLOYMENT.md) - Production deployment
 
-## 常见问题
+---
 
-### SSH 连接失败
+## Troubleshooting
 
-1. 确认服务器 IP 和端口正确
-2. 确认 SSH 服务运行中：`systemctl status sshd`
-3. 确认密钥格式正确（OpenSSH 格式）
-4. 检查防火墙是否允许 SSH 端口
+### SSH Connection Failed
 
-### 快照创建失败
+1. Verify server IP and port are correct
+2. Check SSH service is running: `systemctl status sshd`
+3. Verify key format is correct (OpenSSH format)
+4. Check firewall allows SSH: `sudo ufw allow ssh`
 
-1. 确认目标服务器已安装 restic（Agent 会自动安装）
-2. 检查磁盘空间：`df -h`
-3. 检查存储目标配置是否正确
-4. 查看后端日志：`docker-compose logs backend`
+### Snapshot Creation Failed
 
-### Agent 安装失败
+1. Verify Agent is running on target server
+2. Check disk space: `df -h /`
+3. Verify storage target configuration
+4. Check Backend logs: `docker compose logs backend`
 
-1. 确认后端服务正常运行
-2. 确认 Agent 可达后端 API
-3. 检查 API Key 是否正确
-4. 查看 Agent 日志：`journalctl -u chronovault-agent -f`
+### Agent Installation Failed
+
+1. Verify Backend service is running
+2. Verify Agent can reach Backend API
+3. Check API Key is correct
+4. Check Agent logs: `journalctl -u chronovault-agent -f`
+
+### Can't Access Web Interface
+
+1. Verify services are running: `docker compose ps`
+2. Check port 80 is not in use: `sudo lsof -i :80`
+3. Review frontend logs: `docker compose logs frontend`

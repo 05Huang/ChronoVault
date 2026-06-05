@@ -1,7 +1,9 @@
 package com.chronovault.dto.server;
 
 import com.chronovault.entity.Volume;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = "Docker 卷信息 DTO")
 public record VolumeDTO(Long id, String name, String path, String type, Long sizeBytes, String size, String status) {
     public static VolumeDTO from(Volume v) {
         String size = v.getSizeBytes() != null ? formatSize(v.getSizeBytes()) : "";

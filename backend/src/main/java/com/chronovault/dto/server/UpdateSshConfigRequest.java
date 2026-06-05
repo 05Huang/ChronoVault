@@ -3,10 +3,13 @@ package com.chronovault.dto.server;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = "更新 SSH 配置请求")
 public record UpdateSshConfigRequest(
         @Min(value = 1, message = "端口不能小于1")
         @Max(value = 65535, message = "端口不能大于65535")
+        @Schema(description = "端口号", example = "80")
         Integer port,
 
         String username,

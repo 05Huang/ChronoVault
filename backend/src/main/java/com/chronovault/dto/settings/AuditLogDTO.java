@@ -2,7 +2,9 @@ package com.chronovault.dto.settings;
 
 import com.chronovault.entity.AuditLog;
 import java.time.format.DateTimeFormatter;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = "审计日志 DTO")
 public record AuditLogDTO(
     Long id, String action, String icon, String ipAddress, String userAgent, String createdAt
 ) {

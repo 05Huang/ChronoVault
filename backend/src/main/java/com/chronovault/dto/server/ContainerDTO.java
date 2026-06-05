@@ -1,7 +1,9 @@
 package com.chronovault.dto.server;
 
 import com.chronovault.entity.Container;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = "Docker 容器信息 DTO")
 public record ContainerDTO(Long id, String name, String type, String cpuUsage, String memoryUsage,
                            String memoryPercent, String diskIo, String status, String networks) {
     public static ContainerDTO from(Container c) {
