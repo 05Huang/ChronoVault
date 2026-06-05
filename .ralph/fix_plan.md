@@ -213,23 +213,23 @@
 
 ### P4-1: 后端单元测试
 - [x] 为 `SnapshotController` 编写 MockMvc 测试（当前 264 个测试主要集中在 Service 层，Controller 层测试不足）
-- [ ] 为 `ServerController` 编写 MockMvc 测试：验证 CRUD、SSH 连接、密钥轮换
-- [ ] 为 `AuthController` 编写测试：验证登录、注册、Token 刷新、密码修改
-- [ ] 为 `AlertController` 编写测试：验证告警列表、确认、规则管理
-- [ ] 为 `DashboardController` 编写测试：验证 overview 数据聚合
-- [ ] 为 `StateDiffEngine` 补充边界测试：空 state.json、缺少字段的 state.json、超大 state.json（>1MB）
-- [ ] 为 `SnapshotEngine` 编写单元测试（Mock SSH 和 Restic）：验证快照创建流程的每个步骤
-- [ ] 为 `SshConnectionManager` 编写单元测试：验证连接池管理、空闲清理、并发获取
-- [ ] 为 `CredentialEncryptor` 编写测试：验证加密/解密、错误密钥、空值处理
-- [ ] 为 `JwtTokenProvider` 编写测试：验证 Token 生成、解析、过期、刷新
+- [x] 为 `ServerController` 编写 MockMvc 测试：验证 CRUD、SSH 连接、密钥轮换
+- [x] 为 `AuthController` 编写测试：验证登录、注册、Token 刷新、密码修改
+- [x] 为 `AlertController` 编写测试：验证告警列表、确认、规则管理
+- [x] 为 `DashboardController` 编写测试：验证 overview 数据聚合
+- [x] 为 `StateDiffEngine` 补充边界测试：空 state.json、缺少字段的 state.json、超大 state.json（>1MB）
+- [x] 为 `SnapshotEngine` 编写单元测试（Mock SSH 和 Restic）：验证快照创建流程的每个步骤
+- [x] 为 `SshConnectionManager` 编写单元测试：验证连接池管理、空闲清理、并发获取
+- [x] 为 `CredentialEncryptor` 编写测试：验证加密/解密、错误密钥、空值处理
+- [x] 为 `JwtTokenProvider` 编写测试：验证 Token 生成、解析、过期、刷新
 
 ### P4-2: 集成测试
-- [ ] 使用 Testcontainers 搭建集成测试环境（PostgreSQL + Redis），创建 `AbstractIntegrationTest` 基类
-- [ ] 集成测试：完整快照创建流程（创建服务器 → 创建存储目标 → 触发快照 → 验证数据库状态）
-- [ ] 集成测试：认证流程（注册 → 登录 → 获取 Token → 访问受保护 API → Token 刷新 → 旧 Token 失效）
-- [ ] 集成测试：告警触发流程（创建快照 → 模拟高风险变更 → 验证告警生成）
-- [ ] 集成测试：批量操作（批量删除快照、批量打标签、多服务器批量快照）
-- [ ] 集成测试验证事务一致性：并发创建快照不会产生脏数据
+- [x] 使用 Testcontainers 搭建集成测试环境（PostgreSQL + Redis），创建 `AbstractIntegrationTest` 基类
+- [x] 集成测试：完整快照创建流程（创建服务器 → 创建存储目标 → 触发快照 → 验证数据库状态）
+- [x] 集成测试：认证流程（注册 → 登录 → 获取 Token → 访问受保护 API → Token 刷新 → 旧 Token 失效）
+- [x] 集成测试：告警触发流程（创建快照 → 模拟高风险变更 → 验证告警生成）
+- [x] 集成测试：批量操作（批量删除快照、批量打标签、多服务器批量快照）
+- [x] 集成测试验证事务一致性：并发创建快照不会产生脏数据
 - [ ] 集成测试：WebSocket 连接和消息推送（STOMP over SockJS）
 
 ### P4-3: API 兼容性测试

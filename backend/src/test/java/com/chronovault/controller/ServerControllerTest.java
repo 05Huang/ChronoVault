@@ -117,4 +117,89 @@ class ServerControllerTest {
         assertEquals(201, response.getStatusCode().value());
         assertEquals("New Server", response.getBody().data().name());
     }
+
+    // ===== cloneServer test =====
+
+    @Test
+    void cloneServer_validRequest_succeeds() {
+        when(userService.getByEmail("test@test.com")).thenReturn(
+                com.chronovault.entity.User.builder().id(1L).email("test@test.com").build());
+        doNothing().when(cloneService).cloneServer(any(), eq(1L));
+
+        CloneServerRequest request = new CloneServerRequest(1L, "10.0.0.2", "Cloned Server", 22, "root");
+        var response = controller.cloneServer(auth(), request);
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    // ===== getContainers test =====
+
+    @Test
+    void getContainers_validServer_returnsList() {
+        when(serverService.getContainers(1L)).thenReturn(List.of());
+        var response = controller.getContainers(1L);
+        assertEquals(200, response.getStatusCode().value());
+        assertNotNull(response.getBody().data());
+    }
+
+    // ===== getVolumes test =====
+
+    @Test
+    void getVolumes_validServer_returnsList() {
+        when(serverService.getVolumes(1L)).thenReturn(List.of());
+        var response = controller.getVolumes(1L);
+        assertEquals(200, response.getStatusCode().value());
+        assertNotNull(response.getBody().data());
+    }
+
+    // ===== addVolume test =====
+
+    @Test
+    void addVolume_validRequest_returnsCreated() {
+        VolumeDTO volume = new VolumeDTO(1L, "data", "/host/data", "data", 0L, "", "active");
+        when(serverService.addVolume(1L, "/data", "/host/data")).thenReturn(volume);
+
+        AddVolumeRequest request = new AddVolumeRequest("/data", "/host/data");
+        var response = controller.addVolume(1L, request);
+        assertEquals(201, response.getStatusCode().value());
+    }
+
+    // ===== getLogs test =====
+
+    @Test
+    void getLogs_validServer_returnsList() {
+        when(serverService.getLogs(1L, 100)).thenReturn(List.of());
+        var response = controller.getLogs(1L);
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    // ===== clearLogs test =====
+
+    @Test
+    void clearLogs_validServer_succeeds() {
+        doNothing().when(serverService).clearLogs(1L);
+        var response = controller.clearLogs(1L);
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    // ===== updateSshConfig test =====
+
+    @Test
+    void updateSshConfig_validRequest_succeeds() {
+        ServerDTO updated = createTestServer(1L, "Server");
+        when(serverService.updateSshConfig(1L, 22, "root", "KEY", null)).thenReturn(updated);
+
+        UpdateSshConfigRequest request = new UpdateSshConfigRequest(22, "root", "KEY", null);
+        var response = controller.updateSshConfig(1L, request);
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    // ===== testConnection test =====
+
+    @Test
+    void testConnection_validServer_returnsResult() {
+        when(serverService.testConnection(1L)).thenReturn(java.util.Map.of("success", true));
+        var response = controller.testConnection(1L);
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(true, response.getBody().data().get("success"));
+    }
 }

@@ -83,4 +83,88 @@ class CredentialEncryptorTest {
         String encrypted = encryptor.encrypt(unicode);
         assertEquals(unicode, encryptor.decrypt(encrypted));
     }
+
+    // ===== Additional edge case tests =====
+
+    @Test
+    void encrypt_emptyString_roundTrip() {
+        String plaintext = "";
+        String encrypted = encryptor.encrypt(plaintext);
+        assertNotNull(encrypted);
+        assertEquals(plaintext, encryptor.decrypt(encrypted));
+    }
+
+    @Test
+    void encrypt_specialCharacters_roundTrip() {
+        String special = "!@#$%^&*()_+-={}[]|\\:\";'<>?,./ ~`";
+        String encrypted = encryptor.encrypt(special);
+        assertEquals(special, encryptor.decrypt(encrypted));
+    }
+
+    @Test
+    void encrypt_veryLongString_roundTrip() {
+        String longStr = "A".repeat(100_000); // 100KB
+        String encrypted = encryptor.encrypt(longStr);
+        assertNotNull(encrypted);
+        assertEquals(longStr, encryptor.decrypt(encrypted));
+    }
+
+    @Test
+    void constructor_blankKey_throwsIllegalState() {
+        assertThrows(IllegalStateException.class, () -> new CredentialEncryptor("   "));
+    }
+
+    @Test
+    void constructor_nullKey_throwsIllegalState() {
+        assertThrows(IllegalStateException.class, () -> new CredentialEncryptor(null));
+    }
+
+    @Test
+    void constructor_exactly32Chars_works() {
+        String key32 = "12345678901234567890123456789012"; // exactly 32 chars
+        assertDoesNotThrow(() -> new CredentialEncryptor(key32));
+    }
+
+    @Test
+    void constructor_31Chars_throws() {
+        String key31 = "1234567890123456789012345678901"; // 31 chars
+        assertThrows(IllegalStateException.class, () -> new CredentialEncryptor(key31));
+    }
+
+    @Test
+    void decrypt_invalidBase64_throwsRuntimeException() {
+        assertThrows(RuntimeException.class, () -> encryptor.decrypt("not-valid-base64!!!"));
+    }
+
+    @Test
+    void decrypt_truncatedData_throwsRuntimeException() {
+        // Encrypt something, then truncate the base64 to simulate corrupted data
+        String encrypted = encryptor.encrypt("test");
+        String truncated = encrypted.substring(0, encrypted.length() / 2);
+        assertThrows(RuntimeException.class, () -> encryptor.decrypt(truncated));
+    }
+
+    @Test
+    void encrypt_outputIsValidBase64() {
+        String encrypted = encryptor.encrypt("test");
+        // Should not throw - valid base64
+        assertDoesNotThrow(() -> java.util.Base64.getDecoder().decode(encrypted));
+    }
+
+    @Test
+    void multipleEncryptDecrypt_cycles_consistent() {
+        String plaintext = "cycle-test-value";
+        for (int i = 0; i < 10; i++) {
+            String encrypted = encryptor.encrypt(plaintext);
+            String decrypted = encryptor.decrypt(encrypted);
+            assertEquals(plaintext, decrypted, "Cycle " + i + " failed");
+        }
+    }
+
+    @Test
+    void encrypt_whitespacePreserved() {
+        String whitespace = "  hello  \n\tworld\n  ";
+        String encrypted = encryptor.encrypt(whitespace);
+        assertEquals(whitespace, encryptor.decrypt(encrypted));
+    }
 }

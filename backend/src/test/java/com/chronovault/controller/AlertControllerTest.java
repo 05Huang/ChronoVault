@@ -88,4 +88,68 @@ class AlertControllerTest {
         assertEquals(200, response.getStatusCode().value());
         verify(alertService).deleteRule(1L);
     }
+
+    // ===== expandStorage test =====
+
+    @Test
+    void expandStorage_validId_succeeds() {
+        doNothing().when(alertService).expandStorage(1L);
+        var response = controller.expandStorage(1L);
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    // ===== rollbackConfig test =====
+
+    @Test
+    void rollbackConfig_validId_succeeds() {
+        doNothing().when(alertService).rollbackConfig(1L);
+        var response = controller.rollbackConfig(1L);
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    // ===== getRules test =====
+
+    @Test
+    void getRules_returnsList() {
+        when(alertService.getRules("test@test.com")).thenReturn(List.of());
+        org.springframework.security.core.Authentication auth =
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
+        var response = controller.getRules(auth);
+        assertEquals(200, response.getStatusCode().value());
+        assertNotNull(response.getBody().data());
+    }
+
+    // ===== createRule test =====
+
+    @Test
+    void createRule_validRequest_returnsCreated() {
+        AlertRuleDTO rule = new AlertRuleDTO(1L, "Disk High", "disk", 90.0, 5, "WARNING", true);
+        when(alertService.createRule(eq("test@test.com"), any())).thenReturn(rule);
+
+        CreateAlertRuleRequest request = new CreateAlertRuleRequest("Disk High", "disk", 90, 5, "WARNING", true);
+        org.springframework.security.core.Authentication auth =
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
+        var response = controller.createRule(auth, request);
+        assertEquals(201, response.getStatusCode().value());
+    }
+
+    // ===== getIntegrations test =====
+
+    @Test
+    void getIntegrations_returnsList() {
+        when(alertService.getIntegrations("test@test.com")).thenReturn(List.of());
+        org.springframework.security.core.Authentication auth =
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("test@test.com", null, List.of());
+        var response = controller.getIntegrations(auth);
+        assertEquals(200, response.getStatusCode().value());
+    }
+
+    // ===== deleteIntegration test =====
+
+    @Test
+    void deleteIntegration_validId_succeeds() {
+        doNothing().when(alertService).deleteIntegration(1L);
+        var response = controller.deleteIntegration(1L);
+        assertEquals(200, response.getStatusCode().value());
+    }
 }

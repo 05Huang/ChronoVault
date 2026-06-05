@@ -637,6 +637,123 @@ class StateDiffEngineTest {
         assertEquals(1, result.summary().configsChanged);
     }
 
+    // ===== Boundary tests =====
+
+    @Test
+    void diff_withEmptyArrayFields_returnsZeroChanges() {
+        String state = """
+                {
+                  "packages": [],
+                  "services": [],
+                  "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [],
+                  "crontab": []
+                }
+                """;
+
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(state, state);
+        assertEquals(0, result.summary().packagesAdded);
+        assertEquals(0, result.summary().packagesRemoved);
+        assertEquals(0, result.summary().servicesChanged);
+        assertEquals(0, result.summary().portsChanged);
+        assertEquals(0, result.summary().configsChanged);
+        assertEquals(0, result.summary().crontabChanged);
+    }
+
+    @Test
+    void diff_withVeryLongPackageName_handlesGracefully() {
+        String longName = "a".repeat(500);
+        String stateA = """
+                {
+                  "packages": [{"name": "%s", "version": "1.0", "manager": "apt"}],
+                  "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }
+                """.formatted(longName);
+
+        String stateB = """
+                {
+                  "packages": [{"name": "%s", "version": "2.0", "manager": "apt"}],
+                  "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }
+                """.formatted(longName);
+
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(stateA, stateB);
+        assertEquals(1, result.summary().packagesUpgraded);
+    }
+
+    @Test
+    void diff_withUnicodeCharacters_handlesGracefully() {
+        String stateA = """
+                {
+                  "packages": [{"name": "日本語パッケージ", "version": "1.0", "manager": "apt"}],
+                  "services": [{"name": "中文服务", "status": "active", "enabled": true}],
+                  "ports": [], "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }
+                """;
+
+        String stateB = """
+                {
+                  "packages": [{"name": "日本語パッケージ", "version": "2.0", "manager": "apt"}],
+                  "services": [{"name": "中文服务", "status": "inactive", "enabled": false}],
+                  "ports": [], "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }
+                """;
+
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(stateA, stateB);
+        assertEquals(1, result.summary().packagesUpgraded);
+        assertEquals(1, result.summary().servicesChanged);
+    }
+
+    @Test
+    void diff_withLargeStateJson_handlesEfficiently() {
+        // Generate a state.json with 1000 packages (>1MB when combined)
+        StringBuilder packagesA = new StringBuilder("[");
+        StringBuilder packagesB = new StringBuilder("[");
+        for (int i = 0; i < 1000; i++) {
+            if (i > 0) { packagesA.append(","); packagesB.append(","); }
+            packagesA.append("{\"name\":\"pkg").append(i).append("\",\"version\":\"1.0\",\"manager\":\"apt\"}");
+            // Change every other package version
+            String version = (i % 2 == 0) ? "2.0" : "1.0";
+            packagesB.append("{\"name\":\"pkg").append(i).append("\",\"version\":\"").append(version).append("\",\"manager\":\"apt\"}");
+        }
+        packagesA.append("]");
+        packagesB.append("]");
+
+        String stateA = """
+                {
+                  "packages": %s,
+                  "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }
+                """.formatted(packagesA);
+
+        String stateB = """
+                {
+                  "packages": %s,
+                  "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }
+                """.formatted(packagesB);
+
+        long start = System.currentTimeMillis();
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(stateA, stateB);
+        long elapsed = System.currentTimeMillis() - start;
+
+        // Should handle 1000-package diff in under 1 second
+        assertTrue(elapsed < 1000, "Diff took too long: " + elapsed + "ms");
+        assertEquals(500, result.summary().packagesUpgraded); // Every other package changed
+        assertFalse(result.hasError());
+    }
+
     @Test
     void diff_detectsDockerContainerChanges() {
         String stateA = """

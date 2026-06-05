@@ -2,6 +2,8 @@ package com.chronovault.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDateTime;
 
 @Entity
@@ -42,12 +44,14 @@ public class Snapshot {
     private Integer microserviceCount;
 
     @Column(name = "state_json", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String stateJson;
 
     @Column(name = "state_collected_at")
     private LocalDateTime stateCollectedAt;
 
     @Column(name = "change_summary_json", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String changeSummaryJson;
 
     @ManyToOne(fetch = FetchType.LAZY)
