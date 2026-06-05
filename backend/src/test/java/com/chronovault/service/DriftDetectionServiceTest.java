@@ -125,6 +125,24 @@ class DriftDetectionServiceTest {
     }
 
     @Test
+    void detectDrift_oneChange_returnsMinorStatus() throws Exception {
+        when(serverRepository.findById(1L)).thenReturn(Optional.of(testServer));
+        when(sshManager.getConnection(testServer)).thenReturn(sshConnection);
+
+        lenient().when(sshConnection.executeCommand(contains("docker ps --format"))).thenReturn(new SshConnection.CommandResult(0, "", ""));
+        lenient().when(sshConnection.executeCommand(contains("health=unhealthy"))).thenReturn(new SshConnection.CommandResult(0, "", ""));
+        lenient().when(sshConnection.executeCommand(contains("test -f"))).thenReturn(new SshConnection.CommandResult(1, "", ""));
+        lenient().when(sshConnection.executeCommand(contains("ss -tlnp"))).thenReturn(new SshConnection.CommandResult(0,
+                "*:80 users:((\"nginx\"))", ""));
+
+        DriftReportDTO result = driftDetectionService.detectDrift(1L);
+
+        assertNotNull(result);
+        assertEquals(1, result.totalChanges());
+        assertEquals("MINOR", result.status());
+    }
+
+    @Test
     void detectDrift_manyChanges_returnsChangedStatus() throws Exception {
         when(serverRepository.findById(1L)).thenReturn(Optional.of(testServer));
         when(sshManager.getConnection(testServer)).thenReturn(sshConnection);

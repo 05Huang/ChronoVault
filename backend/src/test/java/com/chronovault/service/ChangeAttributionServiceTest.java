@@ -40,7 +40,7 @@ class ChangeAttributionServiceTest {
     void getServerBlame_withLogs_returnsList() {
         Server server = Server.builder().id(1L).name("test-server").build();
         when(serverRepository.findById(1L)).thenReturn(Optional.of(server));
-        when(auditLogRepository.findAllByOrderByCreatedAtDesc(any(PageRequest.class)))
+        when(auditLogRepository.findByServerId(eq(1L), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         var result = service.getServerBlame(1L);

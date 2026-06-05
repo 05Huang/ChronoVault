@@ -123,4 +123,61 @@ class DashboardServiceTest {
         assertNotNull(result);
         assertEquals(1, result.nodes().size());
     }
+
+    @Test
+    void getTopology_multipleServersSameUser_createsEdges() {
+        User user = User.builder().id(1L).build();
+        Server s1 = Server.builder().id(1L).name("Server1").status(Server.ServerStatus.RUNNING).user(user).build();
+        Server s2 = Server.builder().id(2L).name("Server2").status(Server.ServerStatus.RUNNING).user(user).build();
+        Server s3 = Server.builder().id(3L).name("Server3").status(Server.ServerStatus.STOPPED).user(user).build();
+        when(serverRepository.findAll()).thenReturn(List.of(s1, s2, s3));
+
+        var result = dashboardService.getTopology();
+
+        assertNotNull(result);
+        assertEquals(3, result.nodes().size());
+        // 3 servers from same user → 3 edges (triangle)
+        assertEquals(3, result.edges().size());
+    }
+
+    @Test
+    void getTopology_serversFromDifferentUsers_noEdges() {
+        User user1 = User.builder().id(1L).build();
+        User user2 = User.builder().id(2L).build();
+        Server s1 = Server.builder().id(1L).name("Server1").status(Server.ServerStatus.RUNNING).user(user1).build();
+        Server s2 = Server.builder().id(2L).name("Server2").status(Server.ServerStatus.RUNNING).user(user2).build();
+        when(serverRepository.findAll()).thenReturn(List.of(s1, s2));
+
+        var result = dashboardService.getTopology();
+
+        assertNotNull(result);
+        assertEquals(2, result.nodes().size());
+        // Different users → no edges
+        assertEquals(0, result.edges().size());
+    }
+
+    @Test
+    void getTopology_emptyServerList_returnsEmptyTopology() {
+        when(serverRepository.findAll()).thenReturn(List.of());
+
+        var result = dashboardService.getTopology();
+
+        assertNotNull(result);
+        assertEquals(0, result.nodes().size());
+        assertEquals(0, result.edges().size());
+    }
+
+    @Test
+    void getTopology_serversWithNullUser_groupedTogether() {
+        Server s1 = Server.builder().id(1L).name("Server1").status(Server.ServerStatus.RUNNING).user(null).build();
+        Server s2 = Server.builder().id(2L).name("Server2").status(Server.ServerStatus.RUNNING).user(null).build();
+        when(serverRepository.findAll()).thenReturn(List.of(s1, s2));
+
+        var result = dashboardService.getTopology();
+
+        assertNotNull(result);
+        assertEquals(2, result.nodes().size());
+        // Both have null user → grouped as user=0 → edge created
+        assertEquals(1, result.edges().size());
+    }
 }

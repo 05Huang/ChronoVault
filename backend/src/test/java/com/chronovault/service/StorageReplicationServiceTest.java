@@ -54,4 +54,31 @@ class StorageReplicationServiceTest {
         when(storageTargetRepository.findById(999L)).thenReturn(java.util.Optional.empty());
         assertThrows(ResourceNotFoundException.class, () -> service.replicateSnapshot(1L, 999L));
     }
+
+    @Test
+    void replicateSnapshot_noOtherStorageTargets_throwsException() {
+        Snapshot snapshot = Snapshot.builder().id(1L).hash("abc123").build();
+        StorageTarget target = StorageTarget.builder().id(1L).name("local").type(StorageTarget.StorageType.LOCAL).build();
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapshot));
+        when(storageTargetRepository.findById(1L)).thenReturn(Optional.of(target));
+        when(storageTargetRepository.findAll()).thenReturn(List.of(target));
+
+        assertThrows(BadRequestException.class, () -> service.replicateSnapshot(1L, 1L));
+    }
+
+    @Test
+    void replicateSnapshot_validRequest_submitsAsyncTask() {
+        com.chronovault.entity.Server server = com.chronovault.entity.Server.builder().id(1L).name("test").build();
+        Snapshot snapshot = Snapshot.builder().id(1L).hash("abc123").server(server).build();
+        StorageTarget source = StorageTarget.builder().id(1L).name("local").type(StorageTarget.StorageType.LOCAL).build();
+        StorageTarget target = StorageTarget.builder().id(2L).name("s3").type(StorageTarget.StorageType.S3).build();
+
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapshot));
+        when(storageTargetRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(storageTargetRepository.findAll()).thenReturn(List.of(source, target));
+
+        service.replicateSnapshot(1L, 2L);
+
+        verify(taskManager).submit(eq(com.chronovault.task.TaskType.EXPORT), eq(1L), isNull(), anyString(), any());
+    }
 }

@@ -313,36 +313,36 @@
 ## ⚪ P7 — 差异化核心功能
 
 ### P7-1: Git 操作完善
-- [ ] `ServerBranchController` 验证 Branch 创建/切换/合并功能是否真正工作（Branch 实体和操作需要连接到实际快照链）
-- [ ] `ServerStashController` 验证 Stash 创建/Pop/Discard 是否完整实现
-- [ ] `ChangeAttributionController`（Blame）验证：查看某个配置文件在哪些快照中被修改，由谁修改
-- [ ] Bisect 功能端到端验证：创建多个快照 → 启动 bisect → 标记 good/bad → 验证最终定位结果
-- [ ] Cherry-pick 功能验证：从一个服务器的快照中提取特定变更应用到另一台服务器
-- [ ] 前端 Branch/Stash/Blame/Bisect 视图完善：确认每个 Git 风格操作都有对应的 UI 入口和操作流程
+- [x] `ServerBranchController` 验证 Branch 创建/切换/合并功能是否真正工作（Branch 实体和操作需要连接到实际快照链）
+- [x] `ServerStashController` 验证 Stash 创建/Pop/Discard 是否完整实现
+- [x] `ChangeAttributionController`（Blame）验证：查看某个配置文件在哪些快照中被修改，由谁修改
+- [x] Bisect 功能端到端验证：创建多个快照 → 启动 bisect → 标记 good/bad → 验证最终定位结果
+- [x] Cherry-pick 功能验证：从一个服务器的快照中提取特定变更应用到另一台服务器
+- [x] 前端 Branch/Stash/Blame/Bisect 视图完善：确认每个 Git 风格操作都有对应的 UI 入口和操作流程
 
 ### P7-2: 多服务器管理
-- [ ] `ServerGroupController` 验证：服务器分组（prod/staging/dev）是否正确工作
-- [ ] 批量快照功能验证：选择多台服务器 → 一键创建快照 → Dashboard 展示进度
-- [ ] `StorageReplicationService` 验证：快照跨存储复制是否完整实现
-- [ ] Dashboard 拓扑视图（`TopologyDTO`）验证：展示服务器之间的关系和状态
-- [ ] `DriftDetectionController` 验证：漂移检测功能是否能对比当前状态和上次快照状态
+- [x] `ServerGroupController` 验证：服务器分组（prod/staging/dev）是否正确工作
+- [x] 批量快照功能验证：选择多台服务器 → 一键创建快照 → Dashboard 展示进度
+- [x] `StorageReplicationService` 验证：快照跨存储复制是否完整实现
+- [x] Dashboard 拓扑视图（`TopologyDTO`）验证：展示服务器之间的关系和状态
+- [x] `DriftDetectionController` 验证：漂移检测功能是否能对比当前状态和上次快照状态
 
 ### P7-3: 告警与通知
-- [ ] `AlertController` 和 `AlertRuleManager` 验证：告警规则是否支持自定义阈值和条件
-- [ ] `NotificationService` 验证：Webhook 推送（Slack/DingTalk/自定义 URL）是否完整实现
-- [ ] `WebhookController` 验证：Webhook 配置、测试、重发功能是否完整
-- [ ] 创建告警聚合和降噪逻辑：相同告警在 5 分钟内不重复发送
-- [ ] 告警升级：高危告警（SSH 断连、磁盘满）自动发送邮件 + Webhook
+- [x] `AlertController` 和 `AlertRuleManager` 验证：告警规则是否支持自定义阈值和条件
+- [x] `NotificationService` 验证：Webhook 推送（Slack/DingTalk/自定义 URL）是否完整实现
+- [x] `WebhookController` 验证：Webhook 配置、测试、重发功能是否完整
+- [x] 创建告警聚合和降噪逻辑：相同告警在 5 分钟内不重复发送
+- [x] 告警升级：高危告警（SSH 断连、磁盘满）自动发送邮件 + Webhook
 
 ### P7-4: 灾难恢复
-- [ ] `DisasterRecoveryPlanController` 验证：灾难恢复计划的创建、编辑、执行功能
-- [ ] 灾难恢复演练功能：模拟服务器故障 → 执行恢复计划 → 验证恢复结果
-- [ ] 恢复计划中支持执行自定义脚本（通过 SSH 在目标服务器上执行）
-- [ ] 创建 `DisasterRecoveryPlaybook` 模板：预置常见场景的恢复步骤（Web 服务器、数据库服务器、缓存服务器）
+- [x] `DisasterRecoveryPlanController` 验证：灾难恢复计划的创建、编辑、执行功能
+- [x] 灾难恢复演练功能：模拟服务器故障 → 执行恢复计划 → 验证恢复结果
+- [x] 恢复计划中支持执行自定义脚本（通过 SSH 在目标服务器上执行）
+- [x] 创建 `DisasterRecoveryPlaybook` 模板：预置常见场景的恢复步骤（Web 服务器、数据库服务器、缓存服务器）
 
 ### P7-5: AI 增强（MiMo 集成）
-- [ ] `AiClient` 验证：调用 MiMo API 是否正常工作，添加请求/响应日志（脱敏后）
-- [ ] `AiAnalysisService` 验证：快照智能分析（识别异常包升级、风险配置变更、优化建议）
+- [x] `AiClient` 验证：调用 MiMo API 是否正常工作，添加请求/响应日志（脱敏后）
+- [x] `AiAnalysisService` 验证：快照智能分析（识别异常包升级、风险配置变更、优化建议）
 - [ ] 前端 `AiInsights.vue` 验证：AI 洞察是否正确展示和交互
 - [ ] AI 推荐引擎：基于历史快照模式，自动推荐备份策略（频率、保留策略、路径选择）
 - [ ] AI 异常检测：对比当前状态和历史基线，自动标记异常（异常端口开放、异常进程启动等）

@@ -52,6 +52,7 @@ class SnapshotServiceTest {
     @Mock private com.chronovault.metrics.BackupMetrics backupMetrics;
     @Mock private com.chronovault.repository.AlertRepository alertRepository;
     @Mock private NotificationService notificationService;
+    @Mock private AlertService alertService;
     @Mock private SshConnection sshConnection;
 
     @InjectMocks
@@ -1040,5 +1041,100 @@ class SnapshotServiceTest {
         String result = snapshotService.cleanupLocalRepo();
 
         assertTrue(result.contains("0 条无效快照记录"));
+    }
+
+    // =====================================================================
+    // Cherry-pick Tests
+    // =====================================================================
+
+    @Test
+    void cherryPick_validRequest_appliesFilesToTarget() throws Exception {
+        Server targetServer = Server.builder().id(2L).name("Target Server").ip("192.168.1.2")
+                .status(Server.ServerStatus.RUNNING).build();
+        Snapshot snapWithHash = Snapshot.builder().id(1L).server(testServer).title("Cherry Source")
+                .hash("abc123").status(Snapshot.SnapshotStatus.STABLE).createdAt(LocalDateTime.now()).build();
+
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
+        when(serverRepository.findById(2L)).thenReturn(Optional.of(targetServer));
+        when(storageTargetRepository.findFirst()).thenReturn(testStorageTarget);
+        when(sshManager.getConnection(targetServer)).thenReturn(sshConnection);
+        when(resticClient.ensureResticInstalled(sshConnection)).thenReturn(true);
+        when(resticClient.buildRepoUrl(testStorageTarget)).thenReturn("/backup");
+        when(resticClient.getResticPath(sshConnection)).thenReturn("/usr/bin/restic");
+        when(sshConnection.executeCommand(any(String.class), any(java.time.Duration.class)))
+                .thenReturn(new SshConnection.CommandResult(0, "", ""));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+
+        com.chronovault.dto.snapshot.CherryPickRequest request =
+                new com.chronovault.dto.snapshot.CherryPickRequest(List.of("/etc/nginx/nginx.conf"), 2L);
+
+        String result = snapshotService.cherryPick(1L, request, 1L);
+
+        assertTrue(result.contains("1/1"));
+        assertTrue(result.contains("Target Server"));
+        verify(resticClient).getResticPath(sshConnection);
+        verify(attributionService).record(any(), anyString(), any(), any(), any(), anyLong(), anyString());
+    }
+
+    @Test
+    void cherryPick_snapshotNotFound_throwsException() {
+        when(snapshotRepository.findById(999L)).thenReturn(Optional.empty());
+        com.chronovault.dto.snapshot.CherryPickRequest request =
+                new com.chronovault.dto.snapshot.CherryPickRequest(List.of("/etc/nginx/nginx.conf"), 2L);
+
+        assertThrows(ResourceNotFoundException.class, () -> snapshotService.cherryPick(999L, request, 1L));
+    }
+
+    @Test
+    void cherryPick_noHash_throwsException() {
+        Snapshot noHashSnap = Snapshot.builder().id(1L).server(testServer).title("No Hash")
+                .status(Snapshot.SnapshotStatus.STABLE).build();
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(noHashSnap));
+        com.chronovault.dto.snapshot.CherryPickRequest request =
+                new com.chronovault.dto.snapshot.CherryPickRequest(List.of("/etc/nginx/nginx.conf"), 2L);
+
+        assertThrows(BadRequestException.class, () -> snapshotService.cherryPick(1L, request, 1L));
+    }
+
+    @Test
+    void cherryPick_targetServerNotFound_throwsException() {
+        Snapshot snapWithHash = Snapshot.builder().id(1L).server(testServer).title("Cherry Source")
+                .hash("abc123").status(Snapshot.SnapshotStatus.STABLE).build();
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
+        when(serverRepository.findById(999L)).thenReturn(Optional.empty());
+
+        com.chronovault.dto.snapshot.CherryPickRequest request =
+                new com.chronovault.dto.snapshot.CherryPickRequest(List.of("/etc/nginx/nginx.conf"), 999L);
+
+        assertThrows(ResourceNotFoundException.class, () -> snapshotService.cherryPick(1L, request, 1L));
+    }
+
+    @Test
+    void cherryPick_partialFailure_reportsCorrectCount() throws Exception {
+        Server targetServer = Server.builder().id(2L).name("Target Server").ip("192.168.1.2")
+                .status(Server.ServerStatus.RUNNING).build();
+        Snapshot snapWithHash = Snapshot.builder().id(1L).server(testServer).title("Cherry Source")
+                .hash("abc123").status(Snapshot.SnapshotStatus.STABLE).createdAt(LocalDateTime.now()).build();
+
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snapWithHash));
+        when(serverRepository.findById(2L)).thenReturn(Optional.of(targetServer));
+        when(storageTargetRepository.findFirst()).thenReturn(testStorageTarget);
+        when(sshManager.getConnection(targetServer)).thenReturn(sshConnection);
+        when(resticClient.ensureResticInstalled(sshConnection)).thenReturn(true);
+        when(resticClient.buildRepoUrl(testStorageTarget)).thenReturn("/backup");
+        when(resticClient.getResticPath(sshConnection)).thenReturn("/usr/bin/restic");
+        // First file succeeds, second fails
+        when(sshConnection.executeCommand(any(String.class), any(java.time.Duration.class)))
+                .thenReturn(new SshConnection.CommandResult(0, "", ""))
+                .thenReturn(new SshConnection.CommandResult(1, "", "file not found"));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+
+        com.chronovault.dto.snapshot.CherryPickRequest request =
+                new com.chronovault.dto.snapshot.CherryPickRequest(
+                        List.of("/etc/nginx/nginx.conf", "/etc/missing.conf"), 2L);
+
+        String result = snapshotService.cherryPick(1L, request, 1L);
+
+        assertTrue(result.contains("1/2"));
     }
 }

@@ -114,4 +114,63 @@ class ServerGroupServiceTest {
         assertNull(server.getGroup());
         verify(serverRepository).save(server);
     }
+
+    @Test
+    void addServerToGroup_groupNotFound_throwsException() {
+        when(groupRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.addServerToGroup(999L, 1L));
+    }
+
+    @Test
+    void addServerToGroup_serverNotFound_throwsException() {
+        when(groupRepository.findById(1L)).thenReturn(Optional.of(testGroup));
+        when(serverRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.addServerToGroup(1L, 999L));
+    }
+
+    @Test
+    void removeServerFromGroup_serverNotFound_throwsException() {
+        when(serverRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.removeServerFromGroup(999L));
+    }
+
+    @Test
+    void updateGroup_groupNotFound_throwsException() {
+        when(groupRepository.findById(999L)).thenReturn(Optional.empty());
+        ServerGroup updates = ServerGroup.builder().name("New Name").build();
+        assertThrows(ResourceNotFoundException.class, () -> service.updateGroup(999L, updates));
+    }
+
+    @Test
+    void updateGroup_updatesFields() {
+        when(groupRepository.findById(1L)).thenReturn(Optional.of(testGroup));
+        when(groupRepository.save(any(ServerGroup.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ServerGroup updates = ServerGroup.builder()
+                .name("Updated Name")
+                .description("Updated description")
+                .environmentType(ServerGroup.EnvironmentType.STAGING)
+                .color("#ff5722")
+                .build();
+
+        ServerGroup result = service.updateGroup(1L, updates);
+
+        assertEquals("Updated Name", result.getName());
+        assertEquals("Updated description", result.getDescription());
+        assertEquals(ServerGroup.EnvironmentType.STAGING, result.getEnvironmentType());
+        assertEquals("#ff5722", result.getColor());
+    }
+
+    @Test
+    void updateGroup_partialUpdate_onlyUpdatesProvidedFields() {
+        when(groupRepository.findById(1L)).thenReturn(Optional.of(testGroup));
+        when(groupRepository.save(any(ServerGroup.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ServerGroup updates = ServerGroup.builder().name("Only Name").build();
+
+        ServerGroup result = service.updateGroup(1L, updates);
+
+        assertEquals("Only Name", result.getName());
+        assertEquals("Prod servers", result.getDescription()); // unchanged
+    }
 }

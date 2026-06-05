@@ -37,26 +37,14 @@ public class BatchSnapshotService {
     /**
      * Start a batch snapshot across multiple servers.
      * Returns a batchId for tracking progress.
+     * Note: SSH operations happen outside the transaction via SnapshotEngine.
      */
-    @Transactional
     public String startBatch(List<Long> serverIds, Long storageTargetId, String name, Long userId) {
         if (serverIds == null || serverIds.isEmpty()) {
             throw new BadRequestException("至少需要选择一台服务器");
         }
 
-        StorageTarget storageTarget;
-        if (storageTargetId != null) {
-            storageTarget = storageTargetRepository.findById(storageTargetId)
-                    .orElseThrow(() -> new ResourceNotFoundException("存储目标不存在"));
-        } else {
-            List<StorageTarget> targets = storageTargetRepository.findAll();
-            if (targets.isEmpty()) {
-                throw new BadRequestException("没有可用的存储目标");
-            }
-            storageTarget = targets.stream()
-                    .filter(t -> t.getType() != StorageTarget.StorageType.LOCAL)
-                    .findFirst().orElse(targets.get(0));
-        }
+        StorageTarget storageTarget = resolveStorageTarget(storageTargetId);
 
         String batchId = UUID.randomUUID().toString().substring(0, 8);
         List<Server> servers = serverRepository.findAllById(serverIds);
@@ -64,21 +52,41 @@ public class BatchSnapshotService {
         BatchStatus status = new BatchStatus(batchId, servers.size(), name);
         batches.put(batchId, status);
 
-        // Execute snapshots in parallel (simplified: sequential for now)
+        log.info("[BATCH_SNAPSHOT] [batch={}] Starting batch snapshot for {} servers", batchId, servers.size());
+
+        // Execute snapshots sequentially (each involves SSH operations)
         for (Server server : servers) {
             try {
                 String title = (name != null ? name : "批量快照") + " - " + server.getName();
                 Snapshot snapshot = snapshotEngine.createSnapshot(server, storageTarget, title,
                         "批量快照 #" + batchId, Snapshot.SnapshotType.FULL, userId, null, null);
-                status.addResult(server.getId(), server.getName(), snapshot.getId(), "PENDING");
+                status.addResult(server.getId(), server.getName(), snapshot.getId(), "COMPLETED");
+                log.info("[BATCH_SNAPSHOT] [batch={}] Server {} snapshot completed", batchId, server.getName());
             } catch (Exception e) {
-                log.error("Batch snapshot failed for server {}: {}", server.getName(), e.getMessage());
+                log.error("[BATCH_SNAPSHOT] [batch={}] Server {} failed: {}", batchId, server.getName(), e.getMessage());
                 status.addResult(server.getId(), server.getName(), null, "FAILED: " + e.getMessage());
             }
         }
 
         status.completedAt = LocalDateTime.now();
+        log.info("[BATCH_SNAPSHOT] [batch={}] Batch completed: {}/{} servers succeeded",
+                batchId, status.results.stream().filter(r -> "COMPLETED".equals(r.status)).count(), servers.size());
         return batchId;
+    }
+
+    @Transactional(readOnly = true)
+    private StorageTarget resolveStorageTarget(Long storageTargetId) {
+        if (storageTargetId != null) {
+            return storageTargetRepository.findById(storageTargetId)
+                    .orElseThrow(() -> new ResourceNotFoundException("存储目标不存在"));
+        }
+        List<StorageTarget> targets = storageTargetRepository.findAll();
+        if (targets.isEmpty()) {
+            throw new BadRequestException("没有可用的存储目标");
+        }
+        return targets.stream()
+                .filter(t -> t.getType() != StorageTarget.StorageType.LOCAL)
+                .findFirst().orElse(targets.get(0));
     }
 
     /**

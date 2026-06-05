@@ -96,7 +96,7 @@ public class ServerBranchService {
         log.info("Deleted branch {} from server {}", branch.getName(), serverId);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public ServerBranchDTO switchBranch(Long serverId, Long branchId, Long userId) {
         ServerBranch targetBranch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("分支不存在: " + branchId));
@@ -117,36 +117,48 @@ public class ServerBranchService {
             throw new BadRequestException("目标分支没有可恢复的快照");
         }
 
-        // Restore the target branch snapshot
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
+        // Find a usable storage target
+        StorageTarget storageTarget = findUsableStorageTarget();
 
+        // Perform SSH restore outside transaction
+        restoreSnapshotViaSsh(targetBranch.getServer(), storageTarget, targetSnapshot);
+
+        log.info("[BRANCH_SWITCH] [server={}] Switched to branch '{}' (snapshot {})", serverId, targetBranch.getName(), targetSnapshot.getId());
+        return ServerBranchDTO.from(targetBranch);
+    }
+
+    private void restoreSnapshotViaSsh(Server server, StorageTarget storageTarget, Snapshot snapshot) {
         try {
-            SshConnection conn = sshManager.getConnection(targetBranch.getServer());
+            SshConnection conn = sshManager.getConnection(server);
             if (!resticClient.ensureResticInstalled(conn)) {
                 throw new BadRequestException("无法安装 restic 备份工具");
             }
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
             boolean success = resticClient.restore(conn, repoUrl, resticPassword,
-                    targetSnapshot.getHash(), "/");
+                    snapshot.getHash(), "/");
 
             if (!success) {
-                throw new BadRequestException("切换分支时恢复快照失败");
+                throw new BadRequestException("恢复快照失败: snapshot " + snapshot.getId());
             }
-
-            log.info("Switched server {} to branch {} (snapshot {})", serverId, targetBranch.getName(), targetSnapshot.getId());
-            return ServerBranchDTO.from(targetBranch);
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            throw new RuntimeException("切换分支失败: " + e.getMessage(), e);
+            throw new RuntimeException("SSH 恢复失败: " + e.getMessage(), e);
         }
     }
 
-    @Transactional
+    private StorageTarget findUsableStorageTarget() {
+        // Try to find a local storage target first, fallback to any
+        return storageTargetRepository.findAll().stream()
+                .filter(t -> "LOCAL".equals(t.getType().name()))
+                .findFirst()
+                .orElseGet(() -> storageTargetRepository.findAll().stream()
+                        .findFirst()
+                        .orElseThrow(() -> new BadRequestException("没有可用的存储目标")));
+    }
+
+    @Transactional(readOnly = true)
     public ServerBranchDTO mergeBranches(Long serverId, MergeBranchRequest request, Long userId) {
         ServerBranch source = branchRepository.findById(request.sourceBranchId())
                 .orElseThrow(() -> new ResourceNotFoundException("源分支不存在: " + request.sourceBranchId()));
@@ -177,19 +189,24 @@ public class ServerBranchService {
             throw new BadRequestException("目标分支没有可合并的快照");
         }
 
-        // Merge: restore source snapshot files onto the server, then create a new snapshot on the target branch
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
+        StorageTarget storageTarget = findUsableStorageTarget();
 
+        // Merge: restore target state then overlay source changes via SSH
+        mergeBranchesViaSsh(source.getServer(), storageTarget, sourceSnapshot, targetSnapshot);
+
+        log.info("[BRANCH_MERGE] [server={}] Merged '{}' into '{}'", serverId, source.getName(), target.getName());
+        return ServerBranchDTO.from(target);
+    }
+
+    private void mergeBranchesViaSsh(Server server, StorageTarget storageTarget,
+                                      Snapshot sourceSnapshot, Snapshot targetSnapshot) {
         try {
-            SshConnection conn = sshManager.getConnection(source.getServer());
+            SshConnection conn = sshManager.getConnection(server);
             if (!resticClient.ensureResticInstalled(conn)) {
                 throw new BadRequestException("无法安装 restic 备份工具");
             }
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
 
             // First restore target branch state
             boolean targetOk = resticClient.restore(conn, repoUrl, resticPassword,
@@ -204,13 +221,10 @@ public class ServerBranchService {
             if (!sourceOk) {
                 throw new BadRequestException("应用源分支变更失败");
             }
-
-            log.info("Merged branch {} into branch {} on server {}", source.getName(), target.getName(), serverId);
-            return ServerBranchDTO.from(target);
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            throw new RuntimeException("合并分支失败: " + e.getMessage(), e);
+            throw new RuntimeException("SSH 合并失败: " + e.getMessage(), e);
         }
     }
 

@@ -32,9 +32,27 @@
                     <span class="text-[12px] font-bold">{{ branch.name }}</span>
                     <span v-if="branch.isDefault" class="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold">默认</span>
                   </div>
+                  <button v-if="!branch.isDefault" @click.stop="renameBranchPrompt(branch)"
+                    class="p-1 rounded hover:bg-primary/10 text-outline hover:text-primary transition-colors" title="重命名">
+                    <span class="material-symbols-outlined text-[14px]">edit</span>
+                  </button>
                   <button v-if="!branch.isDefault" @click.stop="deleteBranch(branch)"
-                    class="p-1 rounded hover:bg-error/10 text-outline hover:text-error transition-colors">
+                    class="p-1 rounded hover:bg-error/10 text-outline hover:text-error transition-colors" title="删除">
                     <span class="material-symbols-outlined text-[14px]">delete</span>
+                  </button>
+                </div>
+              </div>
+              <!-- Merge branch -->
+              <div v-if="branches.length >= 2" class="p-3 border-t border-outline-variant/20 bg-surface-container-low/50">
+                <p class="text-[11px] font-bold text-on-surface-variant mb-2">合并分支</p>
+                <div class="flex gap-2">
+                  <select v-model="mergeSourceBranchId" class="flex-1 px-3 py-1.5 bg-white/50 border border-outline-variant rounded-lg text-[12px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none appearance-none">
+                    <option value="">选择源分支</option>
+                    <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+                  </select>
+                  <button @click="mergeBranches" :disabled="!mergeSourceBranchId || !activeBranch || mergeSourceBranchId === activeBranch.id || mergingBranch"
+                    class="px-3 py-1.5 bg-primary text-white rounded-lg text-[11px] font-bold hover:bg-primary/90 transition-all disabled:opacity-50">
+                    {{ mergingBranch ? '...' : '合并' }}
                   </button>
                 </div>
               </div>
@@ -1146,6 +1164,71 @@ async function deleteBranch(branch: ServerBranch) {
     toast.success(`分支 "${branch.name}" 已删除`)
   } catch (e: unknown) {
     toast.error(getErrorMessage(e, '删除分支失败'))
+  }
+}
+
+// Branch rename
+const renamingBranchId = ref<number | null>(null)
+const renamingBranchName = ref('')
+
+function renameBranchPrompt(branch: ServerBranch) {
+  renamingBranchId.value = branch.id
+  renamingBranchName.value = branch.name
+  const newName = prompt('输入新分支名称:', branch.name)
+  if (newName && newName.trim() && newName.trim() !== branch.name) {
+    doRenameBranch(branch.id, newName.trim())
+  }
+  renamingBranchId.value = null
+}
+
+async function doRenameBranch(branchId: number, newName: string) {
+  try {
+    await branchesApi.rename(serverId, branchId, newName)
+    const branch = branches.value.find(b => b.id === branchId)
+    if (branch) branch.name = newName
+    toast.success(`分支已重命名为 "${newName}"`)
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '重命名分支失败'))
+  }
+}
+
+// Branch merge
+const mergeSourceBranchId = ref<number | null>(null)
+const mergingBranch = ref(false)
+
+async function mergeBranches() {
+  if (!mergeSourceBranchId.value || !activeBranch.value) return
+  mergingBranch.value = true
+  try {
+    await branchesApi.merge(serverId, {
+      sourceBranchId: mergeSourceBranchId.value,
+      targetBranchId: activeBranch.value.id,
+    })
+    toast.success(`分支已合并到 "${activeBranch.value.name}"`)
+    mergeSourceBranchId.value = null
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, '合并分支失败'))
+  } finally {
+    mergingBranch.value = false
+  }
+}
+
+// Cherry-pick
+async function cherryPickSnapshot(snapshotId: number) {
+  const targetServerId = prompt('输入目标服务器 ID (留空则应用到当前服务器):')
+  const targetId = targetServerId ? Number(targetServerId) : serverId
+  if (!targetId || isNaN(targetId)) return
+  const filesInput = prompt('输入要提取的文件路径 (逗号分隔):')
+  if (!filesInput) return
+  const files = filesInput.split(',').map(f => f.trim()).filter(Boolean)
+  if (files.length === 0) return
+
+  try {
+    const { snapshotsApi } = await import('@/api/snapshots')
+    const result = await snapshotsApi.cherryPick(snapshotId, { files, targetServerId: targetId })
+    toast.success(result || 'Cherry-pick 完成')
+  } catch (e: unknown) {
+    toast.error(getErrorMessage(e, 'Cherry-pick 失败'))
   }
 }
 

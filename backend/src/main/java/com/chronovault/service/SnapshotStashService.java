@@ -50,21 +50,14 @@ public class SnapshotStashService {
         Server server = serverRepository.findById(serverId)
                 .orElseThrow(() -> new ResourceNotFoundException("服务器不存在: " + serverId));
 
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
-        StorageTarget target = targets.stream()
-                .filter(t -> t.getType() != StorageTarget.StorageType.LOCAL)
-                .findFirst()
-                .orElse(targets.get(0));
+        StorageTarget target = findUsableStorageTarget();
 
         String title = "Stash " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("MM-dd HH:mm:ss"));
 
         Snapshot snapshot = snapshotEngine.createSnapshot(server, target, title,
                 note, Snapshot.SnapshotType.STASH, userId, null, null);
 
-        log.info("Created stash for server {}: id={}", serverId, snapshot.getId());
+        log.info("[STASH_CREATE] [server={}] Created stash id={}", serverId, snapshot.getId());
         return SnapshotDTO.from(snapshot);
     }
 
@@ -87,8 +80,26 @@ public class SnapshotStashService {
     /**
      * Pop the most recent stash: restore its state to the server and delete the stash record.
      */
-    @Transactional
     public String popStash(Long serverId, Long userId) {
+        // Read-only: find the latest stash
+        Snapshot stash = findLatestStash(serverId);
+
+        // Find a usable storage target
+        StorageTarget storageTarget = findUsableStorageTarget();
+
+        // Perform SSH restore outside transaction
+        restoreStashViaSsh(stash.getServer(), storageTarget, stash);
+
+        // Transactional: delete the stash record after successful restore
+        deleteStashRecord(stash, serverId);
+
+        String stashName = stash.getTitle();
+        log.info("[STASH_POP] [server={}] Popped stash '{}' (id={})", serverId, stashName, stash.getId());
+        return "已恢复暂存快照 \"" + stashName + "\"，快照记录已删除";
+    }
+
+    @Transactional(readOnly = true)
+    private Snapshot findLatestStash(Long serverId) {
         List<Snapshot> stashes = snapshotRepository.findByServerIdOrderByCreatedAtDesc(serverId).stream()
                 .filter(s -> s.getType() == Snapshot.SnapshotType.STASH && s.getHash() != null)
                 .toList();
@@ -96,36 +107,44 @@ public class SnapshotStashService {
         if (stashes.isEmpty()) {
             throw new BadRequestException("没有可恢复的暂存快照");
         }
+        return stashes.get(0);
+    }
 
-        Snapshot stash = stashes.get(0);
-        List<StorageTarget> targets = storageTargetRepository.findAll();
-        if (targets.isEmpty()) {
-            throw new BadRequestException("没有可用的存储目标");
-        }
-
+    private void restoreStashViaSsh(Server server, StorageTarget storageTarget, Snapshot stash) {
         try {
-            SshConnection conn = sshManager.getConnection(stash.getServer());
+            SshConnection conn = sshManager.getConnection(server);
             if (!resticClient.ensureResticInstalled(conn)) {
                 throw new BadRequestException("无法安装 restic 备份工具");
             }
 
-            String repoUrl = resticClient.buildRepoUrl(targets.get(0));
+            String repoUrl = resticClient.buildRepoUrl(storageTarget);
             boolean success = resticClient.restore(conn, repoUrl, resticPassword,
                     stash.getHash(), "/");
 
             if (!success) {
                 throw new BadRequestException("恢复暂存快照失败");
             }
-
-            String stashName = stash.getTitle();
-            snapshotRepository.delete(stash);
-            log.info("Popped stash {} from server {}", stash.getId(), serverId);
-            return "已恢复暂存快照 \"" + stashName + "\"，快照记录已删除";
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            throw new RuntimeException("恢复暂存快照失败: " + e.getMessage(), e);
+            throw new RuntimeException("SSH 恢复暂存快照失败: " + e.getMessage(), e);
         }
+    }
+
+    @Transactional
+    private void deleteStashRecord(Snapshot stash, Long serverId) {
+        snapshotRepository.delete(stash);
+    }
+
+    private StorageTarget findUsableStorageTarget() {
+        List<StorageTarget> targets = storageTargetRepository.findAll();
+        if (targets.isEmpty()) {
+            throw new BadRequestException("没有可用的存储目标");
+        }
+        return targets.stream()
+                .filter(t -> t.getType() != StorageTarget.StorageType.LOCAL)
+                .findFirst()
+                .orElse(targets.get(0));
     }
 
     /**

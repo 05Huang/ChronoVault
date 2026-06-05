@@ -22,7 +22,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -36,6 +39,35 @@ public class AlertService {
     private final ServerRepository serverRepository;
     private final DockerOperationService dockerService;
     private final SshConnectionManager sshManager;
+
+    /** Deduplication: track last alert time by composite key (title + source) */
+    private static final long DEDUP_WINDOW_MINUTES = 5;
+    private final Map<String, LocalDateTime> recentAlerts = new ConcurrentHashMap<>();
+
+    /**
+     * Check if a similar alert was sent within the deduplication window.
+     */
+    public boolean isDuplicateAlert(String title, String source) {
+        String key = (title != null ? title : "") + "|" + (source != null ? source : "");
+        LocalDateTime lastSent = recentAlerts.get(key);
+        if (lastSent != null && lastSent.plusMinutes(DEDUP_WINDOW_MINUTES).isAfter(LocalDateTime.now())) {
+            log.debug("[ALERT_DEDUP] Suppressed duplicate alert: {} (last sent {})", title, lastSent);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Record that an alert was sent for deduplication purposes.
+     */
+    public void recordAlertSent(String title, String source) {
+        String key = (title != null ? title : "") + "|" + (source != null ? source : "");
+        recentAlerts.put(key, LocalDateTime.now());
+        // Cleanup old entries periodically
+        if (recentAlerts.size() > 1000) {
+            recentAlerts.entrySet().removeIf(e -> e.getValue().plusMinutes(DEDUP_WINDOW_MINUTES * 2).isBefore(LocalDateTime.now()));
+        }
+    }
 
     public List<AlertDTO> getAlerts(String filter) {
         // Safety limit: cap at 100 results to prevent OOM on unbounded queries
@@ -240,6 +272,33 @@ public class AlertService {
             } catch (Exception e) {
                 log.error("[ALERT_NOTIFY] [alert={}] Failed to send notification via {}: {}", alert.getId(), integration.getType(), e.getMessage());
             }
+        }
+    }
+
+    /**
+     * Escalate a critical alert: force notification to ALL active integrations regardless of event filter.
+     * Used for high-risk alerts like SSH disconnect, disk full, etc.
+     */
+    public void escalateCriticalAlert(Alert alert) {
+        if (alert.getSeverity() != Alert.AlertSeverity.CRITICAL) return;
+
+        log.info("[ALERT_ESCALATE] [alert={}] Escalating critical alert: {}", alert.getId(), alert.getTitle());
+
+        // Find the server owner and send to all their active integrations
+        if (alert.getServer() != null && alert.getServer().getUser() != null) {
+            Long userId = alert.getServer().getUser().getId();
+            List<com.chronovault.entity.Integration> integrations = integrationRepository.findByUserId(userId);
+            for (com.chronovault.entity.Integration integration : integrations) {
+                if (!Boolean.TRUE.equals(integration.getActive())) continue;
+                try {
+                    sendToChannel(integration, alert);
+                    log.info("[ALERT_ESCALATE] [alert={}] Sent via {}", alert.getId(), integration.getType());
+                } catch (Exception e) {
+                    log.error("[ALERT_ESCALATE] [alert={}] Failed to send via {}: {}", alert.getId(), integration.getType(), e.getMessage());
+                }
+            }
+        } else {
+            log.warn("[ALERT_ESCALATE] [alert={}] No server owner found for escalation", alert.getId());
         }
     }
 

@@ -41,4 +41,21 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
      * Delete audit logs older than a given date — for retention enforcement.
      */
     void deleteByCreatedAtBefore(LocalDateTime cutoff);
+
+    /**
+     * Find audit logs related to a server (via server_id or snapshot.server_id).
+     */
+    @Query("SELECT a FROM AuditLog a WHERE " +
+           "a.server.id = :serverId OR " +
+           "(a.snapshot IS NOT NULL AND a.snapshot.server.id = :serverId) " +
+           "ORDER BY a.createdAt DESC")
+    Page<AuditLog> findByServerId(@Param("serverId") Long serverId, Pageable pageable);
+
+    /**
+     * Find audit logs related to a specific snapshot.
+     */
+    @Query("SELECT a FROM AuditLog a WHERE " +
+           "a.snapshot.id = :snapshotId " +
+           "ORDER BY a.createdAt DESC")
+    Page<AuditLog> findBySnapshotId(@Param("snapshotId") Long snapshotId, Pageable pageable);
 }

@@ -64,6 +64,7 @@ public class SnapshotService {
     private final StateDiffEngine stateDiffEngine;
     private final AlertRepository alertRepository;
     private final NotificationService notificationService;
+    private final AlertService alertService;
 
     @Value("${chronovault.restic-password}")
     private String resticPassword;
@@ -626,7 +627,6 @@ public class SnapshotService {
         }
     }
 
-    @Transactional
     public String cherryPick(Long snapshotId, CherryPickRequest request, Long userId) {
         Snapshot snapshot = snapshotRepository.findById(snapshotId)
                 .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
@@ -639,65 +639,42 @@ public class SnapshotService {
                 .orElseThrow(() -> new ResourceNotFoundException("目标服务器不存在: " + request.targetServerId()));
 
         StorageTarget storageTarget = getAnyStorageTarget();
+        String repoUrl = resticClient.buildRepoUrl(storageTarget);
 
         try {
-            // Step 1: Extract files from snapshot to temp dir on source server
-            SshConnection sourceConn = sshManager.getConnection(snapshot.getServer());
-            if (!resticClient.ensureResticInstalled(sourceConn)) {
-                throw new BadRequestException("无法安装 restic 备份工具");
-            }
-
-            String repoUrl = resticClient.buildRepoUrl(storageTarget);
-            String tempDir = "/var/chronovault/cherry-pick-" + snapshotId + "-" + System.currentTimeMillis() + "/";
-
-            log.info("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Extracting {} files to temp dir", snapshotId, request.files().size());
-            boolean dumpOk = resticClient.dumpFiles(sourceConn, repoUrl, resticPassword,
-                    snapshot.getHash(), request.files(), tempDir);
-
-            if (!dumpOk) {
-                throw new BadRequestException("从快照中提取文件失败");
-            }
-
-            // Step 2: Copy files to target server
-            log.info("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Copying files to target server {}", snapshotId, targetServer.getIp());
+            // Connect to target server
             SshConnection targetConn = sshManager.getConnection(targetServer);
             if (!resticClient.ensureResticInstalled(targetConn)) {
                 throw new BadRequestException("目标服务器无法安装 restic");
             }
 
-            // Copy each file to its original path on the target
-            StringBuilder copyCmd = new StringBuilder();
-            copyCmd.append("sudo mkdir -p /var/chronovault/cherry-pick-tmp && ");
+            log.info("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Applying {} files to server {}", snapshotId, request.files().size(), targetServer.getIp());
+
+            int successCount = 0;
             for (String file : request.files()) {
-                // Use scp-style approach: dump from source, pipe to target
-                // Since both servers share the same restic repo, we can restore directly on target
                 String restoreCmd = String.format(
                         "RESTIC_PASSWORD=%s %s restore %s --include %s --target / --repo %s 2>&1",
                         resticPassword, resticClient.getResticPath(targetConn),
                         snapshot.getHash(), file, repoUrl);
-                SshConnection.CommandResult restoreResult = targetConn.executeCommand(restoreCmd,
+                SshConnection.CommandResult result = targetConn.executeCommand(restoreCmd,
                         java.time.Duration.ofMinutes(30));
-                if (!restoreResult.isSuccess()) {
+                if (result.isSuccess()) {
+                    successCount++;
+                } else {
                     log.warn("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Failed to restore {} on target: {}", snapshotId, file,
-                            restoreResult.stderr() != null ? restoreResult.stderr().substring(0, Math.min(200, restoreResult.stderr().length())) : "");
+                            result.stderr() != null ? result.stderr().substring(0, Math.min(200, result.stderr().length())) : "");
                 }
-            }
-
-            // Step 3: Cleanup temp dir on source
-            try {
-                sourceConn.executeCommand("sudo rm -rf " + tempDir + " 2>/dev/null");
-            } catch (Exception e) {
-                log.warn("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Failed to cleanup temp dir: {}", snapshotId, e.getMessage());
             }
 
             // Record blame
             User user = userRepository.findById(userId).orElse(null);
             attributionService.record(AuditLog.ChangeType.SNAPSHOT_CREATED,
-                    "Cherry-pick " + request.files().size() + " 个文件到 " + targetServer.getName(),
+                    "Cherry-pick " + successCount + "/" + request.files().size() + " 个文件到 " + targetServer.getName(),
                     user, snapshot.getServer(), snapshot, snapshotId,
                     "文件: " + String.join(", ", request.files()));
 
-            return "已将 " + request.files().size() + " 个文件从快照 \"" + snapshot.getTitle()
+            log.info("[SNAPSHOT_CHERRY_PICK] [snapshot={}] Completed: {}/{} files applied to {}", snapshotId, successCount, request.files().size(), targetServer.getName());
+            return "已将 " + successCount + "/" + request.files().size() + " 个文件从快照 \"" + snapshot.getTitle()
                     + "\" 应用到服务器 \"" + targetServer.getName() + "\"";
         } catch (BadRequestException e) {
             throw e;
@@ -1174,8 +1151,16 @@ public class SnapshotService {
                 }
             }
 
-            // Create alert if high-risk changes detected
+            // Create alert if high-risk changes detected (with deduplication)
             if (!riskReasons.isEmpty()) {
+                String alertTitle = "检测到 " + riskReasons.size() + " 项高风险变更";
+
+                // Skip if same alert was sent within the deduplication window (5 minutes)
+                if (alertService.isDuplicateAlert(alertTitle, "snapshot-diff")) {
+                    log.debug("[SNAPSHOT_ALERT] [snapshot={}] Suppressed duplicate alert: {}", currentSnapshot.getId(), alertTitle);
+                    return;
+                }
+
                 Alert alert = Alert.builder()
                         .server(currentSnapshot.getServer())
                         .severity(Alert.AlertSeverity.WARNING)
@@ -1186,6 +1171,7 @@ public class SnapshotService {
                         .status(Alert.AlertStatus.OPEN)
                         .build();
                 alertRepository.save(alert);
+                alertService.recordAlertSent(alertTitle, "snapshot-diff");
                 log.warn("[SNAPSHOT_ALERT] [snapshot={}] Created high-risk alert: {} reasons",
                         currentSnapshot.getId(), riskReasons.size());
 

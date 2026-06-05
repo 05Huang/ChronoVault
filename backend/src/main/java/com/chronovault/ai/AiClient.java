@@ -73,6 +73,12 @@ public class AiClient {
             return null;
         }
 
+        // Log request (mask sensitive data)
+        log.info("[AI_REQUEST] model={}, systemPrompt={} chars, userPrompt={} chars",
+                model,
+                systemPrompt != null ? systemPrompt.length() : 0,
+                userPrompt != null ? userPrompt.length() : 0);
+
         try {
             WebClient client = WebClient.builder()
                     .baseUrl(baseUrl)
@@ -99,6 +105,11 @@ public class AiClient {
                     .bodyToMono(String.class)
                     .block();
 
+            // Log response (mask sensitive data)
+            log.info("[AI_RESPONSE] status={}, responseLength={} chars",
+                    responseJson != null ? "ok" : "null",
+                    responseJson != null ? responseJson.length() : 0);
+
             if (responseJson == null) {
                 log.warn("AI API returned null response");
                 return null;
@@ -109,7 +120,7 @@ public class AiClient {
             // Check for API error
             JsonNode error = root.path("error");
             if (!error.isMissingNode()) {
-                log.warn("AI API error: {}", error.path("message").asText("unknown"));
+                log.warn("[AI_RESPONSE] API error: {}", error.path("message").asText("unknown"));
                 return null;
             }
 
@@ -121,19 +132,19 @@ public class AiClient {
                 if (content.isBlank()) {
                     String reasoning = message.path("reasoning_content").asText("");
                     if (!reasoning.isBlank()) {
-                        log.debug("Using reasoning_content as fallback ({} chars)", reasoning.length());
+                        log.debug("[AI_RESPONSE] Using reasoning_content as fallback ({} chars)", reasoning.length());
                         return reasoning;
                     }
-                    log.warn("AI returned empty content and empty reasoning_content");
+                    log.warn("[AI_RESPONSE] Empty content and empty reasoning_content");
                 }
-                log.debug("AI response: {} chars", content.length());
+                log.debug("[AI_RESPONSE] Success: {} chars", content.length());
                 return content.isBlank() ? null : content;
             }
 
-            log.warn("AI API response has no choices: {}", responseJson.substring(0, Math.min(200, responseJson.length())));
+            log.warn("[AI_RESPONSE] No choices in response: {}", responseJson.substring(0, Math.min(200, responseJson.length())));
             return null;
         } catch (Exception e) {
-            log.error("AI API call failed: {}", e.getMessage());
+            log.error("[AI_RESPONSE] API call failed: {}", e.getMessage());
             return null;
         }
     }

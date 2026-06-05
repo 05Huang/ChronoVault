@@ -81,4 +81,66 @@ class WebhookServiceTest {
         assertNotNull(result);
         assertTrue(result.isEmpty());
     }
+
+    @Test
+    void deliverEvent_noEndpoints_doesNothing() {
+        when(endpointRepository.findByEnabledTrue()).thenReturn(List.of());
+        service.deliverEvent("snapshot.created", "{}");
+        verify(deliveryLogRepository, never()).save(any());
+    }
+
+    @Test
+    void deliverEvent_withEnabledEndpoint_logsDelivery() {
+        WebhookEndpoint ep = WebhookEndpoint.builder().id(1L).url("https://example.com/hook")
+                .enabled(true).events("snapshot.created").build();
+        when(endpointRepository.findByEnabledTrue()).thenReturn(List.of(ep));
+        // The HTTP call will fail (no real server), but delivery log should still be saved
+        service.deliverEvent("snapshot.created", "{\"test\":true}");
+        // Verify delivery was attempted (log entry saved even on failure)
+        verify(deliveryLogRepository, atLeastOnce()).save(any());
+    }
+
+    @Test
+    void deliverEvent_withAllEventsFilter_deliversAll() {
+        WebhookEndpoint ep = WebhookEndpoint.builder().id(1L).url("https://example.com/hook")
+                .enabled(true).events("").build(); // empty = all events
+        when(endpointRepository.findByEnabledTrue()).thenReturn(List.of(ep));
+        service.deliverEvent("alert.created", "{}");
+        verify(deliveryLogRepository, atLeastOnce()).save(any());
+    }
+
+    @Test
+    void deliverEvent_withSpecificEventFilter_onlyDeliversMatching() {
+        WebhookEndpoint ep = WebhookEndpoint.builder().id(1L).url("https://example.com/hook")
+                .enabled(true).events("snapshot.created,snapshot.deleted").build();
+        when(endpointRepository.findByEnabledTrue()).thenReturn(List.of(ep));
+
+        // This event type is NOT subscribed
+        service.deliverEvent("alert.created", "{}");
+        verify(deliveryLogRepository, never()).save(any());
+    }
+
+    @Test
+    void deliverEvent_disabledEndpoint_skipped() {
+        WebhookEndpoint ep = WebhookEndpoint.builder().id(1L).url("https://example.com/hook")
+                .enabled(false).build();
+        when(endpointRepository.findByEnabledTrue()).thenReturn(List.of());
+        service.deliverEvent("snapshot.created", "{}");
+        verify(deliveryLogRepository, never()).save(any());
+    }
+
+    @Test
+    void updateEndpoint_updatesSecretAndEvents() {
+        WebhookEndpoint existing = WebhookEndpoint.builder().id(1L).url("https://old.com")
+                .secret("old-secret").events("old-event").enabled(true).build();
+        when(endpointRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(endpointRepository.save(any(WebhookEndpoint.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        WebhookEndpoint updates = WebhookEndpoint.builder()
+                .secret("new-secret").events("new-event").enabled(true).build();
+
+        var result = service.updateEndpoint(1L, updates);
+        assertEquals("new-secret", result.getSecret());
+        assertEquals("new-event", result.getEvents());
+    }
 }

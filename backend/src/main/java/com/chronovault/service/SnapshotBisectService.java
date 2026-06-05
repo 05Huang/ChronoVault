@@ -87,14 +87,19 @@ public class SnapshotBisectService {
         );
         sessions.put(sessionId, state);
 
-        log.info("Bisect session {} started: {} candidates, {} steps, current={}",
+        log.info("[BISECT] [session={}] Started: {} candidates, {} steps, current={}",
                 sessionId, candidates.size(), totalSteps, current.getId());
 
         return toDTO(state);
     }
 
     /**
-     * Mark a snapshot as good or bad. The binary search narrows the range.
+     * Mark a snapshot as good, bad, or skip. The binary search narrows the range.
+     * Candidates are ordered from oldest (good end) to newest (bad end).
+     *
+     * - "good": This snapshot is OK. Culprit is newer → keep candidates AFTER this one.
+     * - "bad":  This snapshot has the issue. Culprit is this or older → keep candidates UP TO and INCLUDING this one.
+     * - "skip": Cannot determine. Keep all candidates, just pick a different midpoint.
      */
     public BisectSessionDTO mark(String sessionId, BisectMarkRequest request) {
         BisectState state = sessions.get(sessionId);
@@ -106,15 +111,14 @@ public class SnapshotBisectService {
         }
 
         String verdict = request.verdict();
-        if (!"good".equals(verdict) && !"bad".equals(verdict)) {
-            throw new BadRequestException("判定结果必须为 good 或 bad");
+        if (!"good".equals(verdict) && !"bad".equals(verdict) && !"skip".equals(verdict)) {
+            throw new BadRequestException("判定结果必须为 good、bad 或 skip");
         }
 
         state.stepsCompleted++;
 
-        // If this is the last step or we found the culprit
-        if (state.stepsCompleted >= state.totalSteps || state.candidates.size() <= 2) {
-            // The current snapshot is the one that caused the issue (the bad one in the pair)
+        // If this is the last step or we found the culprit, declare it found
+        if (state.candidates.size() <= 2 || state.stepsCompleted >= state.totalSteps) {
             Snapshot culprit = snapshotRepository.findById(request.snapshotId())
                     .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + request.snapshotId()));
 
@@ -123,52 +127,44 @@ public class SnapshotBisectService {
             state.status = "FOUND";
             state.currentSnapshotId = request.snapshotId();
 
-            log.info("Bisect session {} FOUND culprit: snapshot {} ({})", sessionId, culprit.getId(), culprit.getTitle());
+            log.info("[BISECT] [session={}] FOUND culprit: snapshot {} ({})", sessionId, culprit.getId(), culprit.getTitle());
             return toDTO(state);
         }
 
-        // Narrow the candidates list
-        List<Snapshot> newCandidates = new ArrayList<>();
-        boolean foundCurrent = false;
-        for (Snapshot s : state.candidates) {
-            if (s.getId().equals(request.snapshotId())) {
-                foundCurrent = true;
-                if ("bad".equals(verdict)) {
-                    // Current is bad, keep it and everything before it (towards good)
-                    newCandidates.add(s);
-                }
-                // If good, discard this and everything before it
-                continue;
-            }
-            if (!foundCurrent) {
-                // Before current snapshot
-                if ("bad".equals(verdict)) {
-                    // Current is bad, discard earlier ones (they are good)
-                    continue;
-                } else {
-                    // Current is good, keep earlier ones (towards bad)
-                    newCandidates.add(s);
-                }
-            } else {
-                // After current snapshot
-                if ("bad".equals(verdict)) {
-                    // Current is bad, discard later ones (they are bad too, beyond current)
+        // Narrow the candidates list based on the verdict
+        if (!"skip".equals(verdict)) {
+            int currentIndex = -1;
+            for (int i = 0; i < state.candidates.size(); i++) {
+                if (state.candidates.get(i).getId().equals(request.snapshotId())) {
+                    currentIndex = i;
                     break;
+                }
+            }
+
+            if (currentIndex >= 0) {
+                if ("good".equals(verdict)) {
+                    // This snapshot is good → keep only snapshots AFTER it (towards bad end)
+                    state.candidates = new ArrayList<>(state.candidates.subList(currentIndex + 1, state.candidates.size()));
                 } else {
-                    // Current is good, keep later ones (towards bad)
-                    newCandidates.add(s);
+                    // This snapshot is bad → keep this and all BEFORE it (towards good end)
+                    state.candidates = new ArrayList<>(state.candidates.subList(0, currentIndex + 1));
                 }
             }
         }
+        // "skip": do not narrow, just pick a different midpoint
 
-        state.candidates = newCandidates;
+        if (state.candidates.isEmpty()) {
+            state.status = "FOUND";
+            state.culpritSnapshotName = "无法确定（候选列表为空）";
+            return toDTO(state);
+        }
 
         // Pick the next middle
-        int mid = newCandidates.size() / 2;
-        state.currentSnapshotId = newCandidates.get(mid).getId();
+        int mid = state.candidates.size() / 2;
+        state.currentSnapshotId = state.candidates.get(mid).getId();
 
-        log.info("Bisect session {} step {}: {} candidates remaining, next={}",
-                sessionId, state.stepsCompleted, newCandidates.size(), state.currentSnapshotId);
+        log.info("[BISECT] [session={}] Step {}: {} candidates remaining, next={}",
+                sessionId, state.stepsCompleted, state.candidates.size(), state.currentSnapshotId);
 
         return toDTO(state);
     }

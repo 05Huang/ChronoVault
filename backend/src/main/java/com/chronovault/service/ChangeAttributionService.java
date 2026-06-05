@@ -28,44 +28,31 @@ public class ChangeAttributionService {
 
     /**
      * Get blame timeline for a server: who changed what and when.
+     * Uses targeted JPQL query instead of loading all audit logs.
      */
     @Transactional(readOnly = true)
     public List<ChangeAttribution> getServerBlame(Long serverId) {
-        Server server = serverRepository.findById(serverId)
+        serverRepository.findById(serverId)
                 .orElseThrow(() -> new ResourceNotFoundException("服务器不存在: " + serverId));
 
-        // Use paginated query (max 500) to prevent OOM, then filter in-memory
-        // TODO: Add targeted JPQL query for better performance
-        List<AuditLog> logs = auditLogRepository.findAllByOrderByCreatedAtDesc(
-                PageRequest.of(0, 500)).getContent().stream()
-                .filter(auditLog -> {
-                    if (auditLog.getServer() != null && auditLog.getServer().getId().equals(serverId)) return true;
-                    if (auditLog.getSnapshot() != null && auditLog.getSnapshot().getServer() != null
-                            && auditLog.getSnapshot().getServer().getId().equals(serverId)) return true;
-                    return false;
-                })
-                .limit(100)
-                .toList();
+        List<AuditLog> logs = auditLogRepository.findByServerId(serverId, PageRequest.of(0, 100)).getContent();
 
+        log.debug("[BLAME] [server={}] Found {} attribution entries", serverId, logs.size());
         return logs.stream().map(ChangeAttribution::from).toList();
     }
 
     /**
      * Get blame for a specific snapshot: who created it, what changed since previous.
+     * Uses targeted JPQL query instead of loading all audit logs.
      */
     @Transactional(readOnly = true)
     public List<ChangeAttribution> getSnapshotBlame(Long snapshotId) {
-        Snapshot snapshot = snapshotRepository.findById(snapshotId)
+        snapshotRepository.findById(snapshotId)
                 .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
 
-        // Use paginated query (max 200) to prevent OOM, then filter in-memory
-        // TODO: Add targeted JPQL query for better performance
-        List<AuditLog> logs = auditLogRepository.findAllByOrderByCreatedAtDesc(
-                PageRequest.of(0, 200)).getContent().stream()
-                .filter(auditLog -> auditLog.getSnapshot() != null && auditLog.getSnapshot().getId().equals(snapshotId))
-                .limit(50)
-                .toList();
+        List<AuditLog> logs = auditLogRepository.findBySnapshotId(snapshotId, PageRequest.of(0, 50)).getContent();
 
+        log.debug("[BLAME] [snapshot={}] Found {} attribution entries", snapshotId, logs.size());
         return logs.stream().map(ChangeAttribution::from).toList();
     }
 
