@@ -6,6 +6,7 @@ import com.chronovault.task.AsyncTaskManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -157,6 +158,40 @@ public class AgentCommunicationService {
         task.setError(error);
         task.setCompletedAt(LocalDateTime.now());
         taskRepository.save(task);
+    }
+
+    /**
+     * Check for agents that haven't sent a heartbeat in 120 seconds.
+     * Marks them as OFFLINE and updates server status accordingly.
+     * Runs every 60 seconds.
+     */
+    @Scheduled(fixedRate = 60000)
+    @Transactional
+    public void checkStaleHeartbeats() {
+        try {
+            LocalDateTime staleThreshold = LocalDateTime.now().minusSeconds(120);
+            List<AgentInfo> staleAgents = agentInfoRepository.findByStatusAndLastHeartbeatAtBefore(
+                    "ONLINE", staleThreshold);
+
+            if (staleAgents.isEmpty()) return;
+
+            log.info("[AGENT_HEARTBEAT] Marking {} agents as OFFLINE (no heartbeat since {})",
+                    staleAgents.size(), staleThreshold);
+
+            for (AgentInfo agent : staleAgents) {
+                agent.setStatus("OFFLINE");
+                agentInfoRepository.save(agent);
+
+                Server server = agent.getServer();
+                if (server != null && server.getStatus() == Server.ServerStatus.RUNNING) {
+                    server.setStatus(Server.ServerStatus.STOPPED);
+                    serverRepository.save(server);
+                    log.warn("[AGENT_HEARTBEAT] Server {} ({}) marked STOPPED (agent offline)", server.getName(), server.getIp());
+                }
+            }
+        } catch (Exception e) {
+            log.error("[AGENT_HEARTBEAT] Failed to check stale heartbeats: {}", e.getMessage(), e);
+        }
     }
 
     @Transactional

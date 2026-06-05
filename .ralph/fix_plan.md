@@ -183,27 +183,27 @@
 ## 🟢 P3 — Agent 质量与可靠性
 
 ### P3-1: Agent 错误处理
-- [ ] `agent/cmd/root.go` 中 `executeTask()` 添加 panic recovery，防止 goroutine panic 导致 Agent 崩溃
-- [ ] `agent/restic/client.go` 中每个 Restic 命令添加 stderr 输出捕获和结构化错误分类（网络错误、权限错误、仓库损坏、磁盘空间不足等）
-- [ ] `agent/transport/client.go` 中 HTTP 请求添加重试逻辑（最多 3 次，指数退避），处理 Backend 暂时不可用的情况
-- [ ] Agent 启动时验证：Restic 是否已安装、Backend 是否可达、配置文件是否有效，失败时给出明确的修复建议
-- [ ] `agent/scanner/` 所有采集器添加 `context.WithTimeout` 控制（单个采集器 10 秒超时），防止系统命令挂起
+- [x] `agent/cmd/root.go` 中 `executeTask()` 添加 panic recovery，防止 goroutine panic 导致 Agent 崩溃
+- [x] `agent/restic/client.go` 中每个 Restic 命令添加 stderr 输出捕获和结构化错误分类（网络错误、权限错误、仓库损坏、磁盘空间不足等）
+- [x] `agent/transport/client.go` 中 HTTP 请求添加重试逻辑（最多 3 次，指数退避），处理 Backend 暂时不可用的情况
+- [x] Agent 启动时验证：Restic 是否已安装、Backend 是否可达、配置文件是否有效，失败时给出明确的修复建议
+- [x] `agent/scanner/` 所有采集器添加 `context.WithTimeout` 控制（单个采集器 10 秒超时），防止系统命令挂起
 
 ### P3-2: Agent 健康上报
-- [ ] Agent 添加 `/health` 端口（默认 8081），Backend 可通过此端口检查 Agent 是否在线
-- [ ] Agent 定期（每 60 秒）向 Backend 发送心跳：包含 Agent 版本、操作系统信息、磁盘空间、Restic 版本
-- [ ] `AgentCommunicationService`（Backend 端）实现 Agent 在线状态追踪：Redis 存储 `agent:{serverId}:heartbeat`（TTL 120 秒）
-- [ ] Dashboard 显示 Agent 在线/离线状态，离线时标红
+- [x] Agent 添加 `/health` 端口（默认 8081），Backend 可通过此端口检查 Agent 是否在线
+- [x] Agent 定期（每 60 秒）向 Backend 发送心跳：包含 Agent 版本、操作系统信息、磁盘空间、Restic 版本
+- [x] `AgentCommunicationService`（Backend 端）实现 Agent 在线状态追踪：Redis 存储 `agent:{serverId}:heartbeat`（TTL 120 秒）
+- [x] Dashboard 显示 Agent 在线/离线状态，离线时标红
 
 ### P3-3: Agent 安全
-- [ ] Agent 注册 API Key 验证：Agent 向 Backend 注册时，Backend 验证 API Key 有效性
-- [ ] Agent 与 Backend 通信添加 HMAC 签名：请求体 + 时间戳 + Secret 计算 HMAC，防止请求被篡改
-- [ ] Agent 配置文件中的敏感信息（API Key、Backend URL）加密存储
-- [ ] Agent 日志脱敏：不记录 API Key、密码等敏感信息
+- [x] Agent 注册 API Key 验证：Agent 向 Backend 注册时，Backend 验证 API Key 有效性
+- [x] Agent 与 Backend 通信添加 HMAC 签名：请求体 + 时间戳 + Secret 计算 HMAC，防止请求被篡改
+- [x] Agent 配置文件中的敏感信息（API Key、Backend URL）加密存储
+- [x] Agent 日志脱敏：不记录 API Key、密码等敏感信息
 
 ### P3-4: Agent 扩展性
-- [ ] Agent 添加插件机制：支持用户自定义采集器（Go plugin 或外部命令调用）
-- [ ] Agent 支持自定义采集路径配置（`/etc/chronovault/agent.yaml` 中配置要监控的配置文件路径）
+- [x] Agent 添加插件机制：支持用户自定义采集器（Go plugin 或外部命令调用）
+- [x] Agent 支持自定义采集路径配置（`/etc/chronovault/agent.yaml` 中配置要监控的配置文件路径）
 - [ ] Agent 添加 WebSocket 支持：Backend 可通过 WebSocket 实时向 Agent 发送任务（替代当前的 HTTP 轮询）
 - [ ] Agent 二进制自动更新检查：启动时检查 Backend 是否有新版本，提示用户更新
 

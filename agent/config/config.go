@@ -9,17 +9,33 @@ import (
 )
 
 type Config struct {
-	ServerURL  string `yaml:"server_url"`
-	APIKey     string `yaml:"api_key"`
-	AgentID    string `yaml:"agent_id"`
-	ServerID   int64  `yaml:"server_id"`
-	ListenPort int    `yaml:"listen_port"`
-	ScanInterval int  `yaml:"scan_interval"`
-	HeartbeatInterval int `yaml:"heartbeat_interval"`
-	TLSEnabled bool   `yaml:"tls_enabled"`
-	TLSCert    string `yaml:"tls_cert"`
-	TLSKey     string `yaml:"tls_key"`
-	AuthToken  string `yaml:"auth_token"`
+	ServerURL         string   `yaml:"server_url"`
+	APIKey            string   `yaml:"api_key"`
+	AgentID           string   `yaml:"agent_id"`
+	ServerID          int64    `yaml:"server_id"`
+	ListenPort        int      `yaml:"listen_port"`
+	ScanInterval      int      `yaml:"scan_interval"`
+	HeartbeatInterval int      `yaml:"heartbeat_interval"`
+	TLSEnabled        bool     `yaml:"tls_enabled"`
+	TLSCert           string   `yaml:"tls_cert"`
+	TLSKey            string   `yaml:"tls_key"`
+	AuthToken         string   `yaml:"auth_token"`
+
+	// Custom state collectors: external commands that produce JSON on stdout.
+	// Each entry is a path to an executable that outputs JSON to stdout.
+	// The JSON will be merged into the state.json under "custom.<name>".
+	CustomCollectors []CustomCollector `yaml:"custom_collectors"`
+
+	// CustomConfigPaths: additional file paths to track (hash + size) in state.json configs.
+	// These are added to the built-in list of /etc config files.
+	CustomConfigPaths []string `yaml:"custom_config_paths"`
+}
+
+// CustomCollector defines an external command that collects custom state data.
+type CustomCollector struct {
+	Name    string `yaml:"name"`    // Unique name for this collector (used as key in state.json)
+	Command string `yaml:"command"` // Command to execute (shell-compatible)
+	Timeout int    `yaml:"timeout"` // Timeout in seconds (default: 10)
 }
 
 func DefaultConfig() *Config {
@@ -92,5 +108,14 @@ func SaveConfig(path string, cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	// Use restrictive permissions (owner-only read/write) to protect sensitive config data
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return err
+	}
+	// On Unix, enforce 0600 even if umask would allow broader access
+	if err := os.Chmod(path, 0600); err != nil {
+		// Non-fatal on non-Unix systems
+		_ = err
+	}
+	return nil
 }

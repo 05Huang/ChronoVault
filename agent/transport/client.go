@@ -278,3 +278,35 @@ func computeHMAC(data []byte, secret string) string {
 	mac.Write(data)
 	return hex.EncodeToString(mac.Sum(nil))
 }
+
+// CheckServerReachable makes a lightweight request to verify the server is reachable.
+func (c *Client) CheckServerReachable() error {
+	req, err := http.NewRequest("GET", c.baseURL+"/actuator/health", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("cannot reach server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 500 {
+		return fmt.Errorf("server returned status %d", resp.StatusCode)
+	}
+	// 401/403 means server is reachable but auth may be wrong — still reachable
+	return nil
+}
+
+// sanitizeLog sanitizes sensitive fields in log messages.
+// Masks API keys, passwords, and tokens to prevent accidental leakage.
+func sanitizeLog(msg string) string {
+	if len(msg) > 8 {
+		return msg[:4] + "****" + msg[len(msg)-4:]
+	}
+	return "****"
+}

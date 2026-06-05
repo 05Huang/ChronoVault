@@ -335,3 +335,119 @@ func firstPackageManager(pkgs []PackageInfo) string {
 	}
 	return "none"
 }
+
+func TestRunCustomCollectors_ValidJSON(t *testing.T) {
+	collectors := []PluginConfig{
+		{Name: "test_collector", Command: `echo '{"key":"value","count":42}'`, Timeout: 5},
+	}
+	results := RunCustomCollectors(collectors)
+
+	if results == nil {
+		t.Fatal("RunCustomCollectors returned nil")
+	}
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+
+	data, ok := results["test_collector"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected map, got %T", results["test_collector"])
+	}
+	if data["key"] != "value" {
+		t.Errorf("Expected key=value, got %v", data["key"])
+	}
+	if data["count"] != float64(42) {
+		t.Errorf("Expected count=42, got %v", data["count"])
+	}
+}
+
+func TestRunCustomCollectors_InvalidJSON(t *testing.T) {
+	collectors := []PluginConfig{
+		{Name: "bad_collector", Command: `echo 'not json'`, Timeout: 5},
+	}
+	results := RunCustomCollectors(collectors)
+
+	if results == nil {
+		t.Fatal("RunCustomCollectors returned nil")
+	}
+
+	data, ok := results["bad_collector"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected map, got %T", results["bad_collector"])
+	}
+	if _, hasErr := data["error"]; !hasErr {
+		t.Error("Expected error field for invalid JSON output")
+	}
+}
+
+func TestRunCustomCollectors_Timeout(t *testing.T) {
+	collectors := []PluginConfig{
+		{Name: "slow_collector", Command: `sleep 5`, Timeout: 1},
+	}
+	results := RunCustomCollectors(collectors)
+
+	data, ok := results["slow_collector"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected map, got %T", results["slow_collector"])
+	}
+	if _, hasErr := data["error"]; !hasErr {
+		t.Error("Expected error field for timed-out command")
+	}
+}
+
+func TestRunCustomCollectors_EmptyList(t *testing.T) {
+	results := RunCustomCollectors(nil)
+	if results != nil {
+		t.Errorf("Expected nil for empty collectors, got %v", results)
+	}
+}
+
+func TestRunCustomCollectors_JSONArray(t *testing.T) {
+	collectors := []PluginConfig{
+		{Name: "array_collector", Command: `echo '[{"name":"a"},{"name":"b"}]'`, Timeout: 5},
+	}
+	results := RunCustomCollectors(collectors)
+
+	data, ok := results["array_collector"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected map, got %T", results["array_collector"])
+	}
+	items, ok := data["items"]
+	if !ok {
+		t.Fatal("Expected 'items' key for array output")
+	}
+	if items == nil {
+		t.Error("items should not be nil")
+	}
+}
+
+func TestSetCustomCollectors(t *testing.T) {
+	// Save original
+	orig := customCollectors
+	defer func() { customCollectors = orig }()
+
+	SetCustomCollectors(nil)
+	if len(customCollectors) != 0 {
+		t.Error("Expected empty collectors after SetCustomCollectors(nil)")
+	}
+
+	SetCustomCollectors([]PluginConfig{{Name: "test", Command: "echo ok"}})
+	if len(customCollectors) != 1 {
+		t.Errorf("Expected 1 collector, got %d", len(customCollectors))
+	}
+}
+
+func TestSetCustomConfigPaths(t *testing.T) {
+	orig := customConfigPaths
+	defer func() { customConfigPaths = orig }()
+
+	SetCustomConfigPaths(nil)
+	if len(customConfigPaths) != 0 {
+		t.Error("Expected empty paths after SetCustomConfigPaths(nil)")
+	}
+
+	SetCustomConfigPaths([]string{"/tmp/test.conf", "/etc/custom/app.yml"})
+	if len(customConfigPaths) != 2 {
+		t.Errorf("Expected 2 paths, got %d", len(customConfigPaths))
+	}
+}

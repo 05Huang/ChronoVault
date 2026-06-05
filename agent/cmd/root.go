@@ -44,7 +44,47 @@ func Run() {
 	// Initialize shutdown context
 	shutdownCtx, shutdownFunc = context.WithCancel(context.Background())
 
+	// Startup validation: check restic availability
+	log.Println("Checking restic installation...")
+	rc := restic.NewClient()
+	if err := rc.EnsureInstalled(); err != nil {
+		log.Fatalf("Restic check failed: %v\nPlease install restic manually: https://restic.net/", err)
+	}
+	log.Println("Restic is available")
+
+	// Startup validation: check server reachability (if configured)
 	client := transport.NewClient(cfg.ServerURL, cfg.APIKey, cfg.AgentID)
+	if cfg.ServerURL != "" && cfg.APIKey != "" {
+		log.Printf("Checking server reachability at %s...", cfg.ServerURL)
+		if err := client.CheckServerReachable(); err != nil {
+			log.Printf("Warning: server is not reachable: %v", err)
+			log.Printf("Agent will continue running but cannot communicate with the server.")
+			log.Printf("Please verify: 1) Server is running 2) API key is correct 3) Network connectivity")
+		} else {
+			log.Println("Server is reachable")
+		}
+	}
+
+	// Initialize custom collectors from config
+	if len(cfg.CustomCollectors) > 0 {
+		var collectors []scanner.PluginConfig
+		for _, c := range cfg.CustomCollectors {
+			collectors = append(collectors, scanner.PluginConfig{
+				Name:    c.Name,
+				Command: c.Command,
+				Timeout: c.Timeout,
+			})
+			log.Printf("Registered custom collector: %s (command: %s)", c.Name, c.Command)
+		}
+		scanner.SetCustomCollectors(collectors)
+		log.Printf("Loaded %d custom collectors", len(collectors))
+	}
+
+	// Initialize custom config paths from config
+	if len(cfg.CustomConfigPaths) > 0 {
+		scanner.SetCustomConfigPaths(cfg.CustomConfigPaths)
+		log.Printf("Tracking %d custom config paths", len(cfg.CustomConfigPaths))
+	}
 
 	// Initial scan
 	log.Println("Performing initial environment scan...")

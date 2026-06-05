@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -62,15 +63,16 @@ type SystemInfo struct {
 
 // StateSnapshot is the full state.json structure captured during snapshots.
 type StateSnapshot struct {
-	CollectedAt  string             `json:"collected_at"`
-	AgentVersion string             `json:"agent_version"`
-	OS           OSInfo             `json:"os"`
-	Packages     []PackageInfo      `json:"packages"`
-	Services     []ServiceInfo      `json:"services"`
-	Ports        []PortInfo         `json:"ports"`
-	Docker       DockerState        `json:"docker"`
-	Configs      []ConfigHash       `json:"configs"`
-	Crontab      []CrontabEntry     `json:"crontab"`
+	CollectedAt  string                 `json:"collected_at"`
+	AgentVersion string                 `json:"agent_version"`
+	OS           OSInfo                 `json:"os"`
+	Packages     []PackageInfo          `json:"packages"`
+	Services     []ServiceInfo          `json:"services"`
+	Ports        []PortInfo             `json:"ports"`
+	Docker       DockerState            `json:"docker"`
+	Configs      []ConfigHash           `json:"configs"`
+	Crontab      []CrontabEntry         `json:"crontab"`
+	Custom       map[string]interface{} `json:"custom,omitempty"`
 }
 
 type OSInfo struct {
@@ -124,6 +126,20 @@ type CrontabEntry struct {
 	User     string `json:"user"`
 	Schedule string `json:"schedule"`
 	Command  string `json:"command"`
+}
+
+// Package-level custom collector configs, set during agent startup.
+var customCollectors []PluginConfig
+var customConfigPaths []string
+
+// SetCustomCollectors configures external collectors to run during state collection.
+func SetCustomCollectors(collectors []PluginConfig) {
+	customCollectors = collectors
+}
+
+// SetCustomConfigPaths adds additional file paths to track in state.json configs.
+func SetCustomConfigPaths(paths []string) {
+	customConfigPaths = paths
 }
 
 func ScanAll() ScanResult {
@@ -189,6 +205,11 @@ func CollectStateSnapshot() (*StateSnapshot, error) {
 			result := mod.fn()
 			elapsed := time.Since(start)
 
+			// Log slow collectors for debugging
+			if elapsed > 5*time.Second {
+				log.Printf("Slow state collector '%s' took %v", mod.name, elapsed)
+			}
+
 			mu.Lock()
 			results[idx].moduleName = mod.name
 			switch v := result.(type) {
@@ -252,6 +273,15 @@ func CollectStateSnapshot() (*StateSnapshot, error) {
 
 	if len(collectionErrors) > 0 {
 		log.Printf("Slow collection modules: %s", strings.Join(collectionErrors, ", "))
+	}
+
+	// Run custom collectors (external plugins)
+	if len(customCollectors) > 0 {
+		log.Printf("Running %d custom collectors...", len(customCollectors))
+		customData := RunCustomCollectors(customCollectors)
+		if len(customData) > 0 {
+			state.Custom = customData
+		}
 	}
 
 	return state, nil
@@ -523,8 +553,8 @@ func collectDockerState() DockerState {
 		}
 	}
 
-	// Find docker-compose files
-	out = runCommandSafe("find / -maxdepth 5 -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yml' -o -name 'compose.yaml' 2>/dev/null | head -20")
+	// Find docker-compose files (with strict timeout — find / can be slow)
+	out = runCommandWithTimeout("find / -maxdepth 5 -name 'docker-compose.yml' -o -name 'docker-compose.yaml' -o -name 'compose.yml' -o -name 'compose.yaml' 2>/dev/null | head -20", 8*time.Second)
 	if out != "" {
 		for _, line := range strings.Split(out, "\n") {
 			line = strings.TrimSpace(line)
@@ -556,6 +586,9 @@ func collectConfigHashes() []ConfigHash {
 		"/etc/environment",
 		"/etc/sysctl.conf",
 	}
+
+	// Add user-configured custom config paths
+	configPaths = append(configPaths, customConfigPaths...)
 
 	for _, pattern := range configPaths {
 		// Use shell glob expansion
@@ -660,12 +693,20 @@ func commandExists(cmd string) bool {
 	return err == nil
 }
 
-func runCommandSafe(cmd string) string {
-	out, err := exec.Command("sh", "-c", cmd).Output()
+// runCommandWithTimeout executes a shell command with a timeout.
+// Returns stdout output or empty string on timeout/error.
+func runCommandWithTimeout(cmd string, timeout time.Duration) string {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "sh", "-c", cmd).Output()
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func runCommandSafe(cmd string) string {
+	return runCommandWithTimeout(cmd, 10*time.Second)
 }
 
 func runCommand(name string, args ...string) string {
