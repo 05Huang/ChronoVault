@@ -35,6 +35,7 @@ public class AuthController {
 
     @Auditable(action = "用户登录", changeType = "USER_ACTION", resourceType = "USER")
     @PostMapping("/login")
+    @Operation(summary = "用户登录", description = "使用邮箱和密码登录，返回 JWT access token 和 refresh token")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success(response));
@@ -42,6 +43,7 @@ public class AuthController {
 
     @Auditable(action = "用户注册", changeType = "USER_ACTION", resourceType = "USER")
     @PostMapping("/register")
+    @Operation(summary = "用户注册", description = "注册新用户账号，返回 JWT access token 和 refresh token")
     public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
         AuthResponse response = authService.register(request);
         return ResponseEntity.created(URI.create(ApiVersion.V1 + "auth/me"))
@@ -49,12 +51,14 @@ public class AuthController {
     }
 
     @GetMapping("/me")
+    @Operation(summary = "获取当前用户信息", description = "获取当前已登录用户的个人资料")
     public ResponseEntity<ApiResponse<UserDTO>> me(Authentication authentication) {
         UserDTO user = authService.getCurrentUser(authentication.getName());
         return ResponseEntity.ok(ApiResponse.success(user));
     }
 
     @PutMapping("/password")
+    @Operation(summary = "修改密码", description = "修改当前用户的登录密码")
     public ResponseEntity<ApiResponse<Void>> changePassword(
             Authentication authentication,
             @Valid @RequestBody ChangePasswordRequest body) {
@@ -63,6 +67,7 @@ public class AuthController {
     }
 
     @PutMapping("/profile")
+    @Operation(summary = "更新个人资料", description = "更新当前用户的显示名称")
     public ResponseEntity<ApiResponse<UserDTO>> updateProfile(
             Authentication authentication,
             @Valid @RequestBody UpdateProfileRequest body) {

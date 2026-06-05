@@ -35,17 +35,20 @@ public class StorageController {
     }
 
     @GetMapping("/distribution")
+    @Operation(summary = "获取存储分布", description = "返回各存储目标的容量分布和使用率")
     public ResponseEntity<ApiResponse<List<StorageDistributionDTO>>> getDistribution() {
         return ResponseEntity.ok(ApiResponse.success(storageService.getDistribution()));
     }
 
     @GetMapping("/health")
+    @Operation(summary = "获取存储健康状态", description = "返回所有存储目标的健康检查结果")
     public ResponseEntity<ApiResponse<StorageHealthDTO>> getHealth() {
         return ResponseEntity.ok(ApiResponse.success(storageService.getHealth()));
     }
 
     @Auditable(action = "添加存储目标", changeType = "CONFIG_CHANGED", resourceType = "STORAGE")
     @PostMapping
+    @Operation(summary = "添加存储目标", description = "添加新的存储后端（Local、S3、阿里云 OSS 等）")
     public ResponseEntity<ApiResponse<StorageOverviewDTO>> addTarget(Authentication auth, @Valid @RequestBody CreateStorageRequest request) {
         StorageOverviewDTO target = storageService.addTarget(
                 SecurityUtils.getCurrentUsername(auth),
@@ -64,6 +67,7 @@ public class StorageController {
 
     @Auditable(action = "删除存储目标", changeType = "CONFIG_CHANGED", resourceType = "STORAGE", resourceId = "#id")
     @DeleteMapping("/{id}")
+    @Operation(summary = "删除存储目标", description = "删除指定的存储目标配置")
     public ResponseEntity<ApiResponse<Void>> deleteTarget(@PathVariable Long id) {
         storageService.deleteTarget(id);
         return ResponseEntity.ok(ApiResponse.successMsg("存储目标已删除"));

@@ -5,6 +5,12 @@ All notable changes to ChronoVault will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **WebSocket Integration Tests**: 13 tests covering STOMP connection, subscription, broadcast, connection tracker
+- **API Compatibility Tests**: 15 tests verifying ApiResponse format, Content-Type, error format, pagination edge cases
+- **Postman Collection**: 30+ endpoint tests covering all API groups with automated validation scripts
+- **Micrometer Metrics**: cv_snapshot_total, cv_snapshot_duration_seconds, cv.task.active_count gauges
+- **Multi-stage Docker Build**: Backend Dockerfile with Spring Boot layer extraction for better caching
+- **CI Pipeline Enhancement**: Go CI (go test -race + go vet), ESLint for frontend
 - **Input Validation**: 23 type-safe DTOs replacing all raw Map/List @RequestBody parameters across 11 controllers
 - **XSS Prevention**: SanitizeUtil for HTML escaping, Jackson ObjectMapper for safe export serialization
 - **Security Hardening**: Narrowed WebSocket auth paths, Swagger UI disabled in prod, master key length validation
@@ -39,6 +45,8 @@ All notable changes to ChronoVault will be documented in this file.
 - Application-prod.yml: Prometheus endpoint exposed
 
 ### Fixed
+- SecurityConfig: WebSocket SockJS sub-paths (/ws/events/**) permitted for transport negotiation
+- @Operation annotations added to AuthController (5), AlertController (12), StorageController (4) methods
 - CredentialEncryptor: Added 32-char minimum key length validation
 - SecurityConfig: WebSocket auth narrowed from /ws/** to /ws/events + /ws/topics/**
 - Agent heartbeatLoop: Now respects shutdown context

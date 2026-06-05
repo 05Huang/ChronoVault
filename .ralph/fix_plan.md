@@ -281,10 +281,10 @@
 ## 🟤 P6 — 文档与发布准备
 
 ### P6-1: API 文档
-- [ ] 为所有 Controller 方法添加完整的 `@Operation` 注解（当前部分端点缺失）
+- [x] 为所有 Controller 方法添加完整的 `@Operation` 注解（当前部分端点缺失）
 - [ ] 为所有 DTO 添加 `@Schema` 注解（Swagger 文档中展示字段说明和示例值）
-- [ ] 创建 `openapi-config.yml`：配置 API 标题、描述、版本、联系信息、License
-- [ ] Swagger UI 添加认证支持（Bearer Token 输入框），方便调试需要认证的 API
+- [x] 创建 `openapi-config.yml`：配置 API 标题、描述、版本、联系信息、License
+- [x] Swagger UI 添加认证支持（Bearer Token 输入框），方便调试需要认证的 API
 
 ### P6-2: 开发者文档
 - [ ] 更新 `CLAUDE.md`：添加最新的数据库表结构说明、新增 API 端点列表、测试运行命令
@@ -302,9 +302,9 @@
 - [ ] 创建 `docs/SECURITY.md` 更新：安全架构说明、威胁模型、已知安全约束
 
 ### P6-4: 发布准备
-- [ ] `CHANGELOG.md` 添加 Unreleased 区域，持续记录变更
-- [ ] 创建 `.github/ISSUE_TEMPLATE/bug_report.md` 和 `feature_request.md`
-- [ ] 创建 `.github/PULL_REQUEST_TEMPLATE.md`
+- [x] `CHANGELOG.md` 添加 Unreleased 区域，持续记录变更
+- [x] 创建 `.github/ISSUE_TEMPLATE/bug_report.md` 和 `feature_request.md`
+- [x] 创建 `.github/PULL_REQUEST_TEMPLATE.md`
 - [ ] 添加 GitHub Topics：`backup`, `server-management`, `devops`, `self-hosted`, `restic`, `go-agent`, `vue3`, `spring-boot`, `state-management`
 - [ ] 打 v0.1.0 标签，创建 GitHub Release（附带 Agent 多平台二进制 + Release Notes）
 
