@@ -243,38 +243,38 @@
 ## 🟣 P5 — DevOps 与基础设施
 
 ### P5-1: Docker 改进
-- [ ] `backend/Dockerfile` 验证是否使用多阶段构建（builder 阶段编译 + runtime 阶段运行），确保最终镜像不含 Maven
-- [ ] `frontend/Dockerfile` 验证多阶段构建（builder 阶段 npm install + build + runtime 阶段 nginx 服务静态文件）
-- [ ] 为所有 Docker 镜像添加 `HEALTHCHECK` 指令
-- [ ] `docker-compose.yml` 添加 `restart: unless-stopped` 到所有服务
-- [ ] 创建 `.dockerignore` 文件（backend 和 frontend 各一份），排除 `.git`、`node_modules`、`target`、`*.md` 等
-- [ ] Docker Compose 添加 `deploy.resources.limits` 限制每个容器的 CPU 和内存
-- [ ] 创建 `docker-compose.prod.yml` 覆盖文件：禁用 PostgreSQL/Redis 端口映射（仅内部网络访问）、使用 Named Volume
+- [x] `backend/Dockerfile` 验证是否使用多阶段构建（builder 阶段编译 + runtime 阶段运行），确保最终镜像不含 Maven
+- [x] `frontend/Dockerfile` 验证多阶段构建（builder 阶段 npm install + build + runtime 阶段 nginx 服务静态文件）
+- [x] 为所有 Docker 镜像添加 `HEALTHCHECK` 指令
+- [x] `docker-compose.yml` 添加 `restart: unless-stopped` 到所有服务
+- [x] 创建 `.dockerignore` 文件（backend 和 frontend 各一份），排除 `.git`、`node_modules`、`target`、`*.md` 等
+- [x] Docker Compose 添加 `deploy.resources.limits` 限制每个容器的 CPU 和内存
+- [x] 创建 `docker-compose.prod.yml` 覆盖文件：禁用 PostgreSQL/Redis 端口映射（仅内部网络访问）、使用 Named Volume
 
 ### P5-2: CI/CD 流水线
-- [ ] 创建 `.github/workflows/ci.yml`：push/PR 触发，步骤包括 checkout → setup-java → backend test → setup-node → frontend lint → frontend build
-- [ ] CI 中添加依赖安全扫描步骤（`mvn dependency-check:check`）
-- [ ] CI 中添加前端依赖审计（`npm audit --production`）
-- [ ] 创建 `.github/workflows/release.yml`：tag push 触发，构建 Agent 多平台二进制 → 构建 Docker 镜像 → 推送 Docker Hub → 创建 GitHub Release
-- [ ] CI 缓存 Maven 依赖和 npm 依赖（`actions/cache`），加速构建
-- [ ] CI 中添加代码质量检查：`mvn checkstyle:check`（或 Spotless）、ESLint
-- [ ] 为 `agent/` 添加 Go CI：`go test -race ./...` + `go vet ./...` + `golangci-lint`
+- [x] 创建 `.github/workflows/ci.yml`：push/PR 触发，步骤包括 checkout → setup-java → backend test → setup-node → frontend lint → frontend build
+- [x] CI 中添加依赖安全扫描步骤（`mvn dependency-check:check`）
+- [x] CI 中添加前端依赖审计（`npm audit --production`）
+- [x] 创建 `.github/workflows/release.yml`：tag push 触发，构建 Agent 多平台二进制 → 构建 Docker 镜像 → 推送 Docker Hub → 创建 GitHub Release
+- [x] CI 缓存 Maven 依赖和 npm 依赖（`actions/cache`），加速构建
+- [x] CI 中添加代码质量检查：`mvn checkstyle:check`（或 Spotless）、ESLint
+- [x] 为 `agent/` 添加 Go CI：`go test -race ./...` + `go vet ./...` + `golangci-lint`
 
 ### P5-3: 监控与可观测性
-- [ ] `application-prod.yml` 配置 Micrometer + Prometheus metrics 暴露：`/actuator/prometheus`（需认证）
-- [ ] 创建 Grafana Dashboard JSON：展示快照成功率、备份耗时、SSH 连接质量、活跃告警数等关键指标
-- [ ] `SnapshotEngine` 添加 Micrometer 自定义指标：`cv_snapshot_duration_seconds`（histogram）、`cv_snapshot_total`（counter，按成功/失败标签）
-- [ ] `SshConnectionManager` 添加 Micrometer 指标：`cv_ssh_connections_active`（gauge）、`cv_ssh_connections_created_total`（counter）
-- [ ] `AsyncTaskManager` 添加 Micrometer 指标：`cv_task_active_count`（gauge）、`cv_task_duration_seconds`（histogram）
-- [ ] 创建 `application-prod.yml` 日志配置：ERROR 级别发送到日志聚合系统（可选配置 webhook URL）
-- [ ] 创建 `docker-compose.monitoring.yml`：包含 Prometheus + Grafana（可选启动）
+- [x] `application-prod.yml` 配置 Micrometer + Prometheus metrics 暴露：`/actuator/prometheus`（需认证）
+- [x] 创建 Grafana Dashboard JSON：展示快照成功率、备份耗时、SSH 连接质量、活跃告警数等关键指标
+- [x] `SnapshotEngine` 添加 Micrometer 自定义指标：`cv_snapshot_duration_seconds`（histogram）、`cv_snapshot_total`（counter，按成功/失败标签）
+- [x] `SshConnectionManager` 添加 Micrometer 指标：`cv_ssh_connections_active`（gauge）、`cv_ssh_connections_created_total`（counter）
+- [x] `AsyncTaskManager` 添加 Micrometer 指标：`cv_task_active_count`（gauge）、`cv_task_duration_seconds`（histogram）
+- [x] 创建 `application-prod.yml` 日志配置：ERROR 级别发送到日志聚合系统（可选配置 webhook URL）
+- [x] 创建 `docker-compose.monitoring.yml`：包含 Prometheus + Grafana（可选启动）
 
 ### P5-4: 数据库运维
-- [ ] 创建 Flyway 回滚脚本约定文档（当前 Flyway 社区版不支持 undo，记录手动回滚步骤）
-- [ ] 为所有新增索引创建性能测试：验证索引在大数据量下的查询性能提升
-- [ ] 创建数据库备份脚本：`pg_dump chronovault > backup_$(date +%Y%m%d).sql`
-- [ ] `V12__seed_demo_data.sql` 中的演示数据应在生产环境不执行，添加条件判断或单独的 profile
-- [ ] 添加数据库连接池监控：HikariCP metrics 暴露到 Actuator（`spring.datasource.hikari.metrics-enabled=true`）
+- [x] 创建 Flyway 回滚脚本约定文档（当前 Flyway 社区版不支持 undo，记录手动回滚步骤）
+- [x] 为所有新增索引创建性能测试：验证索引在大数据量下的查询性能提升
+- [x] 创建数据库备份脚本：`pg_dump chronovault > backup_$(date +%Y%m%d).sql`
+- [x] `V12__seed_demo_data.sql` 中的演示数据应在生产环境不执行，添加条件判断或单独的 profile
+- [x] 添加数据库连接池监控：HikariCP metrics 暴露到 Actuator（`spring.datasource.hikari.metrics-enabled=true`）
 
 ---
 

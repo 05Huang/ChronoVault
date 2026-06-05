@@ -8,6 +8,7 @@ import com.chronovault.entity.User;
 import com.chronovault.repository.AsyncTaskRepository;
 import com.chronovault.websocket.EventWebSocketHandler;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,13 @@ public class AsyncTaskManager {
     private final Map<Long, Boolean> cancellationFlags = new ConcurrentHashMap<>();
     private final Map<Long, Long> creationTimestamps = new ConcurrentHashMap<>();
     private volatile boolean shuttingDown = false;
+
+    @PostConstruct
+    void initMetrics() {
+        // Register active task count gauge from thread pool
+        meterRegistry.gauge("cv.task.active_count", this, mgr ->
+                (double) (taskExecutor != null ? taskExecutor.getThreadPoolExecutor().getActiveCount() : 0));
+    }
 
     public AsyncTask submit(TaskType type, Long serverId, Long userId, String message,
                             Consumer<AsyncTask> taskBody) {

@@ -10,6 +10,9 @@ import com.chronovault.ssh.SshConnectionManager;
 import com.chronovault.storage.StorageRouter;
 import com.chronovault.task.AsyncTaskManager;
 import com.chronovault.task.TaskType;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +44,11 @@ public class SnapshotEngine {
     private final StorageRouter storageRouter;
     private final AsyncTaskManager taskManager;
     private final StateCollectionService stateCollectionService;
+    private final MeterRegistry meterRegistry;
+
+    private Counter snapshotSuccessCounter;
+    private Counter snapshotFailureCounter;
+    private Counter snapshotDurationTimer;
 
     @Lazy
     @Autowired
@@ -56,6 +64,15 @@ public class SnapshotEngine {
                 "CHRONOVAULT_RESTIC_PASSWORD environment variable is required. "
                 + "Generate one with: openssl rand -hex 32");
         }
+        // Initialize Micrometer metrics
+        snapshotSuccessCounter = Counter.builder("cv_snapshot_total")
+                .description("Total number of snapshot operations")
+                .tag("status", "success")
+                .register(meterRegistry);
+        snapshotFailureCounter = Counter.builder("cv_snapshot_total")
+                .description("Total number of failed snapshot operations")
+                .tag("status", "failure")
+                .register(meterRegistry);
     }
 
     public Snapshot createSnapshot(Server server, StorageTarget storageTarget, String title,
@@ -323,11 +340,25 @@ public class SnapshotEngine {
             long totalDurationMs = System.currentTimeMillis() - snapshotStartMs;
             log.info("[SNAPSHOT_COMPLETE] [snapshot={}] [server={}] Snapshot completed successfully in {}ms",
                     snapshot.getId(), server.getId(), totalDurationMs);
+            // Record metrics
+            snapshotSuccessCounter.increment();
+            Timer.builder("cv_snapshot_duration_seconds")
+                    .description("Duration of snapshot operations")
+                    .tag("status", "success")
+                    .register(meterRegistry)
+                    .record(totalDurationMs, java.util.concurrent.TimeUnit.MILLISECONDS);
 
         } catch (SnapshotStepException e) {
             long durationMs = System.currentTimeMillis() - snapshotStartMs;
             log.error("[SNAPSHOT_FAILED] [snapshot={}] [server={}] Failed at '{}' after {}ms: {}",
                     snapshot.getId(), server.getId(), currentStep, durationMs, e.getMessage(), e);
+            // Record failure metrics
+            snapshotFailureCounter.increment();
+            Timer.builder("cv_snapshot_duration_seconds")
+                    .description("Duration of snapshot operations")
+                    .tag("status", "failure")
+                    .register(meterRegistry)
+                    .record(durationMs, java.util.concurrent.TimeUnit.MILLISECONDS);
             snapshot.setStatus(Snapshot.SnapshotStatus.WARNING);
             snapshotRepository.save(snapshot);
             throw new RuntimeException("快照创建失败 [" + currentStep + "]: " + e.getMessage(), e);

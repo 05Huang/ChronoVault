@@ -9,6 +9,7 @@ spring:
       minimum-idle: 10
       idle-timeout: 300000
       connection-timeout: 20000
+      metrics-enabled: true
 
   data:
     redis:
@@ -46,6 +47,12 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: chronovault
 
 logging:
   level:
