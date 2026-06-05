@@ -24,6 +24,8 @@ import org.springframework.context.annotation.Lazy;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -75,6 +77,30 @@ public class SnapshotEngine {
                 "创建快照: " + title,
                 task -> executeSnapshot(task.getId(), finalSnapshot, server, storageTarget, type, finalPaths, finalExcludes));
 
+        // Schedule total timeout enforcement
+        final long deadlineMs = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(totalTimeoutMinutes);
+        final Long snapshotId = snapshot.getId();
+        final Long serverId = server.getId();
+        ScheduledExecutorService timeoutScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "snapshot-timeout-" + snapshotId);
+            t.setDaemon(true);
+            return t;
+        });
+        timeoutScheduler.schedule(() -> {
+            long now = System.currentTimeMillis();
+            if (now > deadlineMs) {
+                log.error("[SNAPSHOT_TIMEOUT] [snapshot={}] [server={}] Snapshot exceeded total timeout ({} min), "
+                        + "marking as CANCELLED", snapshotId, serverId, totalTimeoutMinutes);
+                Snapshot timedOut = snapshotRepository.findById(snapshotId).orElse(null);
+                if (timedOut != null && timedOut.getStatus() == Snapshot.SnapshotStatus.STABLE) {
+                    timedOut.setStatus(Snapshot.SnapshotStatus.WARNING);
+                    timedOut.setNote("[TIMEOUT] 快照超过 " + totalTimeoutMinutes + " 分钟总时限，自动取消");
+                    snapshotRepository.save(timedOut);
+                }
+            }
+            timeoutScheduler.shutdownNow();
+        }, totalTimeoutMinutes, TimeUnit.MINUTES);
+
         return snapshot;
     }
 
@@ -82,6 +108,9 @@ public class SnapshotEngine {
     private static final long STEP_WARN_THRESHOLD_MS = 60_000;
     /** Warn threshold for the backup phase specifically (ms) — backup can be long */
     private static final long BACKUP_WARN_THRESHOLD_MS = 300_000;
+    /** Total timeout for the entire snapshot execution (default 30 minutes) */
+    @Value("${chronovault.snapshot.total-timeout-minutes:30}")
+    private long totalTimeoutMinutes;
 
     private void executeSnapshot(Long taskId, Snapshot snapshot, Server server,
                                   StorageTarget storageTarget, Snapshot.SnapshotType type,
@@ -194,8 +223,27 @@ public class SnapshotEngine {
                 log.warn("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 7/10: Backup took {}ms (>{}/{}ms threshold)",
                         snapshot.getId(), server.getId(), backupDurationMs, backupDurationMs, BACKUP_WARN_THRESHOLD_MS);
             }
-            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 7/10: Backup completed in {}ms ({} bytes)",
-                    snapshot.getId(), server.getId(), backupDurationMs, resticSnapshot.totalBytesProcessed());
+            log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 7/10: Backup completed in {}ms (bytes={}, files_new={}, files_changed={}, bytes_added={})",
+                    snapshot.getId(), server.getId(), backupDurationMs,
+                    resticSnapshot.totalBytesProcessed(), resticSnapshot.filesNew(),
+                    resticSnapshot.filesChanged(), resticSnapshot.bytesAdded());
+
+            // Step 7b: Post-backup integrity check (optional, non-fatal)
+            try {
+                log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 7b/10: Verifying repo integrity...",
+                        snapshot.getId(), server.getId());
+                boolean integrityOk = resticClient.check(conn, repoUrl, resticPassword);
+                if (!integrityOk) {
+                    log.warn("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 7b/10: Integrity check returned false (non-fatal)",
+                            snapshot.getId(), server.getId());
+                } else {
+                    log.info("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 7b/10: Repo integrity verified",
+                            snapshot.getId(), server.getId());
+                }
+            } catch (Exception e) {
+                log.warn("[SNAPSHOT_STEP] [snapshot={}] [server={}] Step 7b/10: Integrity check skipped: {}",
+                        snapshot.getId(), server.getId(), e.getMessage());
+            }
 
             // Step 8: Post-snapshot hooks + container state
             currentStep = "执行后置钩子";

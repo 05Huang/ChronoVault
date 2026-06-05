@@ -164,7 +164,18 @@ public class ResticClient {
         }
 
         if (result.exitCode() == 3) {
+            // Partial success — parse stderr to identify failed files
             log.warn("[RESTIC_BACKUP] Partial success (some files unreadable, {}ms)", durationMs);
+            if (result.stderr() != null && !result.stderr().isBlank()) {
+                String[] errorLines = result.stderr().lines()
+                        .filter(l -> l.contains("error") || l.contains("permission"))
+                        .limit(20)
+                        .toArray(String[]::new);
+                if (errorLines.length > 0) {
+                    log.warn("[RESTIC_BACKUP] Failed files ({}): {}", errorLines.length,
+                            String.join("; ", errorLines));
+                }
+            }
             meterRegistry.timer("restic.operation", "operation", "backup", "result", "partial").record(durationMs, TimeUnit.MILLISECONDS);
         } else {
             log.info("[RESTIC_BACKUP] Success (exit=0, {}ms)", durationMs);
@@ -176,11 +187,16 @@ public class ResticClient {
             for (String line : result.stdout().lines().toList()) {
                 if (line.contains("\"snapshot_id\"")) {
                     Map<String, Object> data = objectMapper.readValue(line, new TypeReference<>() {});
+                    Map<String, Object> summary = (Map<String, Object>) data.get("summary");
+                    long filesNew = summary != null ? parseLong(summary.get("files_new")) : 0;
+                    long filesChanged = summary != null ? parseLong(summary.get("files_changed")) : 0;
+                    long bytesAdded = summary != null ? parseLong(summary.get("bytes_added")) : 0;
                     return new ResticSnapshot(
                             (String) data.get("snapshot_id"),
                             (String) data.get("tree"),
                             parseLong(data.get("total_bytes_processed")),
-                            (String) data.get("time")
+                            (String) data.get("time"),
+                            filesNew, filesChanged, bytesAdded
                     );
                 }
             }
@@ -485,7 +501,8 @@ public class ResticClient {
         try { return Long.parseLong(val.toString()); } catch (Exception e) { return 0L; }
     }
 
-    public record ResticSnapshot(String snapshotId, String tree, long totalBytesProcessed, String time) {}
+    public record ResticSnapshot(String snapshotId, String tree, long totalBytesProcessed, String time,
+                                  long filesNew, long filesChanged, long bytesAdded) {}
 
     public record ResticSnapshotInfo(String id, String time, String tree, Map<String, Object> summary) {}
 }

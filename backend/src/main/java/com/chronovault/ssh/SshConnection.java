@@ -25,12 +25,27 @@ public class SshConnection implements AutoCloseable {
     private final SshClient client;
     private final String host;
     private final int port;
+    private final MetricsCallback metricsCallback;
+
+    /**
+     * Functional interface for SSH command metrics callbacks.
+     */
+    @FunctionalInterface
+    public interface MetricsCallback {
+        void onCommandCompleted(String host, int port, long durationMs, boolean success);
+    }
 
     public SshConnection(ClientSession session, SshClient client, String host, int port) {
+        this(session, client, host, port, null);
+    }
+
+    public SshConnection(ClientSession session, SshClient client, String host, int port,
+                         MetricsCallback metricsCallback) {
         this.session = session;
         this.client = client;
         this.host = host;
         this.port = port;
+        this.metricsCallback = metricsCallback;
     }
 
     public CommandResult executeCommand(String command) {
@@ -38,6 +53,7 @@ public class SshConnection implements AutoCloseable {
     }
 
     public CommandResult executeCommand(String command, Duration timeout) {
+        long startTime = System.currentTimeMillis();
         try (ClientChannel channel = session.createExecChannel(command)) {
             ByteArrayOutputStream stdout = new ByteArrayOutputStream();
             ByteArrayOutputStream stderr = new ByteArrayOutputStream();
@@ -50,9 +66,17 @@ public class SshConnection implements AutoCloseable {
             channel.waitFor(waitMask, timeout.toMillis());
 
             int exitCode = channel.getExitStatus() != null ? channel.getExitStatus() : -1;
+            long durationMs = System.currentTimeMillis() - startTime;
+            if (metricsCallback != null) {
+                metricsCallback.onCommandCompleted(host, port, durationMs, exitCode == 0);
+            }
             return new CommandResult(exitCode, stdout.toString(StandardCharsets.UTF_8),
                     stderr.toString(StandardCharsets.UTF_8));
         } catch (Exception e) {
+            long durationMs = System.currentTimeMillis() - startTime;
+            if (metricsCallback != null) {
+                metricsCallback.onCommandCompleted(host, port, durationMs, false);
+            }
             log.error("SSH command failed on {}:{} - {}: {}", host, port, command, e.getMessage());
             return new CommandResult(-1, "", e.getMessage());
         }

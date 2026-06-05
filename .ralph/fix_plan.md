@@ -95,41 +95,41 @@
 - [x] `AuditLogRepository` 添加查询方法：`findByResourceTypeAndResourceId(resourceType, resourceId)` — 查看某个资源的操作历史
 - [x] 审计日志导出功能：`GET /api/audit/export` 支持 CSV 格式导出（按时间范围筛选）
 - [x] 创建 `AuditLogRetentionScheduler`，定期清理超过 90 天的审计日志（归档到冷存储或删除）
-- [ ] `AuditLog` 实体添加 `ipAddress` 和 `userAgent` 字段（已有的 `AuditLogAspect` 通过 `RequestContextHolder` 获取，确认是否已存入）
+- [x] `AuditLog` 实体添加 `ipAddress` 和 `userAgent` 字段（已有的 `AuditLogAspect` 通过 `RequestContextHolder` 获取，确认是否已存入）
 
 ### P1-5: SSH 连接池加固
-- [ ] `SshConnectionManager.getConnection()` 中连接创建失败时，添加指数退避重试（最多 3 次，间隔 1s/2s/4s）
-- [ ] 添加连接健康检查定时任务（每 60 秒），对空闲超过 5 分钟的连接执行 `echo ok` 验证，失效则关闭
-- [ ] `SshConnectionManager` 添加 `getConnectionCount()` 和 `getActiveConnectionCount()` 方法供健康检查使用
-- [ ] `SshConnection` 添加 `lastUsedAt` 时间戳，idle eviction 定时任务根据此字段清理过期连接
-- [ ] 连接池添加最大连接数限制（全局），超过限制时等待而非创建新连接，避免目标服务器 SSH 限流
-- [ ] `SshConnectionManager.close()` 添加优雅关闭逻辑：等待正在执行的命令完成后再关闭连接
-- [ ] 记录每次 SSH 命令执行的耗时和结果（成功/失败），存入 Redis 供 Dashboard 展示连接质量指标
+- [x] `SshConnectionManager.getConnection()` 中连接创建失败时，添加指数退避重试（最多 3 次，间隔 1s/2s/4s）
+- [x] 添加连接健康检查定时任务（每 60 秒），对空闲超过 5 分钟的连接执行 `echo ok` 验证，失效则关闭
+- [x] `SshConnectionManager` 添加 `getConnectionCount()` 和 `getActiveConnectionCount()` 方法供健康检查使用
+- [x] `SshConnection` 添加 `lastUsedAt` 时间戳，idle eviction 定时任务根据此字段清理过期连接
+- [x] 连接池添加最大连接数限制（全局），超过限制时等待而非创建新连接，避免目标服务器 SSH 限流
+- [x] `SshConnectionManager.close()` 添加优雅关闭逻辑：等待正在执行的命令完成后再关闭连接
+- [x] 记录每次 SSH 命令执行的耗时和结果（成功/失败），存入 Redis 供 Dashboard 展示连接质量指标
 
 ### P1-6: 快照引擎可靠性提升
-- [ ] `SnapshotEngine.executeSnapshot()` 添加总超时控制（默认 30 分钟），超时后自动取消任务并清理
-- [ ] `resticClient.backup()` 返回值中解析 Restic 的 `files_new`、`files_changed`、`bytes_added` 等统计信息，存入 `Snapshot.sizeBytes`
-- [ ] `SnapshotEngine` 中 `restic init` 添加幂等检查：先执行 `restic snapshots` 判断仓库是否已初始化
-- [ ] `SnapshotEngine` 在备份完成后验证：执行 `restic check` 确保仓库完整性，结果记录到日志
-- [ ] `SnapshotEngine` 添加 pre-flight 检查：连接服务器后先检查磁盘空间（`df -h /`），空间不足时拒绝备份并给出提示
-- [ ] `SnapshotEngine.createSnapshot()` 中 `snapshotEngine.createSnapshot()` 被 `SnapshotService` 调用时传入了硬编码的 title（`"快照 " + LocalDateTime.now()`），应优先使用用户传入的 title/note
-- [ ] `ResticClient` 中处理 Restic exit code 3（部分成功）的场景，记录具体哪些文件备份失败
+- [x] `SnapshotEngine.executeSnapshot()` 添加总超时控制（默认 30 分钟），超时后自动取消任务并清理
+- [x] `resticClient.backup()` 返回值中解析 Restic 的 `files_new`、`files_changed`、`bytes_added` 等统计信息，存入 `Snapshot.sizeBytes`
+- [x] `SnapshotEngine` 中 `restic init` 添加幂等检查：先执行 `restic snapshots` 判断仓库是否已初始化
+- [x] `SnapshotEngine` 在备份完成后验证：执行 `restic check` 确保仓库完整性，结果记录到日志
+- [x] `SnapshotEngine` 添加 pre-flight 检查：连接服务器后先检查磁盘空间（`df -h /`），空间不足时拒绝备份并给出提示
+- [x] `SnapshotEngine.createSnapshot()` 中 `snapshotEngine.createSnapshot()` 被 `SnapshotService` 调用时传入了硬编码的 title（`"快照 " + LocalDateTime.now()`），应优先使用用户传入的 title/note
+- [x] `ResticClient` 中处理 Restic exit code 3（部分成功）的场景，记录具体哪些文件备份失败
 
 ### P1-7: 状态采集增强
-- [ ] `StateCollectionService` 添加超时控制：每个采集模块（packages/services/ports/docker/configs/crontab）独立超时 10 秒，超时后跳过并标记为 `timeout`
-- [ ] `StateCollectionService` 采集结果添加 `collection_duration_ms` 字段，记录每个模块耗时
-- [ ] Agent scanner 添加 `system_info` 采集：主机名、IP 地址、内存使用率、磁盘使用率、CPU 核心数、系统运行时间
-- [ ] Backend diff 引擎 `StateDiffEngine` 添加 `crontab` diff 逻辑（当前 `diffCrontab` 方法实现是否完整需验证）
-- [ ] `StateDiffEngine` 添加 `os` diff：对比两次快照的操作系统版本、内核版本是否有变化（内核升级是高风险操作）
-- [ ] 变更摘要（`change_summary_json`）自动生成：每次快照完成后自动计算并缓存，避免前端请求时实时计算
+- [x] `StateCollectionService` 添加超时控制：每个采集模块（packages/services/ports/docker/configs/crontab）独立超时 10 秒，超时后跳过并标记为 `timeout`
+- [x] `StateCollectionService` 采集结果添加 `collection_duration_ms` 字段，记录每个模块耗时
+- [x] Agent scanner 添加 `system_info` 采集：主机名、IP 地址、内存使用率、磁盘使用率、CPU 核心数、系统运行时间
+- [x] Backend diff 引擎 `StateDiffEngine` 添加 `crontab` diff 逻辑（当前 `diffCrontab` 方法实现是否完整需验证）
+- [x] `StateDiffEngine` 添加 `os` diff：对比两次快照的操作系统版本、内核版本是否有变化（内核升级是高风险操作）
+- [x] 变更摘要（`change_summary_json`）自动生成：每次快照完成后自动计算并缓存，避免前端请求时实时计算
 
 ### P1-8: 定时任务与调度
-- [ ] `AutoSnapshotService` 中 `@Scheduled` 定时任务添加分布式锁（Redis `SETNX`），防止多实例重复执行
-- [ ] `ScheduledBackupService` 调度器验证：确认 cron 表达式解析是否正确，添加 `next_run_at` 计算逻辑
-- [ ] 创建 `HealthCheckScheduler`：每 5 分钟检查所有服务器 SSH 连通性，不连通时创建告警
-- [ ] 创建 `RetentionEnforcer`：每天凌晨 2 点按 RetentionPolicy 清理过期快照和对应的 Restic 仓库数据
-- [ ] `AutoSnapshotService` 中 `findStaleServers()` 逻辑验证：超过阈值未快照的服务器检测是否正确工作
-- [ ] 所有 `@Scheduled` 任务添加执行日志和耗时统计，异常时不崩溃（catch + log.error）
+- [x] `AutoSnapshotService` 中 `@Scheduled` 定时任务添加分布式锁（Redis `SETNX`），防止多实例重复执行
+- [x] `ScheduledBackupService` 调度器验证：确认 cron 表达式解析是否正确，添加 `next_run_at` 计算逻辑
+- [x] 创建 `HealthCheckScheduler`：每 5 分钟检查所有服务器 SSH 连通性，不连通时创建告警
+- [x] 创建 `RetentionEnforcer`：每天凌晨 2 点按 RetentionPolicy 清理过期快照和对应的 Restic 仓库数据
+- [x] `AutoSnapshotService` 中 `findStaleServers()` 逻辑验证：超过阈值未快照的服务器检测是否正确工作
+- [x] 所有 `@Scheduled` 任务添加执行日志和耗时统计，异常时不崩溃（catch + log.error）
 
 ---
 

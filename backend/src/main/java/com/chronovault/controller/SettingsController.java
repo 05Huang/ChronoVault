@@ -98,10 +98,10 @@ public class SettingsController {
 
         StringBuilder csv = new StringBuilder();
         // Header
-        csv.append("ID,用户,操作,变更类型,资源类型,资源ID,IP地址,创建时间\n");
+        csv.append("ID,用户,操作,变更类型,资源类型,资源ID,IP地址,User-Agent,创建时间\n");
         // Rows
         for (java.util.Map<String, String> row : data) {
-            csv.append(String.format("%s,%s,%s,%s,%s,%s,%s,%s\n",
+            csv.append(String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
                     csvEscape(row.get("id")),
                     csvEscape(row.get("user")),
                     csvEscape(row.get("action")),
@@ -109,6 +109,7 @@ public class SettingsController {
                     csvEscape(row.get("resourceType")),
                     csvEscape(row.get("resourceId")),
                     csvEscape(row.get("ipAddress")),
+                    csvEscape(row.get("userAgent")),
                     csvEscape(row.get("createdAt"))));
         }
 

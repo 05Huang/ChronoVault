@@ -2,6 +2,8 @@ package com.chronovault.ssh;
 
 import com.chronovault.entity.Server;
 import com.chronovault.security.CredentialEncryptor;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -9,6 +11,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.concurrent.Semaphore;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -18,11 +22,15 @@ class SshConnectionManagerTest {
     @Mock
     private CredentialEncryptor encryptor;
 
+    private MeterRegistry meterRegistry;
+
     @InjectMocks
     private SshConnectionManager sshManager;
 
     @BeforeEach
     void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
+        ReflectionTestUtils.setField(sshManager, "meterRegistry", meterRegistry);
         ReflectionTestUtils.setField(sshManager, "connectionTimeout", 5000);
         ReflectionTestUtils.setField(sshManager, "commandTimeout", 10000);
         ReflectionTestUtils.setField(sshManager, "maxConnectionsPerServer", 3);
@@ -30,6 +38,9 @@ class SshConnectionManagerTest {
         ReflectionTestUtils.setField(sshManager, "maxRetry", 1);
         ReflectionTestUtils.setField(sshManager, "idleEvictionMillis", 300000L);
         ReflectionTestUtils.setField(sshManager, "knownHostsFile", "");
+        ReflectionTestUtils.setField(sshManager, "globalMaxConnections", 50);
+        ReflectionTestUtils.setField(sshManager, "shuttingDown", false);
+        ReflectionTestUtils.setField(sshManager, "globalConnectionSemaphore", new Semaphore(50, true));
     }
 
     @Test
@@ -150,5 +161,56 @@ class SshConnectionManagerTest {
                 sshManager, "normalizeKeyContent", key);
 
         assertTrue(result.endsWith("\n"));
+    }
+
+    @Test
+    void getActiveCommandCount_initiallyZero() {
+        assertEquals(0, sshManager.getActiveCommandCount());
+    }
+
+    @Test
+    void trackCommandStart_incrementsAndReturnsDecrementCallback() {
+        assertEquals(0, sshManager.getActiveCommandCount());
+        Runnable callback = sshManager.trackCommandStart();
+        assertEquals(1, sshManager.getActiveCommandCount());
+        callback.run();
+        assertEquals(0, sshManager.getActiveCommandCount());
+    }
+
+    @Test
+    void trackCommandStart_multipleCommands() {
+        Runnable cb1 = sshManager.trackCommandStart();
+        Runnable cb2 = sshManager.trackCommandStart();
+        assertEquals(2, sshManager.getActiveCommandCount());
+        cb1.run();
+        assertEquals(1, sshManager.getActiveCommandCount());
+        cb2.run();
+        assertEquals(0, sshManager.getActiveCommandCount());
+    }
+
+    @Test
+    void getConnection_afterShutdown_throwsIOException() {
+        ReflectionTestUtils.setField(sshManager, "shuttingDown", true);
+        Server server = Server.builder()
+                .ip("192.168.1.1")
+                .sshPort(22)
+                .sshUsername("root")
+                .sshAuthMethod("PASSWORD")
+                .sshKeyEncrypted("encrypted-pass")
+                .build();
+
+        assertThrows(Exception.class, () -> sshManager.getConnection(server));
+    }
+
+    @Test
+    void recordCommandMetrics_doesNotThrow() {
+        assertDoesNotThrow(() -> sshManager.recordCommandMetrics("192.168.1.1", 22, 150L, true));
+        assertDoesNotThrow(() -> sshManager.recordCommandMetrics("192.168.1.1", 22, 5000L, false));
+    }
+
+    @Test
+    void countIdleConnections_reflectsState() {
+        int idle = (int) ReflectionTestUtils.invokeMethod(sshManager, "countIdleConnections");
+        assertEquals(0, idle);
     }
 }

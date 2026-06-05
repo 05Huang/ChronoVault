@@ -13,6 +13,11 @@ import org.apache.sshd.client.session.ClientSession;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.Counter;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,7 +29,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
 @Slf4j
@@ -33,6 +40,9 @@ import java.util.concurrent.locks.ReentrantLock;
 public class SshConnectionManager {
 
     private final CredentialEncryptor encryptor;
+
+    @Autowired(required = false)
+    private MeterRegistry meterRegistry;
 
     @Value("${chronovault.ssh.connection-timeout:10000}")
     private int connectionTimeout;
@@ -58,11 +68,21 @@ public class SshConnectionManager {
     @Value("${chronovault.ssh.strict-host-checking:false}")
     private boolean strictHostChecking;
 
+    @Value("${chronovault.ssh.global-max-connections:50}")
+    private int globalMaxConnections;
+
     private SshClient client;
     private final ConcurrentHashMap<String, SshConnection> connectionPool = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ReentrantLock> connectionLocks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> lastUsedTime = new ConcurrentHashMap<>();
     private ScheduledExecutorService scheduler;
+
+    // Global connection limit semaphore
+    private Semaphore globalConnectionSemaphore;
+
+    // Graceful shutdown: track active in-flight commands
+    private final AtomicLong activeCommandCount = new AtomicLong(0);
+    private volatile boolean shuttingDown = false;
 
     // Connection pool metrics counters
     private final java.util.concurrent.atomic.AtomicLong createdCount = new java.util.concurrent.atomic.AtomicLong();
@@ -76,6 +96,9 @@ public class SshConnectionManager {
             Security.addProvider(new net.i2p.crypto.eddsa.EdDSASecurityProvider());
             log.info("EdDSA security provider registered for Ed25519 key support");
         }
+
+        // Initialize global connection limit semaphore
+        globalConnectionSemaphore = new Semaphore(globalMaxConnections, true);
 
         client = SshClient.setUpDefaultClient();
 
@@ -118,16 +141,54 @@ public class SshConnectionManager {
         scheduler.scheduleAtFixedRate(this::evictIdleConnections, 60, 60, TimeUnit.SECONDS);
         // Log pool metrics every 60 seconds
         scheduler.scheduleAtFixedRate(this::logPoolMetrics, 60, 60, TimeUnit.SECONDS);
+        // Health check idle connections every 60 seconds (validate with echo ok)
+        scheduler.scheduleAtFixedRate(this::healthCheckIdleConnections, 90, 60, TimeUnit.SECONDS);
 
-        log.info("SSH connection manager initialized (maxPerServer={}, timeout={}ms, retry={})",
-                maxConnectionsPerServer, connectionTimeout, maxRetry);
+        // Register Micrometer metrics
+        if (meterRegistry != null) {
+            meterRegistry.gauge("cv.ssh.connections.active", connectionPool, pool -> (double) pool.size());
+            meterRegistry.gauge("cv.ssh.connections.idle", this, mgr -> (double) countIdleConnections());
+            Counter.builder("cv.ssh.connections.created")
+                    .description("Total SSH connections created")
+                    .register(meterRegistry);
+            Counter.builder("cv.ssh.connections.reused")
+                    .description("Total SSH connections reused from pool")
+                    .register(meterRegistry);
+            Counter.builder("cv.ssh.connections.destroyed")
+                    .description("Total SSH connections destroyed")
+                    .register(meterRegistry);
+        }
+
+        log.info("SSH connection manager initialized (maxPerServer={}, globalMax={}, timeout={}ms, retry={})",
+                maxConnectionsPerServer, globalMaxConnections, connectionTimeout, maxRetry);
     }
 
     @PreDestroy
     public void destroy() {
+        shuttingDown = true;
         if (scheduler != null) {
             scheduler.shutdownNow();
         }
+
+        // Wait for in-flight commands to complete (max 10 seconds)
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (activeCommandCount.get() > 0 && System.currentTimeMillis() < deadline) {
+            log.info("Waiting for {} active SSH command(s) to complete...", activeCommandCount.get());
+            try { Thread.sleep(200); } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        if (activeCommandCount.get() > 0) {
+            log.warn("Force-closing {} connections with {} active command(s) still running",
+                    connectionPool.size(), activeCommandCount.get());
+        }
+
+        // Acquire all permits to block new connections
+        if (globalConnectionSemaphore != null) {
+            globalConnectionSemaphore.drainPermits();
+        }
+
         connectionPool.values().forEach(conn -> {
             try { conn.close(); } catch (Exception ignored) {}
         });
@@ -170,6 +231,11 @@ public class SshConnectionManager {
     }
 
     private SshConnection getConnectionInternal(String poolKey, Server server) throws IOException {
+        // Reject new connections during shutdown
+        if (shuttingDown) {
+            throw new IOException("SSH connection manager is shutting down, refusing new connections");
+        }
+
         // Per-server lock to prevent thundering herd / race conditions
         ReentrantLock lock = connectionLocks.computeIfAbsent(poolKey, k -> new ReentrantLock());
         lock.lock();
@@ -191,20 +257,32 @@ public class SshConnectionManager {
                 }
                 try { existing.close(); } catch (Exception ignored) {}
                 connectionPool.remove(poolKey);
+                globalConnectionSemaphore.release();
             }
 
             // Remove stale entry if closed
             if (existing != null) {
                 connectionPool.remove(poolKey);
                 try { existing.close(); } catch (Exception ignored) {}
+                globalConnectionSemaphore.release();
             }
 
-            // Create new connection with retry
-            SshConnection conn = createConnectionWithRetry(server);
-            createdCount.incrementAndGet();
-            connectionPool.put(poolKey, conn);
-            lastUsedTime.put(poolKey, System.currentTimeMillis());
-            return conn;
+            // Create new connection with retry, respecting global connection limit
+            try {
+                boolean acquired = globalConnectionSemaphore.tryAcquire(30, TimeUnit.SECONDS);
+                if (!acquired) {
+                    throw new IOException("Global SSH connection limit reached (" + globalMaxConnections
+                            + "), timed out waiting for available slot");
+                }
+                SshConnection conn = createConnectionWithRetry(server);
+                createdCount.incrementAndGet();
+                connectionPool.put(poolKey, conn);
+                lastUsedTime.put(poolKey, System.currentTimeMillis());
+                return conn;
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while waiting for SSH connection slot", ie);
+            }
         } finally {
             lock.unlock();
         }
@@ -267,7 +345,7 @@ public class SshConnectionManager {
             });
 
             log.info("SSH connected to {}@{}:{}", server.getSshUsername(), server.getIp(), port);
-            return new SshConnection(session, client, server.getIp(), port);
+            return new SshConnection(session, client, server.getIp(), port, this::recordCommandMetrics);
         } catch (Exception e) {
             // Build a detailed error message with full cause chain
             String detail = buildErrorMessage(e);
@@ -389,6 +467,7 @@ public class SshConnectionManager {
                         if (conn != null) {
                             conn.close();
                             destroyedCount.incrementAndGet();
+                            globalConnectionSemaphore.release();
                             evicted++;
                         }
                         lastUsedTime.remove(poolKey);
@@ -413,6 +492,7 @@ public class SshConnectionManager {
                 lastUsedTime.remove(poolKey);
                 if (conn != null) {
                     destroyedCount.incrementAndGet();
+                    globalConnectionSemaphore.release();
                     conn.close();
                 }
             } finally {
@@ -437,6 +517,7 @@ public class SshConnectionManager {
                             lastUsedTime.remove(poolKey);
                             if (conn != null) {
                                 destroyedCount.incrementAndGet();
+                                globalConnectionSemaphore.release();
                                 conn.close();
                             }
                         } finally {
@@ -444,6 +525,104 @@ public class SshConnectionManager {
                         }
                     }
                 });
+    }
+
+    /**
+     * Background health check for idle connections. Validates connections that are
+     * approaching the idle eviction threshold (3-5 min) by sending "echo ok".
+     * Removes connections that fail the check.
+     */
+    private void healthCheckIdleConnections() {
+        long now = System.currentTimeMillis();
+        int checked = 0, failed = 0;
+        for (var entry : connectionPool.entrySet()) {
+            String poolKey = entry.getKey();
+            long lastUsed = lastUsedTime.getOrDefault(poolKey, 0L);
+            long idleDuration = now - lastUsed;
+            // Check connections idle for 3+ minutes but not yet evicted (eviction is at 5 min)
+            if (idleDuration > 3 * 60 * 1000 && idleDuration < idleEvictionMillis) {
+                SshConnection conn = entry.getValue();
+                if (conn != null && conn.isOpen()) {
+                    try {
+                        checked++;
+                        SshConnection.CommandResult result = conn.executeCommand("echo ok",
+                                java.time.Duration.ofSeconds(5));
+                        if (!result.isSuccess() || !"ok".equals(result.stdout().trim())) {
+                            failed++;
+                            log.warn("[SSH_HEALTH] Connection {} failed health check, closing", poolKey);
+                            ReentrantLock lock = connectionLocks.get(poolKey);
+                            if (lock != null && lock.tryLock()) {
+                                try {
+                                    connectionPool.remove(poolKey);
+                                    conn.close();
+                                    destroyedCount.incrementAndGet();
+                                    globalConnectionSemaphore.release();
+                                    lastUsedTime.remove(poolKey);
+                                } finally {
+                                    lock.unlock();
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.debug("[SSH_HEALTH] Health check error for {}: {}", poolKey, e.getMessage());
+                    }
+                }
+            }
+        }
+        if (checked > 0) {
+            log.info("[SSH_HEALTH] Checked {} connections, {} failed", checked, failed);
+        }
+    }
+
+    /**
+     * Count connections that are idle (beyond eviction threshold).
+     */
+    private int countIdleConnections() {
+        long now = System.currentTimeMillis();
+        int idle = 0;
+        for (long lastUsed : lastUsedTime.values()) {
+            if (now - lastUsed > idleEvictionMillis) {
+                idle++;
+            }
+        }
+        return idle;
+    }
+
+    /**
+     * Record SSH command execution metrics for monitoring.
+     * Should be called from SshConnection after each command execution.
+     */
+    public void recordCommandMetrics(String host, int port, long durationMs, boolean success) {
+        if (meterRegistry != null) {
+            Timer.builder("cv.ssh.command.duration")
+                    .description("SSH command execution duration")
+                    .tag("host", host)
+                    .tag("success", String.valueOf(success))
+                    .register(meterRegistry)
+                    .record(durationMs, TimeUnit.MILLISECONDS);
+            Counter.builder("cv.ssh.command.total")
+                    .description("Total SSH commands executed")
+                    .tag("host", host)
+                    .tag("success", String.valueOf(success))
+                    .register(meterRegistry)
+                    .increment();
+        }
+        log.debug("[SSH_CMD] host={}:{}, duration={}ms, success={}", host, port, durationMs, success);
+    }
+
+    /**
+     * Track active command start. Returns a Runnable that must be called when the command completes.
+     */
+    public Runnable trackCommandStart() {
+        activeCommandCount.incrementAndGet();
+        return () -> activeCommandCount.decrementAndGet();
+    }
+
+    /**
+     * Get the number of currently active in-flight SSH commands.
+     */
+    public long getActiveCommandCount() {
+        return activeCommandCount.get();
     }
 
     /**

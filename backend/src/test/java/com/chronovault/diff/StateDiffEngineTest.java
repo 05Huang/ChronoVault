@@ -888,4 +888,100 @@ class StateDiffEngineTest {
         assertFalse(emptyResult.hasError());
         assertNull(emptyResult.error());
     }
+
+    @Test
+    void diff_detectsKernelUpgrade() {
+        String stateA = """
+                {
+                  "os": {"name": "Ubuntu", "version": "22.04", "kernel": "5.15.0-91-generic", "arch": "x86_64"},
+                  "packages": [], "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }""";
+        String stateB = """
+                {
+                  "os": {"name": "Ubuntu", "version": "22.04", "kernel": "6.1.0-25-generic", "arch": "x86_64"},
+                  "packages": [], "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }""";
+
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(stateA, stateB);
+
+        assertNotNull(result.os());
+        assertTrue(result.os().kernelChanged);
+        assertFalse(result.os().osNameChanged);
+        assertFalse(result.os().osVersionChanged);
+        assertTrue(result.summary().kernelChanged);
+        assertEquals("5.15.0-91-generic", result.os().fromKernel);
+        assertEquals("6.1.0-25-generic", result.os().toKernel);
+    }
+
+    @Test
+    void diff_detectsOsVersionChange() {
+        String stateA = """
+                {
+                  "os": {"name": "Ubuntu", "version": "22.04", "kernel": "5.15.0", "arch": "x86_64"},
+                  "packages": [], "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }""";
+        String stateB = """
+                {
+                  "os": {"name": "Ubuntu", "version": "24.04", "kernel": "5.15.0", "arch": "x86_64"},
+                  "packages": [], "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }""";
+
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(stateA, stateB);
+
+        assertTrue(result.os().osVersionChanged);
+        assertTrue(result.os().hasChanges());
+        assertTrue(result.summary().osChanged);
+    }
+
+    @Test
+    void diff_detectsOsNameChange() {
+        String stateA = """
+                {
+                  "os": {"name": "Ubuntu", "version": "22.04", "kernel": "5.15.0", "arch": "x86_64"},
+                  "packages": [], "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }""";
+        String stateB = """
+                {
+                  "os": {"name": "Debian", "version": "12", "kernel": "5.15.0", "arch": "x86_64"},
+                  "packages": [], "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }""";
+
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(stateA, stateB);
+
+        assertTrue(result.os().osNameChanged);
+        assertEquals("Ubuntu", result.os().fromName);
+        assertEquals("Debian", result.os().toName);
+    }
+
+    @Test
+    void diff_osIdentical_noChanges() {
+        String stateA = """
+                {
+                  "os": {"name": "Ubuntu", "version": "22.04", "kernel": "5.15.0", "arch": "x86_64"},
+                  "packages": [], "services": [], "ports": [],
+                  "docker": {"containers": [], "compose_files": []},
+                  "configs": [], "crontab": []
+                }""";
+
+        StateDiffEngine.StateDiffResult result = diffEngine.diff(stateA, stateA);
+
+        assertNotNull(result.os());
+        assertFalse(result.os().hasChanges());
+        assertFalse(result.os().kernelChanged);
+        assertFalse(result.os().osVersionChanged);
+        assertFalse(result.summary().osChanged);
+        assertFalse(result.summary().kernelChanged);
+    }
 }

@@ -64,10 +64,15 @@ public class StateDiffEngine {
                     nodeA.path("crontab"),
                     nodeB.path("crontab"));
 
+            // Compare OS
+            OsDiff osDiff = diffOs(
+                    nodeA.path("os"),
+                    nodeB.path("os"));
+
             // Build result
             StateDiffResult result = new StateDiffResult(
-                    pkgDiff, svcDiff, portDiff, dockerDiff, configDiff, crontabDiff,
-                    generateSummary(pkgDiff, svcDiff, portDiff, dockerDiff, configDiff, crontabDiff),
+                    pkgDiff, svcDiff, portDiff, dockerDiff, configDiff, crontabDiff, osDiff,
+                    generateSummary(pkgDiff, svcDiff, portDiff, dockerDiff, configDiff, crontabDiff, osDiff),
                     null); // null error = success
 
             return result;
@@ -309,6 +314,40 @@ public class StateDiffEngine {
         return map;
     }
 
+    private OsDiff diffOs(JsonNode osA, JsonNode osB) {
+        OsDiff diff = new OsDiff();
+        if (osA.isMissingNode() || osB.isMissingNode()) return diff;
+
+        String nameA = osA.path("name").asText("");
+        String nameB = osB.path("name").asText("");
+        String versionA = osA.path("version").asText("");
+        String versionB = osB.path("version").asText("");
+        String kernelA = osA.path("kernel").asText("");
+        String kernelB = osB.path("kernel").asText("");
+        String archA = osA.path("arch").asText("");
+        String archB = osB.path("arch").asText("");
+
+        diff.osNameChanged = !nameA.equals(nameB);
+        diff.osVersionChanged = !versionA.equals(versionB);
+        diff.kernelChanged = !kernelA.equals(kernelB);
+        diff.archChanged = !archA.equals(archB);
+
+        diff.fromName = nameA;
+        diff.toName = nameB;
+        diff.fromVersion = versionA;
+        diff.toVersion = versionB;
+        diff.fromKernel = kernelA;
+        diff.toKernel = kernelB;
+        diff.fromArch = archA;
+        diff.toArch = archB;
+
+        if (diff.kernelChanged) {
+            log.warn("[DIFF_OS] Kernel version changed: {} -> {}", kernelA, kernelB);
+        }
+
+        return diff;
+    }
+
     private Set<String> buildCrontabSet(JsonNode crontab) {
         Set<String> set = new TreeSet<>();
         if (crontab.isArray()) {
@@ -323,7 +362,8 @@ public class StateDiffEngine {
     }
 
     private DiffSummary generateSummary(PackageDiff pkg, ServiceDiff svc, PortDiff port,
-                                         DockerDiff docker, ConfigDiff config, CrontabDiff crontab) {
+                                         DockerDiff docker, ConfigDiff config, CrontabDiff crontab,
+                                         OsDiff os) {
         DiffSummary summary = new DiffSummary();
         if (pkg != null) {
             summary.packagesAdded = pkg.added.size();
@@ -348,6 +388,10 @@ public class StateDiffEngine {
         if (crontab != null) {
             summary.crontabChanged = crontab.added.size() + crontab.removed.size();
         }
+        if (os != null) {
+            summary.osChanged = os.osNameChanged || os.osVersionChanged;
+            summary.kernelChanged = os.kernelChanged;
+        }
         return summary;
     }
 
@@ -360,6 +404,7 @@ public class StateDiffEngine {
             DockerDiff docker,
             ConfigDiff configs,
             CrontabDiff crontab,
+            OsDiff os,
             DiffSummary summary,
             String error
     ) {
@@ -367,14 +412,14 @@ public class StateDiffEngine {
             return new StateDiffResult(
                     new PackageDiff(), new ServiceDiff(), new PortDiff(),
                     new DockerDiff(), new ConfigDiff(), new CrontabDiff(),
-                    new DiffSummary(), null);
+                    new OsDiff(), new DiffSummary(), null);
         }
 
         public static StateDiffResult error(String errorMessage) {
             return new StateDiffResult(
                     new PackageDiff(), new ServiceDiff(), new PortDiff(),
                     new DockerDiff(), new ConfigDiff(), new CrontabDiff(),
-                    new DiffSummary(), errorMessage);
+                    new OsDiff(), new DiffSummary(), errorMessage);
         }
 
         public boolean hasError() {
@@ -428,6 +473,25 @@ public class StateDiffEngine {
         public List<String> removed = new ArrayList<>();
     }
 
+    public static class OsDiff {
+        public boolean osNameChanged;
+        public boolean osVersionChanged;
+        public boolean kernelChanged;
+        public boolean archChanged;
+        public String fromName = "";
+        public String toName = "";
+        public String fromVersion = "";
+        public String toVersion = "";
+        public String fromKernel = "";
+        public String toKernel = "";
+        public String fromArch = "";
+        public String toArch = "";
+
+        public boolean hasChanges() {
+            return osNameChanged || osVersionChanged || kernelChanged || archChanged;
+        }
+    }
+
     public static class DiffSummary {
         public int packagesAdded;
         public int packagesRemoved;
@@ -437,5 +501,7 @@ public class StateDiffEngine {
         public int dockerChanged;
         public int configsChanged;
         public int crontabChanged;
+        public boolean osChanged;
+        public boolean kernelChanged;
     }
 }

@@ -130,6 +130,7 @@ public class SettingsService {
             row.put("resourceType", log.getResourceType() != null ? log.getResourceType() : "");
             row.put("resourceId", log.getResourceId() != null ? String.valueOf(log.getResourceId()) : "");
             row.put("ipAddress", log.getIpAddress() != null ? log.getIpAddress() : "");
+            row.put("userAgent", log.getUserAgent() != null ? log.getUserAgent() : "");
             row.put("createdAt", log.getCreatedAt() != null ? log.getCreatedAt().toString() : "");
             return row;
         }).toList();

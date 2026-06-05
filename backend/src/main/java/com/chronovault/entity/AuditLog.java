@@ -24,6 +24,9 @@ public class AuditLog {
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
 
+    @Column(name = "user_agent", length = 500)
+    private String userAgent;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "snapshot_id")
     private Snapshot snapshot;

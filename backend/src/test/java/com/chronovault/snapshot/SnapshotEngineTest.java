@@ -53,6 +53,7 @@ class SnapshotEngineTest {
     void setUp() {
         ReflectionTestUtils.setField(snapshotEngine, "resticPassword", "test-password-123");
         ReflectionTestUtils.setField(snapshotEngine, "snapshotServiceRef", snapshotServiceRef);
+        ReflectionTestUtils.setField(snapshotEngine, "totalTimeoutMinutes", 30L);
 
         testServer = Server.builder()
                 .id(1L).name("test-server").ip("192.168.1.100")

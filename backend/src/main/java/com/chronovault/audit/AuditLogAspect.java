@@ -66,6 +66,7 @@ public class AuditLogAspect {
                     .resourceType(resourceType)
                     .resourceId(resourceId)
                     .ipAddress(ipAddress)
+                    .userAgent(userAgent)
                     .build();
             auditLogRepository.save(auditLog);
 

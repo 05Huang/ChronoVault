@@ -1107,6 +1107,8 @@ public class SnapshotService {
             summary.put("services_changed", diffResult.summary().servicesChanged);
             summary.put("ports_changed", diffResult.summary().portsChanged);
             summary.put("configs_changed", diffResult.summary().configsChanged);
+            summary.put("os_changed", diffResult.summary().osChanged);
+            summary.put("kernel_changed", diffResult.summary().kernelChanged);
 
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             snapshot.setChangeSummaryJson(mapper.writeValueAsString(summary));

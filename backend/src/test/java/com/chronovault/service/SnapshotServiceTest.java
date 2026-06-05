@@ -328,6 +328,7 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
+                new StateDiffEngine.OsDiff(),
                 new StateDiffEngine.DiffSummary(),
                 null
         );
@@ -362,6 +363,7 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
+                new StateDiffEngine.OsDiff(),
                 new StateDiffEngine.DiffSummary(),
                 null
         );
@@ -400,6 +402,7 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
+                new StateDiffEngine.OsDiff(),
                 new StateDiffEngine.DiffSummary(),
                 null
         );
@@ -706,6 +709,7 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
+                new StateDiffEngine.OsDiff(),
                 new StateDiffEngine.DiffSummary(),
                 null
         );
@@ -750,6 +754,7 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
+                new StateDiffEngine.OsDiff(),
                 new StateDiffEngine.DiffSummary(),
                 null
         );
@@ -786,6 +791,7 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
+                new StateDiffEngine.OsDiff(),
                 new StateDiffEngine.DiffSummary(),
                 null
         );
@@ -820,6 +826,7 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
+                new StateDiffEngine.OsDiff(),
                 new StateDiffEngine.DiffSummary(),
                 null
         );
@@ -992,6 +999,7 @@ class SnapshotServiceTest {
                 new StateDiffEngine.DockerDiff(),
                 new StateDiffEngine.ConfigDiff(),
                 new StateDiffEngine.CrontabDiff(),
+                new StateDiffEngine.OsDiff(),
                 new StateDiffEngine.DiffSummary(),
                 null
         );
