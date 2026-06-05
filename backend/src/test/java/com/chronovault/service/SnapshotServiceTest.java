@@ -1137,4 +1137,45 @@ class SnapshotServiceTest {
 
         assertTrue(result.contains("1/2"));
     }
+
+    // =====================================================================
+    // Shared Snapshot Tests
+    // =====================================================================
+
+    @Test
+    void generateShareToken_validSnapshot_returnsToken() {
+        Snapshot snap = Snapshot.builder().id(1L).server(testServer).title("Test").status(Snapshot.SnapshotStatus.STABLE).build();
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snap));
+
+        String token = snapshotService.generateShareToken(1L);
+
+        assertNotNull(token);
+        assertFalse(token.isBlank());
+        assertTrue(token.length() > 0);
+    }
+
+    @Test
+    void generateShareToken_nonExistingSnapshot_throwsException() {
+        when(snapshotRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> snapshotService.generateShareToken(999L));
+    }
+
+    @Test
+    void getSnapshotForShare_validSnapshot_returnsDetail() {
+        Snapshot snap = Snapshot.builder().id(1L).server(testServer).title("Shared Snapshot")
+                .status(Snapshot.SnapshotStatus.STABLE).build();
+        when(snapshotRepository.findById(1L)).thenReturn(Optional.of(snap));
+        when(tagRepository.findBySnapshotIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+
+        var result = snapshotService.getSnapshotForShare(1L);
+
+        assertNotNull(result);
+        assertEquals("Shared Snapshot", result.name());
+    }
+
+    @Test
+    void getSnapshotForShare_nonExistingSnapshot_throwsException() {
+        when(snapshotRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> snapshotService.getSnapshotForShare(999L));
+    }
 }

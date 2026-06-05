@@ -102,4 +102,66 @@ class TeamServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> teamService.removeMember(999L));
     }
+
+    @Test
+    void updateMember_validRequest_updatesRoleAndPermissions() {
+        TeamMember member = TeamMember.builder().id(1L).owner(testUser).name("John")
+                .role(User.Role.MEMBER).permissions("read")
+                .status(TeamMember.MemberStatus.ONLINE).build();
+        when(teamMemberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(teamMemberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateMemberRequest request = new UpdateMemberRequest("ADMIN", "full-access");
+        TeamMemberDTO result = teamService.updateMember(1L, request);
+
+        assertEquals(User.Role.ADMIN, member.getRole());
+        assertEquals("full-access", member.getPermissions());
+    }
+
+    @Test
+    void updateMember_partialUpdate_onlyUpdatesProvidedFields() {
+        TeamMember member = TeamMember.builder().id(1L).owner(testUser).name("John")
+                .role(User.Role.MEMBER).permissions("read")
+                .status(TeamMember.MemberStatus.ONLINE).build();
+        when(teamMemberRepository.findById(1L)).thenReturn(Optional.of(member));
+        when(teamMemberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateMemberRequest request = new UpdateMemberRequest("ADMIN", null);
+        teamService.updateMember(1L, request);
+
+        assertEquals(User.Role.ADMIN, member.getRole());
+        assertEquals("read", member.getPermissions()); // unchanged
+    }
+
+    @Test
+    void updateMember_nonExistingMember_throwsException() {
+        when(teamMemberRepository.findById(999L)).thenReturn(Optional.empty());
+        UpdateMemberRequest request = new UpdateMemberRequest("ADMIN", null);
+
+        assertThrows(ResourceNotFoundException.class, () -> teamService.updateMember(999L, request));
+    }
+
+    @Test
+    void invite_adminRole_appliesFullPermissions() {
+        when(userService.getByEmail("owner@example.com")).thenReturn(testUser);
+        when(teamMemberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        InviteRequest request = new InviteRequest("Admin User", "admin@example.com", "ADMIN", null);
+        TeamMemberDTO result = teamService.invite("owner@example.com", request);
+
+        assertNotNull(result);
+        assertEquals("Admin User", result.name());
+    }
+
+    @Test
+    void invite_withCustomPermissions_usesProvidedPermissions() {
+        when(userService.getByEmail("owner@example.com")).thenReturn(testUser);
+        when(teamMemberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        InviteRequest request = new InviteRequest("Custom", "custom@example.com", "MEMBER", "read-only,view-snapshots");
+        TeamMemberDTO result = teamService.invite("owner@example.com", request);
+
+        assertNotNull(result);
+        assertEquals("Custom", result.name());
+    }
 }

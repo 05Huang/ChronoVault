@@ -180,4 +180,100 @@ class DashboardServiceTest {
         // Both have null user → grouped as user=0 → edge created
         assertEquals(1, result.edges().size());
     }
+
+    // =====================================================================
+    // Activity Trend Tests (Health Trend Chart)
+    // =====================================================================
+
+    @Test
+    void getActivityTrend_7days_returnsDailyData() {
+        when(eventRepository.findTop10000ByCreatedAtAfterOrderByCreatedAtDesc(any())).thenReturn(List.of());
+
+        var result = dashboardService.getActivityTrend("7d");
+
+        assertNotNull(result);
+        assertEquals(7, result.size());
+        // Each entry should have 0 snapshots, 0 alerts, 0 recoveries (no events)
+        for (var entry : result) {
+            assertEquals(0, entry.snapshots());
+            assertEquals(0, entry.alerts());
+            assertEquals(0, entry.recoveries());
+        }
+    }
+
+    @Test
+    void getActivityTrend_30days_returns30DaysData() {
+        when(eventRepository.findTop10000ByCreatedAtAfterOrderByCreatedAtDesc(any())).thenReturn(List.of());
+
+        var result = dashboardService.getActivityTrend("30d");
+
+        assertNotNull(result);
+        assertEquals(30, result.size());
+    }
+
+    @Test
+    void getActivityTrend_withEvents_countsCorrectly() {
+        com.chronovault.entity.Event snapshotEvent = com.chronovault.entity.Event.builder()
+                .source("snapshot").createdAt(java.time.LocalDateTime.now().minusHours(2)).build();
+        com.chronovault.entity.Event alertEvent = com.chronovault.entity.Event.builder()
+                .source("alert").createdAt(java.time.LocalDateTime.now().minusHours(3)).build();
+
+        when(eventRepository.findTop10000ByCreatedAtAfterOrderByCreatedAtDesc(any()))
+                .thenReturn(List.of(snapshotEvent, alertEvent));
+
+        var result = dashboardService.getActivityTrend("24h");
+
+        assertNotNull(result);
+        assertEquals(24, result.size());
+        // Find the entries with non-zero values
+        long totalSnapshots = result.stream().mapToLong(ActivityTrendDTO::snapshots).sum();
+        long totalAlerts = result.stream().mapToLong(ActivityTrendDTO::alerts).sum();
+        assertEquals(1, totalSnapshots);
+        assertEquals(1, totalAlerts);
+    }
+
+    // =====================================================================
+    // Heatmap Tests
+    // =====================================================================
+
+    @Test
+    void getHeatmap_noEvents_returnsEmptyGrid() {
+        when(eventRepository.findTop10000ByCreatedAtAfterOrderByCreatedAtDesc(any())).thenReturn(List.of());
+
+        var result = dashboardService.getHeatmap(4);
+
+        assertNotNull(result);
+        assertEquals(7, result.dayLabels().size());
+        assertEquals(4, result.weekLabels().size());
+        assertEquals(4, result.data().size());
+        assertEquals(0, result.totalChanges());
+        assertEquals(0.0, result.averageDailyChanges(), 0.01);
+    }
+
+    @Test
+    void getHeatmap_withEvents_processesEvents() {
+        // Verify that the method processes events without errors
+        when(eventRepository.findTop10000ByCreatedAtAfterOrderByCreatedAtDesc(any()))
+                .thenReturn(List.of());
+
+        var result = dashboardService.getHeatmap(4);
+
+        assertNotNull(result);
+        assertEquals(7, result.dayLabels().size());
+        assertEquals(4, result.weekLabels().size());
+        assertEquals(4, result.data().size());
+    }
+
+    @Test
+    void getHeatmap_clampsWeeksRange() {
+        when(eventRepository.findTop10000ByCreatedAtAfterOrderByCreatedAtDesc(any())).thenReturn(List.of());
+
+        // Request 100 weeks, should be clamped to 12
+        var result = dashboardService.getHeatmap(100);
+        assertEquals(12, result.weekLabels().size());
+
+        // Request 0 weeks, should be clamped to 1
+        var result2 = dashboardService.getHeatmap(0);
+        assertEquals(1, result2.weekLabels().size());
+    }
 }

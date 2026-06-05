@@ -17,6 +17,174 @@ import (
 	"github.com/chronovault/agent/transport"
 )
 
+// Snapshot handles snapshot management commands
+func Snapshot(args []string) {
+	if len(args) < 1 {
+		fmt.Println("Usage: chronovault-agent snapshot <list|create|rollback|diff>")
+		return
+	}
+
+	switch args[0] {
+	case "list":
+		snapshotList()
+	case "create":
+		snapshotCreate(args[1:])
+	case "rollback":
+		snapshotRollback(args[1:])
+	case "diff":
+		snapshotDiff(args[1:])
+	default:
+		fmt.Printf("Unknown snapshot command: %s\n", args[0])
+		fmt.Println("Usage: chronovault-agent snapshot <list|create|rollback|diff>")
+	}
+}
+
+func snapshotList() {
+	if cfg.ServerURL == "" || cfg.APIKey == "" {
+		fmt.Println("Error: Server URL and API key must be configured")
+		fmt.Println("Please set server_url and api_key in /etc/chronovault/agent.yml")
+		return
+	}
+
+	client := transport.NewClient(cfg.ServerURL, cfg.APIKey, cfg.AgentID)
+	snapshots, err := client.ListSnapshots()
+	if err != nil {
+		fmt.Printf("Error listing snapshots: %v\n", err)
+		return
+	}
+
+	if len(snapshots) == 0 {
+		fmt.Println("No snapshots found")
+		return
+	}
+
+	fmt.Printf("%-8s %-20s %-12s %-20s\n", "ID", "Title", "Status", "Created")
+	fmt.Printf("%-8s %-20s %-12s %-20s\n", "--------", "--------------------", "------------", "--------------------")
+	for _, s := range snapshots {
+		title := s["title"].(string)
+		if len(title) > 18 {
+			title = title[:18] + ".."
+		}
+		createdAt := ""
+		if t, ok := s["createdAt"].(string); ok && len(t) > 19 {
+			createdAt = t[:19]
+		}
+		fmt.Printf("%-8v %-20s %-12v %-20s\n", s["id"], title, s["status"], createdAt)
+	}
+}
+
+func snapshotCreate(args []string) {
+	serverURL := ""
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--server-url" {
+			serverURL = args[i+1]
+		}
+	}
+
+	if serverURL == "" {
+		serverURL = cfg.ServerURL
+	}
+
+	if serverURL == "" || cfg.APIKey == "" {
+		fmt.Println("Error: Server URL and API key must be configured")
+		return
+	}
+
+	fmt.Println("Creating snapshot...")
+
+	// Collect state
+	stateCollector := scanner.NewStateCollector()
+	state, err := stateCollector.Collect()
+	if err != nil {
+		fmt.Printf("Warning: State collection failed: %v\n", err)
+		state = "{}"
+	}
+
+	// Create restic backup
+	rc := restic.NewClient()
+	if err := rc.EnsureInstalled(); err != nil {
+		fmt.Printf("Error: Restic not installed: %v\n", err)
+		return
+	}
+
+	hash, err := rc.Backup("/", cfg.ResticPassword)
+	if err != nil {
+		fmt.Printf("Error creating backup: %v\n", err)
+		return
+	}
+
+	// Report to server
+	client := transport.NewClient(cfg.ServerURL, cfg.APIKey, cfg.AgentID)
+	result, err := client.ReportSnapshot(hash, state)
+	if err != nil {
+		fmt.Printf("Error reporting snapshot: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Snapshot created successfully!\n")
+	fmt.Printf("  Hash: %s\n", hash)
+	fmt.Printf("  Server response: %v\n", result)
+}
+
+func snapshotRollback(args []string) {
+	snapshotID := ""
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--id" {
+			snapshotID = args[i+1]
+		}
+	}
+
+	if snapshotID == "" {
+		fmt.Println("Error: Snapshot ID is required")
+		fmt.Println("Usage: chronovault-agent snapshot rollback --id <snapshot-id>")
+		return
+	}
+
+	fmt.Printf("Rolling back to snapshot %s...\n", snapshotID)
+
+	rc := restic.NewClient()
+	if err := rc.EnsureInstalled(); err != nil {
+		fmt.Printf("Error: Restic not installed: %v\n", err)
+		return
+	}
+
+	err := rc.Restore(snapshotID, "/", cfg.ResticPassword)
+	if err != nil {
+		fmt.Printf("Error restoring snapshot: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Snapshot %s restored successfully!\n", snapshotID)
+}
+
+func snapshotDiff(args []string) {
+	id1 := ""
+	id2 := ""
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--id1" {
+			id1 = args[i+1]
+		}
+		if args[i] == "--id2" {
+			id2 = args[i+1]
+		}
+	}
+
+	if id1 == "" || id2 == "" {
+		fmt.Println("Error: Both --id1 and --id2 are required")
+		fmt.Println("Usage: chronovault-agent snapshot diff --id1 <id1> --id2 <id2>")
+		return
+	}
+
+	fmt.Printf("Comparing snapshots %s and %s...\n", id1, id2)
+
+	// For now, just show basic diff info
+	// In a full implementation, this would fetch state.json from both snapshots
+	// and compare them using the diff engine
+	fmt.Printf("Snapshot A: %s\n", id1)
+	fmt.Printf("Snapshot B: %s\n", id2)
+	fmt.Println("Note: Full diff comparison requires backend API access")
+}
+
 var (
 	cfg          *config.Config
 	taskWg       sync.WaitGroup

@@ -114,4 +114,39 @@ class SettingsServiceTest {
         assertNotNull(result);
         assertTrue(result.isEmpty());
     }
+
+    @Test
+    void searchAuditLogs_withFilters_returnsFilteredResults() {
+        when(auditLogRepository.search(eq("SNAPSHOT"), eq(1L), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        var result = settingsService.searchAuditLogs("SNAPSHOT", 1L,
+                java.time.LocalDateTime.now().minusDays(7), java.time.LocalDateTime.now(), 0, 20);
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void searchAuditLogs_withNullFilters_returnsAll() {
+        when(auditLogRepository.search(isNull(), isNull(), isNull(), isNull(), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        var result = settingsService.searchAuditLogs(null, null, null, null, 0, 20);
+
+        assertNotNull(result);
+    }
+
+    @Test
+    void exportAuditLogs_returnsExportData() {
+        when(auditLogRepository.findByCreatedAtBetween(any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        var result = settingsService.exportAuditLogs(
+                java.time.LocalDateTime.now().minusDays(7),
+                java.time.LocalDateTime.now());
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
 }

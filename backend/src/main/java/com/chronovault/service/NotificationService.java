@@ -28,6 +28,8 @@ public class NotificationService {
                 switch (integration.getType()) {
                     case SLACK -> sendSlackNotification(integration.getUrl(), alert);
                     case DINGTALK -> sendDingTalkNotification(integration.getUrl(), alert);
+                    case FEISHU -> sendFeishuNotification(integration.getUrl(), alert);
+                    case WECHAT -> sendWechatNotification(integration.getUrl(), alert);
                     case WEBHOOK -> sendWebhookNotification(integration.getUrl(), alert);
                     case EMAIL -> log.info("Email notification for alert {} (not yet implemented)", alert.getId());
                 }
@@ -124,6 +126,68 @@ public class NotificationService {
 
         restTemplate.postForEntity(webhookUrl, payload, String.class);
         log.info("Webhook notification sent for alert: {}", alert.getTitle());
+    }
+
+    private void sendFeishuNotification(String webhookUrl, Alert alert) {
+        if (webhookUrl == null || webhookUrl.isBlank()) return;
+
+        String severityEmoji = switch (alert.getSeverity()) {
+            case CRITICAL -> "🔴";
+            case WARNING -> "🟡";
+            case PREDICTIVE -> "🔵";
+        };
+
+        String payload = String.format("""
+                {
+                    "msg_type": "interactive",
+                    "card": {
+                        "header": {
+                            "title": {
+                                "tag": "plain_text",
+                                "content": "%s ChronoVault 告警"
+                            },
+                            "template": "red"
+                        },
+                        "elements": [
+                            {
+                                "tag": "div",
+                                "text": {
+                                    "tag": "lark_md",
+                                    "content": "**%s**\\n%s\\n\\n**服务器:** %s\\n**级别:** %s"
+                                }
+                            }
+                        ]
+                    }
+                }""",
+                severityEmoji,
+                alert.getTitle(),
+                alert.getDescription() != null ? alert.getDescription() : "",
+                alert.getServer() != null ? alert.getServer().getName() : "Unknown",
+                alert.getSeverity().name()
+        );
+
+        restTemplate.postForEntity(webhookUrl, payload, String.class);
+        log.info("[NOTIFY] Feishu notification sent for alert: {}", alert.getTitle());
+    }
+
+    private void sendWechatNotification(String webhookUrl, Alert alert) {
+        if (webhookUrl == null || webhookUrl.isBlank()) return;
+
+        String payload = String.format("""
+                {
+                    "msgtype": "markdown",
+                    "markdown": {
+                        "content": "## ChronoVault 告警\\n\\n**%s**\\n\\n%s\\n\\n**服务器:** %s\\n**级别:** %s"
+                    }
+                }""",
+                alert.getTitle(),
+                alert.getDescription() != null ? alert.getDescription() : "",
+                alert.getServer() != null ? alert.getServer().getName() : "Unknown",
+                alert.getSeverity().name()
+        );
+
+        restTemplate.postForEntity(webhookUrl, payload, String.class);
+        log.info("[NOTIFY] WeChat notification sent for alert: {}", alert.getTitle());
     }
 
     private String escapeJson(String s) {

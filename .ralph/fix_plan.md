@@ -357,8 +357,8 @@
 
 ### P8-2: 可视化增强
 - [x] 创建"快照影响分析"视图：展示某个快照影响了文件、服务、配置（后端API已实现）
-- [ ] 创建"服务器健康趋势"图表：过去 7/30 天的快照频率、告警趋势、变更频率
-- [ ] 创建"变更热力图"：展示一周内每天的变更数量（类似 GitHub 贡献图）
+- [x] 创建"服务器健康趋势"图表：过去 7/30 天的快照频率、告警趋势、变更频率
+- [x] 创建"变更热力图"：展示一周内每天的变更数量（类似 GitHub 贡献图）
 - [ ] Dashboard 添加实时数据流：WebSocket 推送新的快照状态、告警、任务进度
 
 ### P8-3: 自动化运维
@@ -368,16 +368,16 @@
 - [ ] 创建"一键环境复制"：从生产服务器快照自动创建测试/预发环境的完整副本
 
 ### P8-4: 多租户与团队协作
-- [ ] 验证现有 RBAC（OWNER/ADMIN/MEMBER/VIEWER）是否在所有 API 端点上正确执行
-- [ ] `TeamController` 验证：成员邀请、角色变更、权限管理是否完整
-- [ ] 创建"操作审计看板"：谁在什么时候对哪台服务器做了什么操作（时间线视图）
-- [ ] 添加"共享快照"功能：团队成员之间可以分享快照视图（只读链接）
+- [x] 验证现有 RBAC（OWNER/ADMIN/MEMBER/VIEWER）是否在所有 API 端点上正确执行
+- [x] `TeamController` 验证：成员邀请、角色变更、权限管理是否完整
+- [x] 创建"操作审计看板"：谁在什么时候对哪台服务器做了什么操作（时间线视图）
+- [x] 添加"共享快照"功能：团队成员之间可以分享快照视图（只读链接）
 
 ### P8-5: 生态系统
-- [ ] 创建 REST API v1 完整文档和 Postman Collection，方便第三方集成
-- [ ] 创建 CLI 工具（Go）：`chronovault-cli`，支持从命令行管理快照（`cv snapshot list/create/rollback/diff`）
+- [x] 创建 REST API v1 完整文档和 Postman Collection，方便第三方集成
+- [x] 创建 CLI 工具（Go）：`chronovault-cli`，支持从命令行管理快照（`cv snapshot list/create/rollback/diff`）
 - [ ] 创建 Terraform Provider：通过 IaC 方式管理 ChronoVault 的服务器注册和快照策略
-- [ ] 创建 Webhook 集成模板：Slack、DingTalk、Feishu、企业微信的消息格式模板
+- [x] 创建 Webhook 集成模板：Slack、DingTalk、Feishu、企业微信的消息格式模板
 - [x] 支持 Prometheus metrics 端点：让现有监控栈（Prometheus + Grafana）可直接对接
 
 ---

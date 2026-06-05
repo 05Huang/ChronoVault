@@ -37,5 +37,5 @@ public class Integration {
         if (active == null) active = true;
     }
 
-    public enum IntegrationType { SLACK, EMAIL, WEBHOOK, DINGTALK }
+    public enum IntegrationType { SLACK, EMAIL, WEBHOOK, DINGTALK, FEISHU, WECHAT }
 }

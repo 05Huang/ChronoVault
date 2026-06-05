@@ -185,6 +185,63 @@ public class DashboardService {
     }
 
     /**
+     * Get change heatmap data for the past N weeks.
+     * Returns a grid [week][day] of daily change counts, similar to GitHub contribution graph.
+     */
+    public HeatmapDTO getHeatmap(int weeks) {
+        weeks = Math.max(1, Math.min(weeks, 12)); // Clamp to 1-12 weeks
+
+        String[] dayLabels = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+        List<String> weekLabels = new java.util.ArrayList<>();
+        List<List<Integer>> data = new java.util.ArrayList<>();
+
+        // Initialize grid with zeros
+        for (int w = weeks - 1; w >= 0; w--) {
+            LocalDate weekStart = LocalDate.now().minusWeeks(w);
+            weekLabels.add(weekStart.format(DateTimeFormatter.ofPattern("MM/dd")));
+
+            List<Integer> weekRow = new java.util.ArrayList<>();
+            for (int d = 0; d < 7; d++) {
+                weekRow.add(0);
+            }
+            data.add(weekRow);
+        }
+
+        // Count events per day
+        LocalDate cutoff = LocalDate.now().minusWeeks(weeks).with(java.time.DayOfWeek.MONDAY);
+        List<Event> events = eventRepository.findTop10000ByCreatedAtAfterOrderByCreatedAtDesc(
+                cutoff.atStartOfDay());
+
+        int totalChanges = 0;
+        for (Event event : events) {
+            if (event.getCreatedAt() == null) continue;
+            LocalDate eventDate = event.getCreatedAt().toLocalDate();
+            if (eventDate.isBefore(cutoff)) continue;
+
+            // Calculate week index and day index
+            long weeksDiff = java.time.temporal.ChronoUnit.WEEKS.between(cutoff, eventDate);
+            int dayOfWeek = eventDate.getDayOfWeek().getValue() - 1; // 0=Mon, 6=Sun
+
+            if (weeksDiff >= 0 && weeksDiff < weeks && dayOfWeek >= 0 && dayOfWeek < 7) {
+                int weekIdx = (int) weeksDiff;
+                List<Integer> weekRow = data.get(weekIdx);
+                weekRow.set(dayOfWeek, weekRow.get(dayOfWeek) + 1);
+                totalChanges++;
+            }
+        }
+
+        double averageDaily = weeks > 0 ? (double) totalChanges / (weeks * 7.0) : 0;
+
+        return new HeatmapDTO(
+                List.of(dayLabels),
+                weekLabels,
+                data,
+                totalChanges,
+                Math.round(averageDaily * 10.0) / 10.0
+        );
+    }
+
+    /**
      * Get dashboard overview with enhanced metrics for P2-4 redesign.
      * Single API call to avoid N+1 requests from the frontend.
      * Results are cached for 30 seconds to reduce database load.

@@ -131,6 +131,7 @@ public class ServerController {
 
     @Auditable(action = "删除服务器", changeType = "SERVER_DELETED", resourceType = "SERVER", resourceId = "#id")
     @DeleteMapping("/{id}")
+    @Operation(summary = "删除服务器", description = "仅 ADMIN 和 OWNER 可以删除服务器")
     public ResponseEntity<ApiResponse<Void>> deleteServer(@PathVariable Long id) {
         serverService.deleteServer(id);
         return ResponseEntity.ok(ApiResponse.successMsg("服务器已删除"));
