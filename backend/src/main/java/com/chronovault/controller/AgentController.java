@@ -87,4 +87,15 @@ public class AgentController {
         agentService.updateContainers(serverId, containers);
         return ResponseEntity.ok(ApiResponse.successMsg("容器信息已更新"));
     }
+
+    @Operation(summary = "获取最新 Agent 版本", description = "Agent 启动时检查是否有新版本可用")
+    @GetMapping("/version")
+    public ResponseEntity<ApiResponse<Map<String, String>>> getLatestVersion() {
+        // Current latest version — in production this would come from a config or database
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "latestVersion", "0.1.0",
+                "downloadUrl", "https://github.com/chronovault/chronovault/releases/latest",
+                "releaseNotes", "Latest stable release"
+        )));
+    }
 }

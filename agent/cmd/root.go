@@ -52,6 +52,17 @@ func Run() {
 	}
 	log.Println("Restic is available")
 
+	// Check for agent updates (non-blocking, best-effort)
+	if cfg.ServerURL != "" && cfg.APIKey != "" {
+		tempClient := transport.NewClient(cfg.ServerURL, cfg.APIKey, cfg.AgentID)
+		if latest, url, needsUpdate, err := tempClient.CheckForUpdate(); err == nil && needsUpdate {
+			log.Printf("=========================================")
+			log.Printf("UPDATE AVAILABLE: %s (current: 0.1.0)", latest)
+			log.Printf("Download: %s", url)
+			log.Printf("=========================================")
+		}
+	}
+
 	// Startup validation: check server reachability (if configured)
 	client := transport.NewClient(cfg.ServerURL, cfg.APIKey, cfg.AgentID)
 	if cfg.ServerURL != "" && cfg.APIKey != "" {
@@ -116,14 +127,33 @@ func Run() {
 	// Start heartbeat loop
 	go heartbeatLoop(client)
 
-	// Start task polling loop
-	go taskPollingLoop(client)
+	// Start WebSocket connection for real-time task delivery (with HTTP polling fallback)
+	wsClient := transport.NewWSClient(cfg.ServerURL, cfg.AgentID, cfg.APIKey, func(task transport.TaskInfo) {
+		log.Printf("Executing task %d: %s (via WebSocket)", task.ID, task.Type)
+		taskWg.Add(1)
+		go func() {
+			defer taskWg.Done()
+			executeTask(client, task)
+		}()
+	})
+	if cfg.ServerURL != "" && cfg.APIKey != "" {
+		wsClient.Start()
+		log.Println("WebSocket connection started for real-time task delivery")
+	}
+
+	// Start task polling loop (fallback when WebSocket is unavailable)
+	go taskPollingLoop(client, wsClient)
 
 	// Wait for signal
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigCh
 	log.Printf("Received signal %v, shutting down gracefully...", sig)
+
+	// Stop WebSocket connection
+	if wsClient != nil {
+		wsClient.Stop()
+	}
 
 	// Cancel context to stop new tasks
 	shutdownFunc()
@@ -219,7 +249,7 @@ func heartbeatLoop(client *transport.Client) {
 	}
 }
 
-func taskPollingLoop(client *transport.Client) {
+func taskPollingLoop(client *transport.Client, wsClient *transport.WSClient) {
 	interval := 10 * time.Second
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -230,6 +260,11 @@ func taskPollingLoop(client *transport.Client) {
 			log.Println("Task polling stopped (shutdown)")
 			return
 		case <-ticker.C:
+			// Skip HTTP polling when WebSocket is connected (real-time delivery)
+			if wsClient != nil && wsClient.IsConnected() {
+				continue
+			}
+
 			tasks, err := client.GetPendingTasks()
 			if err != nil {
 				continue
@@ -242,7 +277,7 @@ func taskPollingLoop(client *transport.Client) {
 					return
 				default:
 				}
-				log.Printf("Executing task %d: %s", task.ID, task.Type)
+				log.Printf("Executing task %d: %s (via HTTP polling)", task.ID, task.Type)
 				taskWg.Add(1)
 				go func(t transport.TaskInfo) {
 					defer taskWg.Done()

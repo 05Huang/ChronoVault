@@ -204,8 +204,8 @@
 ### P3-4: Agent 扩展性
 - [x] Agent 添加插件机制：支持用户自定义采集器（Go plugin 或外部命令调用）
 - [x] Agent 支持自定义采集路径配置（`/etc/chronovault/agent.yaml` 中配置要监控的配置文件路径）
-- [ ] Agent 添加 WebSocket 支持：Backend 可通过 WebSocket 实时向 Agent 发送任务（替代当前的 HTTP 轮询）
-- [ ] Agent 二进制自动更新检查：启动时检查 Backend 是否有新版本，提示用户更新
+- [x] Agent 添加 WebSocket 支持：Backend 可通过 WebSocket 实时向 Agent 发送任务（替代当前的 HTTP 轮询）
+- [x] Agent 二进制自动更新检查：启动时检查 Backend 是否有新版本，提示用户更新
 
 ---
 

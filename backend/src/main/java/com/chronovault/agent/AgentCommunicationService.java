@@ -222,4 +222,36 @@ public class AgentCommunicationService {
             containerRepository.save(container);
         }
     }
+
+    /**
+     * Called when an agent connects via WebSocket.
+     * Updates agent status to ONLINE.
+     */
+    public void onAgentConnected(String agentId) {
+        AgentInfo agentInfo = agentInfoRepository.findByServerAgentId(agentId).orElse(null);
+        if (agentInfo == null) {
+            log.warn("[AGENT_WS] Connected agent not registered: {}", agentId);
+            return;
+        }
+        agentInfo.setStatus("ONLINE");
+        agentInfo.setLastHeartbeatAt(LocalDateTime.now());
+        agentInfoRepository.save(agentInfo);
+
+        Server server = agentInfo.getServer();
+        if (server != null) {
+            server.setStatus(Server.ServerStatus.RUNNING);
+            serverRepository.save(server);
+        }
+        log.info("[AGENT_WS] Agent {} connected via WebSocket", agentId);
+    }
+
+    /**
+     * Called when an agent disconnects from WebSocket.
+     * Does NOT immediately mark as offline (heartbeat scheduler handles stale detection).
+     */
+    public void onAgentDisconnected(String agentId) {
+        log.info("[AGENT_WS] Agent {} disconnected from WebSocket", agentId);
+        // Don't mark offline immediately — the heartbeat scheduler will handle stale detection
+        // in case the agent reconnects quickly or is using HTTP polling as fallback
+    }
 }

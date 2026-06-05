@@ -279,6 +279,58 @@ func computeHMAC(data []byte, secret string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+// CheckForUpdate queries the backend for the latest agent version and compares it with current.
+// Returns (latestVersion, downloadURL, needsUpdate, error).
+func (c *Client) CheckForUpdate() (string, string, bool, error) {
+	var result struct {
+		LatestVersion string `json:"latestVersion"`
+		DownloadURL   string `json:"downloadUrl"`
+		ReleaseNotes  string `json:"releaseNotes"`
+	}
+	if err := c.get("/api/agent/version", &result); err != nil {
+		return "", "", false, err
+	}
+
+	currentVersion := "0.1.0" // TODO: inject via ldflags at build time
+	needsUpdate := result.LatestVersion != "" && result.LatestVersion != currentVersion
+	return result.LatestVersion, result.DownloadURL, needsUpdate, nil
+}
+
+// get performs an HTTP GET request and parses the JSON response.
+func (c *Client) get(path string, result interface{}) error {
+	req, err := http.NewRequest("GET", c.baseURL+path, nil)
+	if err != nil {
+		return err
+	}
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("GET %s returned status %d", path, resp.StatusCode)
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// Unwrap ApiResponse wrapper
+	var wrapper struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &wrapper); err == nil && wrapper.Data != nil {
+		respBody = wrapper.Data
+	}
+	return json.Unmarshal(respBody, result)
+}
+
 // CheckServerReachable makes a lightweight request to verify the server is reachable.
 func (c *Client) CheckServerReachable() error {
 	req, err := http.NewRequest("GET", c.baseURL+"/actuator/health", nil)
