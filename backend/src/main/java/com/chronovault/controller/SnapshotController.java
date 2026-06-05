@@ -437,4 +437,10 @@ public class SnapshotController {
         }
         return s;
     }
+
+    @GetMapping("/{id}/impact")
+    @Operation(summary = "快照影响分析", description = "分析指定快照影响了哪些文件、服务和配置，返回变更摘要")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getSnapshotImpact(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(snapshotService.getSnapshotImpact(id)));
+    }
 }

@@ -1204,4 +1204,86 @@ public class SnapshotService {
                     currentSnapshot.getId(), e.getMessage());
         }
     }
+
+    /**
+     * Analyze the impact of a snapshot: which files, services, and configs were affected.
+     * Compares with the previous snapshot to determine changes.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getSnapshotImpact(Long snapshotId) {
+        Snapshot snapshot = snapshotRepository.findById(snapshotId)
+                .orElseThrow(() -> new ResourceNotFoundException("快照不存在: " + snapshotId));
+
+        Map<String, Object> impact = new java.util.HashMap<>();
+        impact.put("snapshotId", snapshotId);
+        impact.put("createdAt", snapshot.getCreatedAt() != null ? snapshot.getCreatedAt().toString() : null);
+        impact.put("serverId", snapshot.getServer() != null ? snapshot.getServer().getId() : null);
+
+        // If no state.json, return basic info
+        if (snapshot.getStateJson() == null || snapshot.getStateJson().isBlank()) {
+            impact.put("summary", Map.of("packages", 0, "services", 0, "configs", 0, "containers", 0));
+            return impact;
+        }
+
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            Map<String, Object> state = (Map<String, Object>) mapper.readValue(snapshot.getStateJson(), Object.class);
+
+            // Count affected items from current state
+            Map<String, Object> affected = new java.util.HashMap<>();
+
+            // Packages
+            Object packages = state.get("packages");
+            if (packages instanceof List<?> pkgList) {
+                affected.put("packages", pkgList.size());
+                affected.put("packageNames", pkgList.stream()
+                    .filter(p -> p instanceof Map)
+                    .map(p -> ((Map<?, ?>) p).get("name"))
+                    .filter(n -> n != null)
+                    .limit(20)
+                    .toList());
+            }
+
+            // Services
+            Object services = state.get("services");
+            if (services instanceof List<?> svcList) {
+                affected.put("services", svcList.size());
+                affected.put("serviceNames", svcList.stream()
+                    .filter(s -> s instanceof Map)
+                    .map(s -> ((Map<?, ?>) s).get("name"))
+                    .filter(n -> n != null)
+                    .limit(20)
+                    .toList());
+            }
+
+            // Configs
+            Object configs = state.get("configs");
+            if (configs instanceof List<?> cfgList) {
+                affected.put("configs", cfgList.size());
+                affected.put("configPaths", cfgList.stream()
+                    .filter(c -> c instanceof Map)
+                    .map(c -> ((Map<?, ?>) c).get("path"))
+                    .filter(p -> p != null)
+                    .limit(20)
+                    .toList());
+            }
+
+            // Docker containers
+            Object docker = state.get("docker");
+            if (docker instanceof Map<?, ?> dockerMap) {
+                Object containers = dockerMap.get("containers");
+                if (containers instanceof List<?> ctrList) {
+                    affected.put("containers", ctrList.size());
+                }
+            }
+
+            impact.put("affected", affected);
+            impact.put("changeSummary", snapshot.getChangeSummaryJson());
+        } catch (Exception e) {
+            log.warn("[SNAPSHOT_IMPACT] Failed to parse state.json for snapshot {}: {}", snapshotId, e.getMessage());
+            impact.put("error", "Failed to parse state data");
+        }
+
+        return impact;
+    }
 }

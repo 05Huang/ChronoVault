@@ -36,6 +36,7 @@ public class ServerService {
     private final SshConnectionManager sshManager;
     private final CredentialEncryptor credentialEncryptor;
     private final CacheService cacheService;
+    private final StateCollectionService stateCollectionService;
 
     public List<ServerDTO> getServers(String email) {
         String cacheKey = CacheKeyBuilder.servers(email);
@@ -744,5 +745,33 @@ public class ServerService {
     private Server getServerEntity(Long id) {
         return serverRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("服务器不存在: " + id));
+    }
+
+    /**
+     * Get live state of a server without creating a snapshot.
+     * Connects via SSH, runs state collectors, and returns the state.json.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getLiveState(Long serverId) {
+        Server server = getServerEntity(serverId);
+        try {
+            SshConnection conn = sshManager.getConnection(server);
+            String stateJson = stateCollectionService.collectStateViaSsh(conn);
+            if (stateJson == null || stateJson.isBlank()) {
+                return Map.of("error", "State collection returned empty", "serverId", serverId);
+            }
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            Map<String, Object> state = (Map<String, Object>) mapper.readValue(stateJson, Object.class);
+            state.put("serverId", serverId);
+            state.put("serverName", server.getName());
+            state.put("live", true);
+            return state;
+        } catch (java.io.IOException e) {
+            log.error("[LIVE_STATE] Failed to collect live state for server {}: {}", serverId, e.getMessage());
+            return Map.of("error", "Failed to connect or collect: " + e.getMessage(), "serverId", serverId, "live", true);
+        } catch (Exception e) {
+            log.error("[LIVE_STATE] Failed to collect live state for server {}: {}", serverId, e.getMessage());
+            return Map.of("error", e.getMessage(), "serverId", serverId, "live", true);
+        }
     }
 }

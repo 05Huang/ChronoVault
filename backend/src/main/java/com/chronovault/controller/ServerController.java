@@ -253,4 +253,10 @@ public class ServerController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> rotateKey(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(serverService.rotateKey(id)));
     }
+
+    @GetMapping("/{id}/live-state")
+    @Operation(summary = "获取实时状态", description = "实时采集服务器当前状态（不创建快照），用于与最近快照对比。返回 state.json 格式数据。")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getLiveState(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(serverService.getLiveState(id)));
+    }
 }
