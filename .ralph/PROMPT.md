@@ -268,16 +268,11 @@ chronovault/
 
 ## 完成信号
 
-当以下所有条件满足时，输出 EXIT_SIGNAL：
+⚠️ **重要：只有当 `.ralph/fix_plan.md` 中的所有任务都标记为 `[x]` 时，才能输出 STATUS: COMPLETE。在此之前，每轮循环必须输出 STATUS: IN_PROGRESS。**
 
-```
-RALPH_STATUS:
-  STATUS: COMPLETE
-  EXIT_SIGNAL: true
-  REASON: All P0+P1+P2 tasks verified passing, integration tests green, docker-compose up clean
-```
+**绝对不要输出 STATUS: COMPLETE 除非你已经确认 fix_plan.md 中没有剩余的 `- [ ]` 任务。**
 
-在此之前，每次循环结束时输出：
+每轮循环结束时输出：
 
 ```
 RALPH_STATUS:

@@ -66,7 +66,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
-                    auth.requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
+                    auth.requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/refresh").permitAll()
                         // WebSocket: only permit public events and topics, not all /ws/** paths
                         .requestMatchers("/ws/events", "/ws/topics/**").permitAll()
                         .requestMatchers("/ws/**").authenticated()

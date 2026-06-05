@@ -75,6 +75,9 @@ public abstract class AbstractIntegrationTest {
         registry.add("chronovault.ssh.max-retry", () -> 1);
         registry.add("chronovault.ai.enabled", () -> false);
 
+        // CORS — allow test server origins
+        registry.add("app.cors.allowed-origins", () -> "http://localhost:5173,http://localhost");
+
         // JWT config
         registry.add("jwt.secret", () -> "integration-test-jwt-secret-key-at-least-32-chars-for-hs256!!!");
         registry.add("jwt.expiration", () -> 3600000L);
