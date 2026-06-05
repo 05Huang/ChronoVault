@@ -44,6 +44,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer, WebSoc
                 .setAllowedOriginPatterns(origins)
                 .addInterceptors(authInterceptor)
                 .withSockJS();
+
+        // Raw WebSocket STOMP endpoint (no SockJS) — used by agents and integration tests
+        registry.addEndpoint("/ws/stomp")
+                .setAllowedOriginPatterns(origins)
+                .addInterceptors(authInterceptor);
     }
 
     // === Raw WebSocket endpoint for Agent connections ===

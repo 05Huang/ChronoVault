@@ -67,8 +67,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/refresh").permitAll()
-                        // WebSocket: only permit public events and topics, not all /ws/** paths
-                        .requestMatchers("/ws/events", "/ws/topics/**").permitAll()
+                        // WebSocket: SockJS transport negotiation uses sub-paths like
+                        // /ws/events/000/abc123/xhr, so we must permit /ws/events/**
+                        // /ws/stomp is a raw WebSocket STOMP endpoint (no SockJS)
+                        // Actual auth is enforced by WebSocketAuthInterceptor at handshake level
+                        .requestMatchers("/ws/events/**", "/ws/topics/**", "/ws/stomp").permitAll()
                         .requestMatchers("/ws/**").authenticated()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/actuator/**").authenticated()

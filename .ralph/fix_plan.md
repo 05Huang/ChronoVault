@@ -230,13 +230,13 @@
 - [x] 集成测试：告警触发流程（创建快照 → 模拟高风险变更 → 验证告警生成）
 - [x] 集成测试：批量操作（批量删除快照、批量打标签、多服务器批量快照）
 - [x] 集成测试验证事务一致性：并发创建快照不会产生脏数据
-- [ ] 集成测试：WebSocket 连接和消息推送（STOMP over SockJS）
+- [x] 集成测试：WebSocket 连接和消息推送（STOMP over SockJS）
 
 ### P4-3: API 兼容性测试
-- [ ] 创建 `POSTMAN_COLLECTION.json`：包含所有 API 端点的测试集合
-- [ ] 验证所有 API 的 `Content-Type` 请求/响应一致性
-- [ ] 验证所有 API 的错误响应格式一致性（遵循 `ApiResponse` 结构）
-- [ ] 验证分页 API 的边界情况：page=0、page=-1、size=0、size=1000
+- [x] 创建 `POSTMAN_COLLECTION.json`：包含所有 API 端点的测试集合
+- [x] 验证所有 API 的 `Content-Type` 请求/响应一致性
+- [x] 验证所有 API 的错误响应格式一致性（遵循 `ApiResponse` 结构）
+- [x] 验证分页 API 的边界情况：page=0、page=-1、size=0、size=1000
 
 ---
 

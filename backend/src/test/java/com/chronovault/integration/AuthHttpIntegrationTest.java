@@ -1,18 +1,21 @@
 package com.chronovault.integration;
 
+import com.chronovault.dto.auth.AuthResponse;
 import com.chronovault.dto.auth.LoginRequest;
 import com.chronovault.dto.auth.RefreshTokenRequest;
 import com.chronovault.dto.auth.RegisterRequest;
-import com.chronovault.service.AuthService;
+import com.chronovault.repository.UserRepository;
 import com.chronovault.security.JwtTokenProvider;
+import com.chronovault.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
+
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -23,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests the full HTTP request/response cycle through the Spring MVC stack.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Disabled("Integration tests need ApiResponse wrapper fix in JSON assertions — re-enable after fixing")
 class AuthHttpIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
