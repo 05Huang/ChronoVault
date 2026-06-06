@@ -312,6 +312,47 @@ func Run() {
 	// Start task polling loop (fallback when WebSocket is unavailable)
 	go taskPollingLoop(client, wsClient)
 
+	// Start file watcher for passive state collection (if enabled)
+	if cfg.FileWatcher.Enabled {
+		watcherCfg := scanner.WatcherConfig{
+			Enabled:    cfg.FileWatcher.Enabled,
+			WatchPaths: cfg.FileWatcher.WatchPaths,
+			DebounceMs: cfg.FileWatcher.DebounceMs,
+		}
+		if len(watcherCfg.WatchPaths) == 0 {
+			watcherCfg.WatchPaths = []string{"/etc"}
+		}
+		fw, err := scanner.NewFileWatcher(watcherCfg, func(changedFiles []string) {
+			log.Printf("File watcher triggered: %d files changed, updating state.json configs", len(changedFiles))
+			changedPaths, err := scanner.UpdateStateJsonConfigs(changedFiles)
+			if err != nil {
+				log.Printf("File watcher state update failed: %v", err)
+				// If state.json doesn't exist or can't be parsed, do a full collection
+				state, collectErr := scanner.CollectStateSnapshot()
+				if collectErr != nil {
+					log.Printf("Full state collection also failed: %v", collectErr)
+					return
+				}
+				if saveErr := scanner.SaveStateSnapshot(state); saveErr != nil {
+					log.Printf("Failed to save state snapshot: %v", saveErr)
+				} else {
+					log.Println("Full state snapshot saved after file change")
+				}
+				return
+			}
+			if len(changedPaths) > 0 {
+				log.Printf("State.json configs updated for: %v", changedPaths)
+			}
+		})
+		if err != nil {
+			log.Printf("Warning: failed to start file watcher: %v", err)
+		} else {
+			go fw.Start()
+			// Ensure watcher is stopped on shutdown
+			defer fw.Stop()
+		}
+	}
+
 	// Wait for signal
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

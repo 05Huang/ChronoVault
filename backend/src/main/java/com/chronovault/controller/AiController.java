@@ -3,6 +3,7 @@ package com.chronovault.controller;
 import com.chronovault.dto.ai.*;
 import com.chronovault.exception.GlobalExceptionHandler.ApiResponse;
 import com.chronovault.service.AiService;
+import com.chronovault.service.SmartSnapshotService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ import io.swagger.v3.oas.annotations.Operation;
 public class AiController {
 
     private final AiService aiService;
+    private final SmartSnapshotService smartSnapshotService;
 
     @Operation(summary = "获取 Insights")
     @GetMapping("/insights")
@@ -77,5 +79,12 @@ public class AiController {
     @GetMapping("/anomalies")
     public ResponseEntity<ApiResponse<List<AnomalyDetectionDTO>>> detectAllAnomalies() {
         return ResponseEntity.ok(ApiResponse.success(aiService.detectAllAnomalies()));
+    }
+
+    @Operation(summary = "获取智能快照配置", description = "基于历史变更频率分析，自动推荐检查间隔和变更阈值")
+    @GetMapping("/smart-snapshot/{serverId}")
+    public ResponseEntity<ApiResponse<SmartSnapshotService.SmartSnapshotConfig>> getSmartSnapshotConfig(
+            @PathVariable Long serverId) {
+        return ResponseEntity.ok(ApiResponse.success(smartSnapshotService.analyzeServer(serverId)));
     }
 }

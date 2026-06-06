@@ -217,6 +217,10 @@
           <h3 class="text-[24px] font-semibold">服务关系拓扑图 (Topology)</h3>
           <p class="text-[14px] text-outline">基于服务器和容器的实时拓扑</p>
         </div>
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full" :class="realtimeConnected ? 'bg-green-500 animate-pulse' : 'bg-error'"></span>
+          <span class="text-[11px] text-outline">{{ realtimeConnected ? '实时同步中' : '离线' }}</span>
+        </div>
         <div class="flex gap-4">
           <div class="flex items-center gap-2">
             <span class="w-3 h-3 rounded-full bg-secondary"></span>
@@ -264,14 +268,17 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import * as echarts from 'echarts'
 import { useModalStore } from '@/stores/modal'
+import { useToastStore } from '@/stores/toast'
 import { dashboardApi } from '@/api/dashboard'
 import { aiApi } from '@/api/ai'
 import { serversApi } from '@/api/servers'
 import { formatBytes } from '@/utils/format'
+import { useDashboardRealtime } from '@/composables/useDashboardRealtime'
 import NewBackupModal from '@/components/modals/NewBackupModal.vue'
 import ConfirmModal from '@/components/modals/ConfirmModal.vue'
 
 const modal = useModalStore()
+const toast = useToastStore()
 
 function openNewBackup() {
   modal.open({ component: NewBackupModal, title: '发起新备份任务' })
@@ -333,6 +340,68 @@ const storageSummary = ref<StorageSummary[]>([])
 const activityTrend = ref<ActivityTrend[]>([])
 const aiRecommendations = ref<AiRecommendation[]>([])
 const topologyNodes = ref<Server[]>([])
+
+// ---- Real-time WebSocket updates ----
+const realtimeConnected = ref(false)
+
+const { connected } = useDashboardRealtime({
+  onTaskUpdate(event) {
+    // Update today's backup count when a snapshot task completes
+    if (event.status === 'COMPLETED' && (event.taskType === 'SNAPSHOT' || event.taskType === 'snapshot')) {
+      stats.value = { ...stats.value, todayBackups: (stats.value.todayBackups ?? 0) + 1 }
+      toast.success(`快照任务完成: ${event.message || ''}`)
+      // Refresh activity trend chart
+      refreshActivityTrend()
+    }
+    if (event.status === 'FAILED' && (event.taskType === 'SNAPSHOT' || event.taskType === 'snapshot')) {
+      toast.error(`快照任务失败: ${event.message || ''}`)
+    }
+    if (event.status === 'RUNNING' && (event.taskType === 'SNAPSHOT' || event.taskType === 'snapshot')) {
+      toast.info(`快照任务进行中: ${event.progress ?? 0}%`)
+    }
+  },
+  onEvent(event) {
+    // Add new anomaly/alert to the list in real-time
+    if (event.level === 'WARN' || event.level === 'ERR') {
+      const newAnomaly: Anomaly = {
+        title: event.message || 'Unknown event',
+        severity: event.level === 'ERR' ? 'CRITICAL' : 'WARNING',
+        time: event.createdAt || new Date().toISOString(),
+        description: event.source || '',
+      }
+      anomalies.value = [newAnomaly, ...anomalies.value.slice(0, 9)]
+      if (event.level === 'ERR') {
+        toast.error(event.message || '异常事件')
+      } else {
+        toast.warning(event.message || '警告事件')
+      }
+    }
+    // Refresh stats when any event arrives
+    refreshStats()
+  },
+  onConnect() {
+    realtimeConnected.value = true
+  },
+  onDisconnect() {
+    realtimeConnected.value = false
+  },
+})
+
+async function refreshStats() {
+  try {
+    const statsRes = await dashboardApi.getStats()
+    stats.value = statsRes || {} as DashboardStats
+  } catch { /* silent */ }
+}
+
+async function refreshActivityTrend() {
+  try {
+    const rangeParam = timeRange.value === '24H' ? '24h' : '7d'
+    const trendRes = await dashboardApi.getActivityTrend(rangeParam)
+    activityTrend.value = trendRes || []
+    updateChart()
+  } catch { /* silent */ }
+}
 
 const storageUsedFormatted = computed(() => {
   const s = storageSummary.value

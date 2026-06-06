@@ -352,20 +352,20 @@
 ## 🏁 P8 — 超越竞品的差异化特性
 
 ### P8-1: Serverless 状态采集
-- [ ] Agent 添加被动采集模式：文件变更时自动触发 state.json 增量更新（inotify/fswatch 监控 /etc 目录）
+- [x] Agent 添加被动采集模式：文件变更时自动触发 state.json 增量更新（inotify/fswatch 监控 /etc 目录）
 - [x] Backend 添加"实时状态"API：不创建快照，仅获取服务器当前实时状态（用于与最近快照对比）
 
 ### P8-2: 可视化增强
 - [x] 创建"快照影响分析"视图：展示某个快照影响了文件、服务、配置（后端API已实现）
 - [x] 创建"服务器健康趋势"图表：过去 7/30 天的快照频率、告警趋势、变更频率
 - [x] 创建"变更热力图"：展示一周内每天的变更数量（类似 GitHub 贡献图）
-- [ ] Dashboard 添加实时数据流：WebSocket 推送新的快照状态、告警、任务进度
+- [x] Dashboard 添加实时数据流：WebSocket 推送新的快照状态、告警、任务进度
 
 ### P8-3: 自动化运维
-- [ ] 创建"智能快照"功能：基于变更频率自动调整快照频率（高频变更期间增加快照，空闲期减少快照）
-- [ ] 创建"配置漂移自动修复"：检测到非授权配置变更后，自动恢复到上一个已知良好状态
-- [ ] 创建"快照合规检查"：根据 RetentionPolicy 自动清理不合规的快照，生成合规报告
-- [ ] 创建"一键环境复制"：从生产服务器快照自动创建测试/预发环境的完整副本
+- [x] 创建"智能快照"功能：基于变更频率自动调整快照频率（高频变更期间增加快照，空闲期减少快照）
+- [x] 创建"配置漂移自动修复"：检测到非授权配置变更后，自动恢复到上一个已知良好状态
+- [x] 创建"快照合规检查"：根据 RetentionPolicy 自动清理不合规的快照，生成合规报告
+- [x] 创建"一键环境复制"：从生产服务器快照自动创建测试/预发环境的完整副本
 
 ### P8-4: 多租户与团队协作
 - [x] 验证现有 RBAC（OWNER/ADMIN/MEMBER/VIEWER）是否在所有 API 端点上正确执行
@@ -376,7 +376,7 @@
 ### P8-5: 生态系统
 - [x] 创建 REST API v1 完整文档和 Postman Collection，方便第三方集成
 - [x] 创建 CLI 工具（Go）：`chronovault-cli`，支持从命令行管理快照（`cv snapshot list/create/rollback/diff`）
-- [ ] 创建 Terraform Provider：通过 IaC 方式管理 ChronoVault 的服务器注册和快照策略
+- [x] 创建 Terraform Provider：通过 IaC 方式管理 ChronoVault 的服务器注册和快照策略
 - [x] 创建 Webhook 集成模板：Slack、DingTalk、Feishu、企业微信的消息格式模板
 - [x] 支持 Prometheus metrics 端点：让现有监控栈（Prometheus + Grafana）可直接对接
 

@@ -11,6 +11,7 @@ import com.chronovault.service.AgentInstallService;
 import com.chronovault.service.AutoSnapshotService;
 import com.chronovault.service.ServerCloneService;
 import com.chronovault.service.ServerHealthMonitor;
+import com.chronovault.service.EnvironmentReplicationService;
 import com.chronovault.service.ServerService;
 import com.chronovault.service.UserService;
 import jakarta.validation.Valid;
@@ -37,6 +38,7 @@ public class ServerController {
     private final ServerCloneService cloneService;
     private final AutoSnapshotService autoSnapshotService;
     private final UserService userService;
+    private final EnvironmentReplicationService envReplicationService;
 
     @GetMapping
     @Operation(summary = "获取服务器列表", description = "返回当前用户可见的所有服务器")
@@ -259,5 +261,26 @@ public class ServerController {
     @Operation(summary = "获取实时状态", description = "实时采集服务器当前状态（不创建快照），用于与最近快照对比。返回 state.json 格式数据。")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getLiveState(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(serverService.getLiveState(id)));
+    }
+
+    @PostMapping("/{id}/replicate")
+    @Operation(summary = "一键环境复制", description = "从指定快照（或最新快照）自动创建测试/预发环境的完整副本")
+    public ResponseEntity<ApiResponse<String>> replicateEnvironment(
+            @PathVariable Long id,
+            @Valid @RequestBody EnvironmentReplicationService.ReplicateEnvironmentRequest request,
+            Authentication auth) {
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
+        // Override sourceServerId from path variable
+        var adjustedRequest = new EnvironmentReplicationService.ReplicateEnvironmentRequest(
+                id, request.snapshotId(), request.targetIp(), request.targetName(),
+                request.environment(), request.targetSshPort(), request.targetSshUsername());
+        envReplicationService.replicateEnvironment(adjustedRequest, userId);
+        return ResponseEntity.ok(ApiResponse.success("环境复制任务已提交，正在后台执行"));
+    }
+
+    @GetMapping("/{id}/replicate/snapshots")
+    @Operation(summary = "获取可复制的快照列表", description = "返回指定服务器可用的快照列表，用于选择要复制的快照")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getReplicableSnapshots(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(envReplicationService.getAvailableSnapshots(id)));
     }
 }

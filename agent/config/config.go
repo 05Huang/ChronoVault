@@ -29,6 +29,18 @@ type Config struct {
 	// CustomConfigPaths: additional file paths to track (hash + size) in state.json configs.
 	// These are added to the built-in list of /etc config files.
 	CustomConfigPaths []string `yaml:"custom_config_paths"`
+
+	// FileWatcher: passive state collection via inotify/fswatch.
+	// When enabled, watches specified directories for file changes and triggers
+	// incremental state.json config hash updates (without full re-collection).
+	FileWatcher WatcherConfig `yaml:"file_watcher"`
+}
+
+// WatcherConfig holds configuration for the passive file watcher.
+type WatcherConfig struct {
+	Enabled    bool     `yaml:"enabled"`
+	WatchPaths []string `yaml:"watch_paths"`
+	DebounceMs int      `yaml:"debounce_ms"`
 }
 
 // CustomCollector defines an external command that collects custom state data.

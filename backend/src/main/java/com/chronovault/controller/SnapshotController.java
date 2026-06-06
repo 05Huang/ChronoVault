@@ -31,6 +31,8 @@ import com.chronovault.service.SnapshotService;
 import com.chronovault.service.SnapshotTagService;
 import com.chronovault.service.BatchSnapshotService;
 import com.chronovault.service.StorageReplicationService;
+import com.chronovault.service.DriftAutoRepairService;
+import com.chronovault.service.SnapshotComplianceService;
 import com.chronovault.service.UserService;
 import com.chronovault.task.AsyncTaskManager;
 import com.chronovault.task.TaskType;
@@ -68,6 +70,8 @@ public class SnapshotController {
     private final StorageReplicationService replicationService;
     private final BatchSnapshotService batchService;
     private final AsyncTaskManager taskManager;
+    private final DriftAutoRepairService driftAutoRepairService;
+    private final SnapshotComplianceService snapshotComplianceService;
 
     /** In-memory store for async export results, keyed by task ID. TTL is managed by cleanup. */
     private final ConcurrentHashMap<Long, ExportResult> exportResults = new ConcurrentHashMap<>();
@@ -442,5 +446,36 @@ public class SnapshotController {
     @Operation(summary = "快照影响分析", description = "分析指定快照影响了哪些文件、服务和配置，返回变更摘要")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getSnapshotImpact(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(snapshotService.getSnapshotImpact(id)));
+    }
+
+    @PostMapping("/drift-repair/{serverId}")
+    @Operation(summary = "配置漂移自动修复", description = "检测到非授权配置变更后，自动恢复到上一个已知良好状态")
+    public ResponseEntity<ApiResponse<Boolean>> executeDriftRepair(
+            @PathVariable Long serverId,
+            @RequestParam Long snapshotId,
+            Authentication auth) {
+        Long userId = userService.getByEmail(SecurityUtils.getCurrentUsername(auth)).getId();
+        boolean success = driftAutoRepairService.executeAutoRepair(serverId, snapshotId, userId);
+        return ResponseEntity.ok(ApiResponse.success(success));
+    }
+
+    @GetMapping("/compliance")
+    @Operation(summary = "生成快照合规报告", description = "检查所有服务器的快照是否符合 RetentionPolicy，生成合规报告")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getComplianceReport() {
+        return ResponseEntity.ok(ApiResponse.success(snapshotComplianceService.generateComplianceReport()));
+    }
+
+    @GetMapping("/compliance/{serverId}")
+    @Operation(summary = "检查单台服务器快照合规性", description = "根据 RetentionPolicy 检查指定服务器的快照合规状态")
+    public ResponseEntity<ApiResponse<SnapshotComplianceService.ComplianceReport>> checkServerCompliance(
+            @PathVariable Long serverId) {
+        return ResponseEntity.ok(ApiResponse.success(snapshotComplianceService.checkServerCompliance(serverId)));
+    }
+
+    @PostMapping("/compliance/clean")
+    @Operation(summary = "执行合规清理", description = "自动清理不合规的快照，返回清理数量")
+    public ResponseEntity<ApiResponse<Integer>> executeComplianceClean() {
+        int cleaned = snapshotComplianceService.autoCleanNonCompliant();
+        return ResponseEntity.ok(ApiResponse.success(cleaned));
     }
 }

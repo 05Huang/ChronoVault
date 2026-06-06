@@ -33,6 +33,7 @@ public class AutoSnapshotService {
     private final SshConnectionManager sshManager;
     private final ResticClient resticClient;
     private final DistributedLock distributedLock;
+    private final SmartSnapshotService smartSnapshotService;
 
     @Value("${chronovault.restic-password}")
     private String resticPassword;
@@ -81,9 +82,16 @@ public class AutoSnapshotService {
     }
 
     private void checkServerForDrift(Server server) {
-        // Check cooldown: skip if last auto-snapshot was less than 1 hour ago
+        // Use SmartSnapshotService to get adaptive parameters based on change history
+        SmartSnapshotService.SmartSnapshotConfig smartConfig = smartSnapshotService.analyzeServer(server.getId());
+        int adaptiveCooldownMinutes = smartConfig.adaptiveCooldownMinutes();
+        int adaptiveThreshold = smartConfig.adaptiveDriftThreshold();
+
+        // Check adaptive cooldown: skip if last auto-snapshot was within the adaptive cooldown window
         if (server.getLastAutoSnapshotAt() != null
-                && server.getLastAutoSnapshotAt().plusHours(COOLDOWN_HOURS).isAfter(LocalDateTime.now())) {
+                && server.getLastAutoSnapshotAt().plusMinutes(adaptiveCooldownMinutes).isAfter(LocalDateTime.now())) {
+            log.debug("[AUTO_SNAPSHOT] [server={}] In adaptive cooldown ({}min), skipping",
+                    server.getId(), adaptiveCooldownMinutes);
             return;
         }
 
@@ -101,9 +109,9 @@ public class AutoSnapshotService {
 
         // Detect drift: compare current server state vs latest snapshot
         int changes = detectDrift(server, latestSnapshot);
-        if (changes >= DRIFT_THRESHOLD) {
-            log.info("[AUTO_SNAPSHOT] [server={}] {} changes detected (threshold: {}), creating auto-snapshot",
-                    server.getId(), changes, DRIFT_THRESHOLD);
+        if (changes >= adaptiveThreshold) {
+            log.info("[SMART_SNAPSHOT] [server={}] {} changes detected (adaptive threshold: {}, velocity: {}), creating auto-snapshot",
+                    server.getId(), changes, adaptiveThreshold, smartConfig.velocityLevel());
             createAutoSnapshot(server, changes);
         }
     }
