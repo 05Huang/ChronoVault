@@ -11,7 +11,8 @@ CLAUDE_TIMEOUT_MINUTES=60
 CLAUDE_OUTPUT_FORMAT="json"
 
 # Tool permissions — ChronoVault needs these
-ALLOWED_TOOLS="Write,Read,Edit,Bash(*),PowerShell(*)"
+# Note: PowerShell is a standalone Claude CLI tool; use bare name without (*)
+ALLOWED_TOOLS="Write,Read,Edit,Bash(*),PowerShell"
 
 # Session management
 SESSION_CONTINUITY=true
