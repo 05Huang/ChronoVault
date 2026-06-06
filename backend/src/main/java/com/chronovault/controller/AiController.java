@@ -60,4 +60,22 @@ public class AiController {
     public ResponseEntity<ApiResponse<ServerAnalysisDTO>> analyzeServer(@PathVariable Long serverId) {
         return ResponseEntity.ok(ApiResponse.success(aiService.analyzeServer(serverId)));
     }
+
+    @Operation(summary = "获取备份策略推荐", description = "基于历史快照模式，自动推荐备份频率、保留策略和路径选择")
+    @GetMapping("/backup-recommendations")
+    public ResponseEntity<ApiResponse<BackupRecommendationDTO>> getBackupRecommendations() {
+        return ResponseEntity.ok(ApiResponse.success(aiService.getBackupRecommendations()));
+    }
+
+    @Operation(summary = "检测单台服务器异常", description = "对比当前状态和历史基线，自动标记异常端口、异常进程、配置变更等")
+    @GetMapping("/anomalies/{serverId}")
+    public ResponseEntity<ApiResponse<AnomalyDetectionDTO>> detectAnomalies(@PathVariable Long serverId) {
+        return ResponseEntity.ok(ApiResponse.success(aiService.detectAnomalies(serverId)));
+    }
+
+    @Operation(summary = "检测所有服务器异常", description = "对比所有服务器当前状态和历史基线，自动标记异常")
+    @GetMapping("/anomalies")
+    public ResponseEntity<ApiResponse<List<AnomalyDetectionDTO>>> detectAllAnomalies() {
+        return ResponseEntity.ok(ApiResponse.success(aiService.detectAllAnomalies()));
+    }
 }

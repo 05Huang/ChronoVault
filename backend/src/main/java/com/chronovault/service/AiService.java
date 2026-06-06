@@ -2,6 +2,9 @@ package com.chronovault.service;
 
 import com.chronovault.ai.AiAnalysisService;
 import com.chronovault.ai.AiClient;
+import com.chronovault.ai.AnomalyDetectionEngine;
+import com.chronovault.ai.BackupRecommendationEngine;
+import com.chronovault.dto.ai.BackupRecommendationDTO;
 import com.chronovault.dto.ai.*;
 import com.chronovault.entity.*;
 import com.chronovault.exception.ResourceNotFoundException;
@@ -32,6 +35,8 @@ public class AiService {
     private final StorageTargetRepository storageTargetRepository;
     private final AiClient aiClient;
     private final SshConnectionManager sshManager;
+    private final BackupRecommendationEngine backupRecommendationEngine;
+    private final AnomalyDetectionEngine anomalyDetectionEngine;
 
     // In-memory cache for AI analysis results (TTL: 15 minutes)
     private final ConcurrentHashMap<String, CacheEntry> analysisCache = new ConcurrentHashMap<>();
@@ -209,6 +214,21 @@ public class AiService {
 
     public Map<String, Object> getStoragePrediction() {
         return aiAnalysisService.getStoragePrediction();
+    }
+
+    @Transactional(readOnly = true)
+    public BackupRecommendationDTO getBackupRecommendations() {
+        return backupRecommendationEngine.generateRecommendations();
+    }
+
+    @Transactional(readOnly = true)
+    public AnomalyDetectionDTO detectAnomalies(Long serverId) {
+        return anomalyDetectionEngine.detectAnomalies(serverId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AnomalyDetectionDTO> detectAllAnomalies() {
+        return anomalyDetectionEngine.detectAllAnomalies();
     }
 
     @Transactional
