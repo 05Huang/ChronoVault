@@ -1,18 +1,13 @@
 <div align="center">
-
 <img src="logo.webp" alt="ChronoVault Logo" width="400">
 
-# ChronoVault
 
-**Git for Server State**
-
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](#testing)
 [![Tests](https://img.shields.io/badge/tests-697%20passing-brightgreen)](#testing)
 [![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen)](#testing)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0--alpha-orange)](CHANGELOG.md)
 
-[English](README_EN.md) | 中文文档 | [快速开始](#-快速开始) | [加入社区](#-社区与支持)
+[English](README_EN.md) | 中文文档
 
 </div>
 
@@ -20,7 +15,7 @@
 
 ## 什么是 ChronoVault？
 
-ChronoVault 是一款受 Git 启发（Git-inspired）的服务器状态版本控制平台。传统备份工具只备份文件，而 ChronoVault 备份的是**整个系统状态**——包括已安装的包、运行的服务、监听的端口、Docker 容器、配置文件哈希、定时任务等。
+ChronoVault 是一款受 Git 启发（Git-inspired）的服务器状态版本控制平台。传统备份工具只备份文件，而 ChronoVault 备份的是**整个系统状态**——包括已安装的包、运行的服务、监听的端口、Docker 容器、配置文件哈希、定时任务等。该项目由 Java 17 + Spring Boot 3.2.5  构建后端、Vue 3.5 + TypeScript 构建前端、Go 1.22 构建轻量级 Agent，采用 PostgreSQL 15 + Redis 7 存储，通过 Restic CLI  执行备份引擎，实现了真正的状态感知快照（不仅备份文件，还收集 packages、services、ports、Docker 容器、配置文件哈希、crontab 等系统状态）。核心功能包括 Git 风格的  Snapshot/Branch/Diff/Revert/Bisect/Clone/Cherry-pick/Stash/Blame 操作、智能状态对比引擎（清晰展示包升级、服务重启、端口变化等）、选择性回滚（可单独回滚特定配置文件或包而非全量恢  复）、多服务器集中管理、定时备份与保留策略、多存储后端支持（Local/S3/OSS/WebDAV）、Webhook 通知（Slack/DingTalk）、AI 驱动分析、RBAC 权限控制、审计日志和 WebSocket  实时更新。
 
 **就像 Git 管理代码一样，ChronoVault 管理服务器状态。**
 
@@ -38,9 +33,6 @@ ChronoVault 是一款受 Git 启发（Git-inspired）的服务器状态版本控
 - 缺乏 Git 风格的分支管理和版本对比
 - 多服务器管理复杂，缺乏统一视图
 
-</td>
-<td width="50%">
-
 ### ✨ ChronoVault 的解决方案
 
 - **状态感知快照**：捕获完整的系统状态，不只是文件
@@ -48,10 +40,6 @@ ChronoVault 是一款受 Git 启发（Git-inspired）的服务器状态版本控
 - **选择性回滚**：单独回滚某个配置文件或包，无需全量恢复
 - **Git-like 操作**：Branch、Diff、Bisect、Cherry-pick，开发者熟悉的工作流
 - **集中化管理**：一个仪表板管理所有服务器
-
-</td>
-</tr>
-</table>
 
 ## 功能对比
 
